@@ -9,7 +9,8 @@ from lightning import seed_everything
 def generate(prompt='', num_samples=10, steps=20, do_sample=True, top_k=200, temperature = 0.8):
     device = torch.device('cuda')
     # model = LLAMA.from_pretrained('llama')
-    model = LLAMA(LLAMA_CONFIG_DICT["7B"])
+    with device:
+        model = LLAMA(LLAMA_CONFIG_DICT["7B"])
     # tokenizer = LlamaTokenizer.from_pretrained(tokenizer_path)
 
     model.to(device)
@@ -28,8 +29,10 @@ def generate(prompt='', num_samples=10, steps=20, do_sample=True, top_k=200, tem
     with torch.no_grad():
         for k in range(num_samples):
             y = model.generate(x, steps, temperature=temperature, top_k=top_k)
-            print(decode(y[0].tolist()))
-            print('---------------')
+
+            # todo: decode
+            # print(decode(y[0].tolist()))
+           
 
 
 if __name__ == '__main__':

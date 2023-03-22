@@ -214,8 +214,8 @@ class Transformer(nn.Module):
         # Note
         # cos = self.cos_cached[:, start_pos : start_pos + seq_len].to(h.dtype)
         # sin = self.sin_cached[:, start_pos : start_pos + seq_len].to(h.dtype)
-        cos = self.cos_cached[:, :seq_len].to(h.dtype)
-        sin = self.sin_cached[:, :seq_len].to(h.dtype)
+        cos = self.cos_cached[:, :seq_len].type(h.dtype)
+        sin = self.sin_cached[:, :seq_len].type(h.dtype)
 
         mask = torch.full((1, 1, seq_len, seq_len), float("-inf"), device=tokens.device)
         mask = torch.triu(mask, diagonal=1).type_as(h)
