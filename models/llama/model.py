@@ -1,4 +1,4 @@
-# TODO: add license and authorship
+# TODO: replace with Apache licensed version
 # Taken from minimal-lama repo
 
 from typing import Optional, Tuple
