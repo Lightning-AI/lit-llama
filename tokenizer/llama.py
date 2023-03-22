@@ -1,6 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# This software may be used and distributed according to the terms of the GNU General Public License version 3.
-
+# TODO: replace with Apache licensed version
 from sentencepiece import SentencePieceProcessor
 from logging import getLogger
 from typing import List
