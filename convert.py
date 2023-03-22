@@ -47,8 +47,22 @@ NUM_SHARDS = {
     "30B": 4,
     "65B": 8,
 }
-META_KEY_TO_DIM = {"w1": 0, "w2": -1, "w3": 0, "wo": -1, "wq": 0, "wk": 0, "wv": 0, "output": 0, "tok_embeddings": -1,
-                  "ffn_norm": None, "attention_norm": None, "norm": None, "rope": None}
+META_KEY_TO_DIM = {
+    "w1": 0,
+    "w2": -1,
+    "w3": 0,
+    "wo": -1,
+    "wq": 0,
+    "wk": 0,
+    "wv": 0,
+    "output": 0,
+    "tok_embeddings": -1,
+    "ffn_norm": None,
+    "attention_norm": None,
+    "norm": None,
+    "rope": None,
+}
+
 
 def write_json(text, path):
     with open(path, "w") as f:
@@ -68,7 +82,7 @@ def write_model(model_path, input_base_path, model_size):
     dims_per_head = dim // n_heads
     base = 10000.0
     inv_freq = 1.0 / (
-            base ** (torch.arange(0, dims_per_head, 2).float() / dims_per_head)
+        base ** (torch.arange(0, dims_per_head, 2).float() / dims_per_head)
     )
 
     # permute for sliced rotary
@@ -299,6 +313,7 @@ def convert_llama_fb(args):
     from tqdm import tqdm
     from models.llama import ModelArgs, Tokenizer
     from tokenizer.llama import Tokenizer
+
     output_dir = os.path.join(args.output_dir, args.model_size)
     os.makedirs(output_dir, exist_ok=True)
 
@@ -308,8 +323,10 @@ def convert_llama_fb(args):
     tokenizer_path = os.path.join(args.output_dir, "tokenizer.model")
 
     cks = sorted(Path(args.ckpt_dir).glob("*.pth"))
-    params = hiq.read_file(Path(args.ckpt_dir) / "params.json",as_json=True)
-    model_args = ModelArgs(max_seq_len=2048, max_batch_size=args.max_batch_size, **params)
+    params = hiq.read_file(Path(args.ckpt_dir) / "params.json", as_json=True)
+    model_args = ModelArgs(
+        max_seq_len=2048, max_batch_size=args.max_batch_size, **params
+    )
     tokenizer = Tokenizer(model_path=tokenizer_path)
     model_args.vocab_size = tokenizer.n_words
 
@@ -329,11 +346,13 @@ def convert_llama_fb(args):
                 dt[nm] = ck[nm]
             elif META_KEY_TO_DIM[short_name] == 0:
                 size = ck[nm].size(0)
-                dt[nm][size * i: size * (i + 1), :] = ck[nm]
+                dt[nm][size * i : size * (i + 1), :] = ck[nm]
             elif META_KEY_TO_DIM[short_name] == -1:
                 size = ck[nm].size(-1)
-                dt[nm][:, size * i: size * (i + 1)] = ck[nm]
-    hiq.write_file(os.path.join(output_dir, "params.json"), json.dumps(params, indent=4))
+                dt[nm][:, size * i : size * (i + 1)] = ck[nm]
+    hiq.write_file(
+        os.path.join(output_dir, "params.json"), json.dumps(params, indent=4)
+    )
     torch.save(dt, os.path.join(output_dir, "state_dict.pt"))
 
 
@@ -350,6 +369,7 @@ def convert_llama_hf(args):
         input_tokenizer_path=args.tokenizer_path,
     )
 
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ckpt_dir", type=str, default="/llama_data/7B")
@@ -364,12 +384,9 @@ def get_args():
         "--output_dir",
         help="Location to write HF model and tokenizer",
     )
-    parser.add_argument(
-        "--max_batch_size", type=int, default=2
-    )
+    parser.add_argument("--max_batch_size", type=int, default=2)
     parser.add_argument("--to", choices={"fb", "hf"})
     return parser.parse_args()
-    
 
 
 if __name__ == "__main__":
