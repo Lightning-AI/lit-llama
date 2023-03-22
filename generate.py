@@ -1,8 +1,8 @@
 # adapted from karpathy/minGPT
 
 import torch
-from models.llama import Transformer as LLAMA, LLAMA_CONFIG_DICT
-from tokenizer.llama import Tokenizer
+from models.llama import LLAMA, Tokenizer
+from models.llama.model import LLAMA_CONFIG_DICT
 from lightning import seed_everything
 
 
@@ -21,15 +21,12 @@ def generate(
     model.to(device)
     model.eval()
 
-    # x = torch.zeros(len(prompt), dtype=torch.int, device=device)
-    x = tokenizer.encode(prompt, bos=True, eos=False)
-    x = torch.tensor(x, dtype=torch.int, device=device)
-    x = x.expand(num_samples, -1)
+    encoded_prompt = tokenizer.encode(prompt, bos=True, eos=False).to(device)
+    encoded_prompt = encoded_prompt[None, :]
 
-    with torch.no_grad():
-        for k in range(num_samples):
-            y = model.generate(x, steps, temperature=temperature, top_k=top_k)
-            print(tokenizer.decode(y[0].tolist()))
+    for k in range(num_samples):
+        y = model.generate(encoded_prompt, steps, temperature=temperature, top_k=top_k)
+        print(tokenizer.decode(y[0]))
 
 
 if __name__ == "__main__":
