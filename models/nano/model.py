@@ -21,9 +21,8 @@ def build_rope_cache(seq_len, n_elem, dtype, device, base=10000):
     # Create position indexes `[0, 1, ..., seq_len - 1]`
     seq_idx = torch.arange(seq_len, device=device, dtype=dtype)
 
-    # TODO: express without einsum?
     # Calculate the product of position index and $\theta_i$
-    idx_theta = torch.einsum('n,d->nd', seq_idx, theta)
+    idx_theta = torch.outer(seq_idx, theta)
 
     # Concatenate so that for row $m$ we have
     # $[m \theta_0, m \theta_1, ..., m \theta_{\frac{d}{2}}, m \theta_0, m \theta_1, ..., m \theta_{\frac{d}{2}}]$
