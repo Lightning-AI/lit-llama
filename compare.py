@@ -110,7 +110,6 @@ def compare_to_llama():
     batch_size = 3
 
     token_sample = torch.randint(0, llama_config.vocab_size, size=(batch_size, llama_config.dim), dtype=torch.int64)
-    embd_sample = torch.rand(size=(batch_size, llama_config.dim, llama_config.vocab_size), dtype=torch.float32)
 
     nano_model = nano.LLaMA(nano_config)
     llama_model = llama.LLaMA(llama_config)
