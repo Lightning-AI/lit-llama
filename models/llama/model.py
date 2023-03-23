@@ -234,9 +234,9 @@ class LLaMA(nn.Module):
         idx = empty
 
         # generate max_new_tokens tokens
-        for i in range(T, T_new):
+        for t in range(T, T_new):
             # ignore the not-filled-yet tokens
-            idx_cond = idx[:, :i]
+            idx_cond = idx[:, :t]
             # if the sequence context is growing too long we must crop it at max_seq_length
             idx_cond = idx_cond if T <= self.params.max_seq_length else idx_cond[:, -self.params.max_seq_length:]
 
@@ -251,6 +251,6 @@ class LLaMA(nn.Module):
 
             probs = F.softmax(logits, dim=-1)
             idx_next = torch.multinomial(probs, num_samples=1)
-            idx[:, i] = idx_next
+            idx[:, t] = idx_next
 
         return idx
