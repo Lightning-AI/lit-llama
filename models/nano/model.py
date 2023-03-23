@@ -1,10 +1,6 @@
 """
-Full definition of a GPT Language Model, all of it in this single file.
-References:
-1) the official GPT-2 TensorFlow implementation released by OpenAI:
-https://github.com/openai/gpt-2/blob/master/src/model.py
-2) huggingface/transformers PyTorch implementation:
-https://github.com/huggingface/transformers/blob/main/src/transformers/models/gpt2/modeling_gpt2.py
+Full definition of a LLaMA Language Model, all of it in this single file.
+Based on the nanoGPT implementation: https://github.com/karpathy/nanoGPT.
 """
 
 import math
@@ -57,6 +53,7 @@ def apply_rope(x: torch.Tensor, rope_cache):
 # Derived from https://github.com/bzhangGo/rmsnorm/blob/master/rmsnorm_torch.py
 # BSD 3-Clause License
 class RMSNorm(nn.Module):
+
     def __init__(self, size, dim=-1, eps=1e-8):
         super().__init__()
         self.scale = nn.Parameter(torch.ones(size))
@@ -237,8 +234,6 @@ class LLaMA(nn.Module):
             logits = self.lm_head(x)
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
         else:
-            # inference-time mini-optimization: only forward the lm_head on the very last position
-            # logits = self.lm_head(x[:, [-1], :]) # note: using list [-1] to preserve the time dim
             logits = self.lm_head(x)
             loss = None
 
