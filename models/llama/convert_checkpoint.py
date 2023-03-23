@@ -11,28 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import argparse
 import json
 import os
 import shutil
 
 import torch
-import hiq
 
 """
 Sample usage:
 
-    ```
-    python -m llama.convert_llama --ckpt_dir $CKPT_DIR --tokenizer_path $TOKENIZER_PATH \
-        --model 7B --output_dir converted_meta --to fb --max_batch_size 4
-    ```
-
-Thereafter, models can be loaded via:
-
-    ```
-    tokenizer = llama.hf.LLaMATokenizer.from_pretrained("/output/path/tokenizer/")
-    model = llama.hf.LLaMAForCausalLM.from_pretrained("/output/path/llama-7b/")
-    ```
+```bash
+python -m models.llama.convert_checkpoint -h
+```
 """
 
 INTERMEDIATE_SIZE_MAP = {
@@ -73,7 +63,9 @@ def write_model(model_path, input_base_path, model_size):
     assert model_size in INTERMEDIATE_SIZE_MAP
     os.makedirs(model_path, exist_ok=True)
 
-    params = hiq.read_file(os.path.join(input_base_path, "params.json"), as_json=True)
+    with open(os.path.join(input_base_path, "params.json")) as f:
+        params = json.load(f)
+    print("Model size:", model_size, "Params:", params)
     num_shards = NUM_SHARDS[model_size]
     n_layers = params["n_layers"]
     n_heads = params["n_heads"]
@@ -303,97 +295,25 @@ def write_tokenizer(tokenizer_path, input_tokenizer_path):
         },
         os.path.join(tokenizer_path, "tokenizer_config.json"),
     )
-    shutil.copyfile(
-        input_tokenizer_path, os.path.join(tokenizer_path, "tokenizer.model")
-    )
+    shutil.copyfile(input_tokenizer_path, os.path.join(tokenizer_path, "tokenizer.model"))
 
 
-def convert_llama_fb(args):
-    from pathlib import Path
-    from tqdm import tqdm
-    from models.llama import ModelArgs, Tokenizer
-    from tokenizer.llama import Tokenizer
-
-    output_dir = os.path.join(args.output_dir, args.model_size)
-    os.makedirs(output_dir, exist_ok=True)
-
-    if "tokenizer.model" not in os.listdir(output_dir):
-        shutil.copy(args.tokenizer_path, args.output_dir)
-
-    tokenizer_path = os.path.join(args.output_dir, "tokenizer.model")
-
-    cks = sorted(Path(args.ckpt_dir).glob("*.pth"))
-    params = hiq.read_file(Path(args.ckpt_dir) / "params.json", as_json=True)
-    model_args = ModelArgs(
-        max_seq_len=2048, max_batch_size=args.max_batch_size, **params
-    )
-    tokenizer = Tokenizer(model_path=tokenizer_path)
-    model_args.vocab_size = tokenizer.n_words
-
-    torch.set_default_tensor_type(torch.HalfTensor)
-    print(f"⌛️ Loading model...Thank you for your patience...")
-    model = Transformer(model_args)
-    torch.set_default_tensor_type(torch.FloatTensor)
-    dt = {}
-    print(f"⌛️ Converting model...Thank you for your patience...")
-    for i, ckpt in tqdm(enumerate(cks), total=len(cks)):
-        ck = torch.load(ckpt, map_location="cpu")
-        for nm, pm in model.named_parameters():
-            if nm not in dt:
-                dt[nm] = torch.zeros_like(pm, device="cpu")
-            short_name = nm.split(".")[-2]
-            if META_KEY_TO_DIM[short_name] is None and i == 0:
-                dt[nm] = ck[nm]
-            elif META_KEY_TO_DIM[short_name] == 0:
-                size = ck[nm].size(0)
-                dt[nm][size * i : size * (i + 1), :] = ck[nm]
-            elif META_KEY_TO_DIM[short_name] == -1:
-                size = ck[nm].size(-1)
-                dt[nm][:, size * i : size * (i + 1)] = ck[nm]
-    hiq.write_file(
-        os.path.join(output_dir, "params.json"), json.dumps(params, indent=4)
-    )
-    torch.save(dt, os.path.join(output_dir, "state_dict.pt"))
-
-
-def convert_llama_hf(args):
+def convert_llama_hf(
+    *,
+    output_dir: str,
+    ckpt_dir: str = "/srv/data/checkpoints/llama/raw",
+    tokenizer_path: str = "/srv/data/checkpoints/llama/raw/tokenizer.model",
+    model_size: str = "7B",
+):
     write_model(
-        model_path=os.path.join(
-            args.output_dir, "llama-{}".format(args.model_size).lower()
-        ),
-        input_base_path=args.ckpt_dir,
-        model_size=args.model_size,
+        model_path=os.path.join(output_dir, "llama-{}".format(model_size).lower()),
+        input_base_path=os.path.join(ckpt_dir, model_size),
+        model_size=model_size,
     )
-    write_tokenizer(
-        tokenizer_path=os.path.join(args.output_dir, "tokenizer"),
-        input_tokenizer_path=args.tokenizer_path,
-    )
-
-
-def get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--ckpt_dir", type=str, default="/llama_data/7B")
-    parser.add_argument(
-        "--tokenizer_path", type=str, default="/llama_data/tokenizer.model"
-    )
-    parser.add_argument(
-        "--model_size",
-        choices=NUM_SHARDS.keys(),
-    )
-    parser.add_argument(
-        "--output_dir",
-        help="Location to write HF model and tokenizer",
-    )
-    parser.add_argument("--max_batch_size", type=int, default=2)
-    parser.add_argument("--to", choices={"fb", "hf"})
-    return parser.parse_args()
+    write_tokenizer(tokenizer_path=os.path.join(output_dir, "tokenizer"), input_tokenizer_path=tokenizer_path)
 
 
 if __name__ == "__main__":
-    args = get_args()
-    if args.to == "hf":
-        convert_llama_hf(args)
-    elif args.to == "fb":
-        convert_llama_fb(args)
-    else:
-        print(f"wrong argument: {args.to}")
+    from jsonargparse import CLI
+
+    CLI(convert_llama_hf)
