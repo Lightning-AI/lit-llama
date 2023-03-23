@@ -1,7 +1,5 @@
 import torch
 from sentencepiece import SentencePieceProcessor
-from typing import List
-import os
 
 
 class Tokenizer:

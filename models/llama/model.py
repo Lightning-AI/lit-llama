@@ -1,13 +1,13 @@
 # TODO: replace with Apache licensed version
 # Taken from minimal-lama repo
 
-from typing import Optional, Tuple
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass
+from typing import Optional
 
 import torch
-from torch import nn
 import torch.nn.functional as F
+from torch import nn
 
 MULTIPLE_OF = 256
 
