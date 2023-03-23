@@ -226,9 +226,21 @@ class LLaMA(nn.Module):
 
         The implementation of this function is modified from A. Karpathy's nanoGPT.
         """
-        for _ in range(max_new_tokens):
+        # create an empty tensor of the expected final shape and fill in the current tokens
+        B, T = idx.shape
+        T_new = T + max_new_tokens
+        empty = torch.empty(B, T_new, dtype=idx.dtype, device=idx.device)
+        empty[:, :T] = idx
+        idx = empty
+
+        # generate max_new_tokens tokens
+        for t in range(T, T_new):
+            # ignore the not-filled-yet tokens
+            idx_cond = idx[:, :t]
             # if the sequence context is growing too long we must crop it at max_seq_length
-            idx_cond = idx if idx.size(1) <= self.params.max_seq_length else idx[:, -self.params.max_seq_length:]
+            idx_cond = idx_cond if T <= self.params.max_seq_length else idx_cond[:, -self.params.max_seq_length:]
+
+            # forward
             logits = self(idx_cond)
             logits = logits[:, -1, :] / temperature
 
@@ -239,6 +251,6 @@ class LLaMA(nn.Module):
 
             probs = F.softmax(logits, dim=-1)
             idx_next = torch.multinomial(probs, num_samples=1)
-            idx = torch.cat((idx, idx_next), dim=1)
+            idx[:, t] = idx_next
 
         return idx
