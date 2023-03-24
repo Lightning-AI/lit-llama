@@ -82,7 +82,7 @@ def generate(
     tokenizer = Tokenizer("/srv/data/checkpoints/llama/converted_meta/tokenizer.model")
     encoded_prompt = tokenizer.encode(prompt, bos=True, eos=False).to(fabric.device)
     encoded_prompt = encoded_prompt[None, :]
-    for k in range(num_samples):
+    for _ in range(num_samples):
         y = generate(model, encoded_prompt, steps, model.params.max_seq_length, temperature=temperature, top_k=top_k)
         print(tokenizer.decode(y[0]))
 
