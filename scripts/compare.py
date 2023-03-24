@@ -3,30 +3,8 @@ import os
 import sys
 import urllib.request
 
-if not os.path.exists("./llama_model.py"):
-    print("Downloading original implementation...")
-    urllib.request.urlretrieve(
-        url="https://gist.githubusercontent.com/lantiga/fd36849fb1c498da949a0af635318a7b/raw/9364b3e5bf6da42bfb7b57db5b822518b2fa4a74/llama_model.py",
-        filename="llama_model.py"
-    )
-    print("Done")
-else:
-    print("Original implementation found. Skipping download.")
-
-sys.path.append("..")
-
-import model as llama
-import llama_model as orig_llama
-
 import torch
-import torch.nn as nn
 
-
-# orig_llama  XQ torch.Size([3, 32, 16, 2])  # B T nh hs
-# llama    Q torch.Size([3, 16, 32, 2])  # B nh T hs
-
-# orig_llama COS torch.Size([1, 32, 1, 2])   # 1 T 1 hs
-# llama  COS torch.Size([32, 1, 1, 2])   # 1 1 T hs
 
 def compare_rope():
     x = torch.tensor([[1, 2, 3, 4], [4, 5, 6, 7], [7, 8, 9, 10]], dtype=torch.float32)
@@ -154,6 +132,21 @@ def compare_to_orig_llama():
 
 
 if __name__ == "__main__":
+    if not os.path.exists("./llama_model.py"):
+        print("Downloading original implementation...")
+        urllib.request.urlretrieve(
+            url="https://gist.githubusercontent.com/lantiga/fd36849fb1c498da949a0af635318a7b/raw/9364b3e5bf6da42bfb7b57db5b822518b2fa4a74/llama_model.py",
+            filename="llama_model.py"
+        )
+        print("Done")
+    else:
+        print("Original implementation found. Skipping download.")
+    
+    sys.path.append("..")
+    
+    import model as llama
+    import llama_model as orig_llama
+
     compare_rope()
     compare_rmsnorm()
     compare_to_orig_llama()
