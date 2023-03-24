@@ -126,8 +126,11 @@ def compare_to_orig_llama():
 
 
 if __name__ == "__main__":
-    if not os.path.exists("./llama_model.py"):
-        print("Downloading original implementation...")
+    wd = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
+    sys.path.append(wd)
+
+    if not os.path.isfile(os.path.join(wd, "llama_model.py")):
+        print(f"Downloading original implementation to {wd!r}")
         urllib.request.urlretrieve(
             url="https://gist.githubusercontent.com/lantiga/fd36849fb1c498da949a0af635318a7b/raw/9364b3e5bf6da42bfb7b57db5b822518b2fa4a74/llama_model.py",
             filename="llama_model.py"
@@ -135,9 +138,7 @@ if __name__ == "__main__":
         print("Done")
     else:
         print("Original implementation found. Skipping download.")
-    
-    sys.path.append("..")
-    
+
     import model as llama
     import llama_model as orig_llama
 
