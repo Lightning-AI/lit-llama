@@ -1,4 +1,4 @@
-# adapted from karpathy/minGPT
+# adapted from karpathy/nanoGPT
 import os
 import torch
 from tokenizer import Tokenizer
@@ -48,12 +48,13 @@ def get_model(original: bool = False):
             download_original(os.path.dirname(__file__))
 
             from llama_model import Transformer, ModelArgs
-        config = ModelArgs()
+
+        config = ModelArgs(dim=4096, n_layers=32, n_heads=32, vocab_size=32000)  # 7B config
         return Transformer(config), config.max_seq_len
     else:
         from model import LLaMA, LLaMAConfig
 
-        config = LLaMAConfig()
+        config = LLaMAConfig()  # 7B default
         return LLaMA(config), config.block_size
 
 
@@ -68,6 +69,7 @@ def main(
     accelerator: str = "auto",
     precision: str = "32-true",
     checkpoint_path: str = "/srv/data/checkpoints/llama/converted_meta/7B/state_dict.pt",
+    tokenizer_path: str = "/srv/data/checkpoints/llama/converted_meta/tokenizer.model",
     original_llama: bool = False,
 ):
     """
@@ -86,9 +88,11 @@ def main(
         precision: Double precision (``"64"``), full precision (``"32"``), half precision AMP (``"16-mixed"``),
             or bfloat16 precision AMP (``"bf16-mixed"``).
         checkpoint_path: The checkpoint path to load.
+        tokenizer_path: The tokenizer path to load.
         original_llama: Whether to use the original LLaMA model from Meta.
     """
     assert os.path.isfile(checkpoint_path)
+    assert os.path.isfile(tokenizer_path)
 
     L.seed_everything(1234)
     fabric = L.Fabric(accelerator=accelerator, precision=precision, devices=1)
@@ -104,7 +108,7 @@ def main(
         model = torch.compile(model)
     model = fabric.setup_module(model, move_to_device=False)
 
-    tokenizer = Tokenizer("/srv/data/checkpoints/llama/converted_meta/tokenizer.model")
+    tokenizer = Tokenizer(tokenizer_path)
     encoded_prompt = tokenizer.encode(prompt, bos=True, eos=False).to(fabric.device)
     encoded_prompt = encoded_prompt[None, :]
     for _ in range(num_samples):
