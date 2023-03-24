@@ -41,13 +41,13 @@ def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=
 def get_model(original: bool = False):
     if original:
         try:
-            from llama_model import Transformer, ModelArgs
+            from original_model import Transformer, ModelArgs
         except ModuleNotFoundError:
             from scripts.download import download_original
 
             download_original(os.path.dirname(__file__))
 
-            from llama_model import Transformer, ModelArgs
+            from original_model import Transformer, ModelArgs
 
         config = ModelArgs(dim=4096, n_layers=32, n_heads=32, vocab_size=32000)  # 7B config
         return Transformer(config), config.max_seq_len
@@ -70,7 +70,7 @@ def main(
     precision: str = "32-true",
     checkpoint_path: str = "/srv/data/checkpoints/llama/converted_meta/7B/state_dict.pt",
     tokenizer_path: str = "/srv/data/checkpoints/llama/converted_meta/tokenizer.model",
-    original_llama: bool = False,
+    original_model: bool = False,
 ):
     """
     Generates text samples based on a pre-trained LLaMA model and tokenizer.
@@ -89,7 +89,7 @@ def main(
             or bfloat16 precision AMP (``"bf16-mixed"``).
         checkpoint_path: The checkpoint path to load.
         tokenizer_path: The tokenizer path to load.
-        original_llama: Whether to use the original LLaMA model from Meta.
+        original_model: Whether to use the original LLaMA model from Meta.
     """
     assert os.path.isfile(checkpoint_path)
     assert os.path.isfile(tokenizer_path)
@@ -99,7 +99,7 @@ def main(
 
     # initialize the model directly on the device
     with fabric.device:
-        model, max_seq_length = get_model(original_llama)
+        model, max_seq_length = get_model(original_model)
         # TODO: checkpoint loading is currently broken
         # checkpoint = torch.load(checkpoint_path)
         # model.load_state_dict(checkpoint)

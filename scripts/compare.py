@@ -133,7 +133,7 @@ if __name__ == "__main__":
     download_original(wd)
 
     import model as llama
-    import llama_model as orig_llama
+    import original_model as orig_llama
 
     compare_rope()
     compare_rmsnorm()
