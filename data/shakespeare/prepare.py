@@ -40,8 +40,8 @@ train_data = data[: int(n * 0.9)]
 val_data = data[int(n * 0.9) :]
 
 tokenizer = Tokenizer("/srv/data/checkpoints/llama/converted_meta/tokenizer.model")
-train_ids = tokenizer.encode(train_data, bos=True, eos=False)
-val_ids = tokenizer.encode(val_data, bos=True, eos=False)
+train_ids = tokenizer.encode(train_data)
+val_ids = tokenizer.encode(val_data)
 print(f"train has {len(train_ids):,} tokens")
 print(f"val has {len(val_ids):,} tokens")
 
