@@ -23,7 +23,7 @@
 import os
 import requests
 import numpy as np
-from models.llama.tokenizer import Tokenizer
+from tokenizer import Tokenizer
 
 
 # download the tiny shakespeare dataset

@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from lightning.fabric.strategies import FSDPStrategy
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 
-import models.nano.model as nano
+from model import LLaMA, LLaMAConfig, Block
 
 
 out_dir = "out"
@@ -33,11 +33,11 @@ block_size = 1024
 
 def main():
     auto_wrap_policy = partial(
-        transformer_auto_wrap_policy, transformer_layer_cls={nano.Block}
+        transformer_auto_wrap_policy, transformer_layer_cls={Block}
     )
     strategy = FSDPStrategy(
         auto_wrap_policy=auto_wrap_policy,
-        activation_checkpointing=nano.Block,
+        activation_checkpointing=Block,
     )
  
     fabric = L.Fabric(
@@ -54,11 +54,11 @@ def main():
 
     train_data, val_data = load_datasets()
 
-    config = nano.LLaMAConfig
+    config = LLaMAConfig
     config.block_size = block_size
 
     with fabric.device:
-        model = nano.LLaMA(config)
+        model = LLaMA(config)
 
     if compile:
         model = torch.compile(model)
@@ -98,7 +98,9 @@ def train(fabric, model, optimizer, train_data, val_data):
         t0 = time.time()
         
         input_ids, targets = get_batch(fabric, train_data, block_size=model.config.block_size)
-        _, loss = model(input_ids, targets)
+        logits = model(input_ids)
+        loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+
         fabric.backward(loss)
 
         # TODO: Gradient clipping
@@ -124,7 +126,8 @@ def validate(fabric, model, val_data):
     losses = torch.zeros(eval_iters)
     for k in range(eval_iters):
         input_ids, targets = get_batch(fabric, val_data, block_size=model.config.block_size)
-        _, loss = model(input_ids, targets)
+        logits = model(input_ids)
+        loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
         losses[k] = loss.item()
     out = losses.mean()
     model.train()
