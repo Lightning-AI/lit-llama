@@ -41,6 +41,7 @@ def get_model(original: bool = False):
             from llama_model import Transformer, ModelArgs
         except ModuleNotFoundError:
             from scripts.download import download_original
+
             download_original(os.path.dirname(__file__))
 
             from llama_model import Transformer, ModelArgs

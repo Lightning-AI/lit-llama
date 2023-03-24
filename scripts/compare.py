@@ -1,6 +1,5 @@
 import os
 import sys
-import urllib.request
 
 import torch
 
@@ -130,6 +129,7 @@ if __name__ == "__main__":
     sys.path.append(wd)
 
     from scripts.download import download_original
+
     download_original(wd)
 
     import model as llama
