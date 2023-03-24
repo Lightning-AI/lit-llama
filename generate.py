@@ -100,9 +100,9 @@ def main(
     # initialize the model directly on the device
     with fabric.device:
         model, max_seq_length = get_model(original_model)
-        # TODO: checkpoint loading is currently broken
-        # checkpoint = torch.load(checkpoint_path)
-        # model.load_state_dict(checkpoint)
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint)
+    
     model.eval()
     if compile:
         model = torch.compile(model)
