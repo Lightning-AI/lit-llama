@@ -62,7 +62,7 @@ torch.backends.cuda.matmul.allow_tf32 = True  # allow tf32 on matmul
 torch.backends.cudnn.allow_tf32 = True  # allow tf32 on cudnn
 
 
-# poor man's data loader
+# TODO: clean this up
 data_dir = os.path.join("data", dataset)
 train_data = np.memmap(os.path.join(data_dir, "train.bin"), dtype=np.uint16, mode="r")
 val_data = np.memmap(os.path.join(data_dir, "val.bin"), dtype=np.uint16, mode="r")
@@ -102,7 +102,7 @@ if os.path.exists(meta_path):
     print(f"found vocab_size = {meta_vocab_size} (inside {meta_path})")
 
 
-# init a new model from scratch
+# TODO: replace with Nano-LLaMA
 print("Initializing a new model from scratch")
 llama_config = llama.LLAMA_CONFIG_DICT["7B"]
 with fabric.device:
@@ -119,7 +119,7 @@ model = fabric.setup_module(model)
 optimizer = torch.optim.Adam(model.parameters())
 optimizer = fabric.setup_optimizers(optimizer)
 
-# helps estimate an arbitrarily accurate loss over either split using many batches
+# TODO: clean up
 @torch.no_grad()
 def estimate_loss():
     out = {}
