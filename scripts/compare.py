@@ -1,4 +1,3 @@
-import math
 import os
 import sys
 import urllib.request
@@ -94,14 +93,6 @@ def compare_to_orig_llama():
 
     llama_model = llama.LLaMA(llama_config)
     orig_llama_model = orig_llama.Transformer(orig_llama_config)
-
-    # def _init_weights(module):
-    #     if isinstance(module, nn.Linear):
-    #         torch.nn.init.normal_(module.weight, mean=0.0, std=0.02/math.sqrt(2 * llama_config.n_layer))
-    #     elif isinstance(module, nn.Embedding):
-    #         torch.nn.init.normal_(module.weight, mean=0.0, std=0.02/math.sqrt(2 * llama_config.n_layer))
-
-    # llama_model.apply(_init_weights)
 
     with torch.no_grad():
         copy_weights(llama_model, orig_llama_model)
