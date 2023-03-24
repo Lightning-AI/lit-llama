@@ -13,6 +13,7 @@ def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=
     Args:
         idx: Tensor of shape (B, T) with indices of the prompt sequence.
         max_new_tokens: The number of new tokens to generate.
+        max_seq_length: The maximum sequence length allowed.
         temperature: Scales the predicted logits by 1 / temperature
         top_k: If specified, only sample among the tokens with the k highest probabilities.
     The implementation of this function is modified from A. Karpathy's nanoGPT.
