@@ -11,13 +11,10 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 
-# Derived from: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/transformers/rope/__init__.py
-# MIT licensed: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/license
-
 def build_rope_cache(seq_len, n_elem, dtype, device, base=10000):
     """
     Derived from: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/transformers/rope/__init__.py
-    MIT licensed: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/license
+    MIT License: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/license
     """
     # $\Theta = {\theta_i = 10000^{\frac{2(i-1)}{d}}, i \in [1, 2, ..., \frac{d}{2}]}$
     theta = 1. / (base ** (torch.arange(0, n_elem, 2, dtype=dtype, device=device) / n_elem))
@@ -53,9 +50,11 @@ def apply_rope(x: torch.Tensor, rope_cache):
     return (x * cos) + (neg_half_x * sin)
 
 
-# Derived from https://github.com/bzhangGo/rmsnorm/blob/master/rmsnorm_torch.py
-# BSD 3-Clause License
 class RMSNorm(nn.Module):
+    """
+    Derived from https://github.com/bzhangGo/rmsnorm/blob/master/rmsnorm_torch.py
+    BSD 3-Clause License: https://github.com/bzhangGo/rmsnorm/blob/master/LICENSE
+    """
 
     def __init__(self, size, dim=-1, eps=1e-8):
         super().__init__()
@@ -200,33 +199,15 @@ class LLaMA(nn.Module):
 
         # init all weights
         self.apply(self._init_weights)
-        # # apply special scaled init to the residual projections, per GPT-2 paper
-        # for pn, p in self.named_parameters():
-        #     if pn.endswith('c_proj.weight'):
-        #         torch.nn.init.normal_(p, mean=0.0, std=0.02/math.sqrt(2 * config.n_layer))
-
-        # report number of parameters
-        # print("number of parameters: %.2fM" % (self.get_num_params()/1e6,))
-
-    def get_num_params(self):
-        """
-        Return the number of parameters in the model.
-        For non-embedding count (default), the position embeddings get subtracted.
-        The token embeddings would too, except due to the parameter sharing these
-        params are actually used as weights in the final layer, so we include them.
-        """
-        n_params = sum(p.numel() for p in self.parameters())
-        return n_params
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02/math.sqrt(2 * self.config.n_layer))
         elif isinstance(module, nn.Embedding):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02/math.sqrt(2 * self.config.n_layer))
 
-    def forward(self, idx, targets=None):
-        device = idx.device
-        b, t = idx.size()
+    def forward(self, idx):
+        _, t = idx.size()
         assert t <= self.config.block_size, f"Cannot forward sequence of length {t}, block size is only {self.config.block_size}"
 
         # forward the LLaMA model itself
@@ -236,12 +217,6 @@ class LLaMA(nn.Module):
             x = block(x)
         x = self.transformer.ln_f(x)
 
-        if targets is not None:
-            # if we are given some desired targets also calculate the loss
-            logits = self.lm_head(x)
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
-        else:
-            logits = self.lm_head(x)
-            loss = None
+        logits = self.lm_head(x)
 
-        return logits, loss
+        return logits
