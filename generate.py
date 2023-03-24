@@ -49,7 +49,7 @@ def get_model(original: bool = False):
 
             from original_model import Transformer, ModelArgs
 
-        config = ModelArgs(dim=4096, n_layers=32, n_heads=32, vocab_size=32000)  # 7B config
+        config = ModelArgs(dim=4096, n_layers=32, n_heads=32, vocab_size=32000, max_batch_size=1)  # 7B config
         return Transformer(config), config.max_seq_len
     else:
         from model import LLaMA, LLaMAConfig
