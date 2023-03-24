@@ -101,7 +101,7 @@ def main(
     with fabric.device:
         model, max_seq_length = get_model(original_model)
         checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint)
+        model.load_state_dict(checkpoint, strict=(not original_model))
     
     model.eval()
     if compile:
