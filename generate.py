@@ -18,9 +18,21 @@ def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=
         top_k: If specified, only sample among the tokens with the k highest probabilities.
     The implementation of this function is modified from A. Karpathy's nanoGPT.
     """
-    for _ in range(max_new_tokens):
+    # create an empty tensor of the expected final shape and fill in the current tokens
+    B, T = idx.shape
+    T_new = T + max_new_tokens
+    empty = torch.empty(B, T_new, dtype=idx.dtype, device=idx.device)
+    empty[:, :T] = idx
+    idx = empty
+
+    # generate max_new_tokens tokens
+    for t in range(T, T_new):
+        # ignore the not-filled-yet tokens
+        idx_cond = idx[:, :t]
         # if the sequence context is growing too long we must crop it at max_seq_length
-        idx_cond = idx if idx.size(1) <= max_seq_length else idx[:, -max_seq_length:]
+        idx_cond = idx_cond if T <= max_seq_length else idx_cond[:, -max_seq_length:]
+
+        # forward
         logits = model(idx_cond)
         logits = logits[:, -1, :] / temperature
 
@@ -73,8 +85,9 @@ def main(
     # initialize the model directly on the device
     with fabric.device:
         model = LLaMA(llama_config)
-        checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint)
+        # TODO: checkpoint loading is currently broken
+        # checkpoint = torch.load(checkpoint_path)
+        # model.load_state_dict(checkpoint)
     model.eval()
     if compile:
         model = torch.compile(model)
@@ -85,7 +98,7 @@ def main(
     encoded_prompt = encoded_prompt[None, :]
     for _ in range(num_samples):
         y = generate(
-            model, encoded_prompt, max_new_tokens, model.params.max_seq_length, temperature=temperature, top_k=top_k
+            model, encoded_prompt, max_new_tokens, model.config.block_size, temperature=temperature, top_k=top_k
         )
         print(tokenizer.decode(y[0]))
 
