@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from lightning.fabric.strategies import FSDPStrategy
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 
-import models.llama as llama
+import models.nano.model as nano
 
 
 out_dir = "out"
@@ -27,16 +27,19 @@ beta1 = 0.9
 beta2 = 0.95
 grad_clip = 1.0
 
+# For shakespeare, choose smaller block size than vanilla LLaMA
+block_size = 1024
+
 
 def main():
     auto_wrap_policy = partial(
-        transformer_auto_wrap_policy, transformer_layer_cls={llama.TransformerBlock}
+        transformer_auto_wrap_policy, transformer_layer_cls={nano.Block}
     )
     strategy = FSDPStrategy(
         auto_wrap_policy=auto_wrap_policy,
-        activation_checkpointing=llama.TransformerBlock,
+        activation_checkpointing=nano.Block,
     )
-
+ 
     fabric = L.Fabric(
         accelerator="cuda",
         devices=4,
@@ -51,10 +54,11 @@ def main():
 
     train_data, val_data = load_datasets()
 
-    # TODO: replace with Nano-LLaMA
-    llama_config = llama.LLAMA_CONFIG_DICT["7B"]
+    config = nano.LLaMAConfig
+    config.block_size = block_size
+
     with fabric.device:
-        model = llama.LLaMA(llama_config)
+        model = nano.LLaMA(config)
 
     if compile:
         model = torch.compile(model)
@@ -73,6 +77,11 @@ def main():
 
 
 def train(fabric, model, optimizer, train_data, val_data):
+    """The training loop.
+    
+    Loosely based on the nanoGPT implementation: https://github.com/karpathy/nanoGPT.
+    """
+    
     iter_num = 0
 
     while True:
@@ -88,9 +97,8 @@ def train(fabric, model, optimizer, train_data, val_data):
 
         t0 = time.time()
         
-        input_ids, targets = get_batch(fabric, train_data)
-        logits = model(input_ids)
-        loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+        input_ids, targets = get_batch(fabric, train_data, block_size=model.config.block_size)
+        _, loss = model(input_ids, targets)
         fabric.backward(loss)
 
         # TODO: Gradient clipping
@@ -115,16 +123,15 @@ def validate(fabric, model, val_data):
     model.eval()
     losses = torch.zeros(eval_iters)
     for k in range(eval_iters):
-        input_ids, targets = get_batch(fabric, val_data)
-        logits = model(input_ids)
-        loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+        input_ids, targets = get_batch(fabric, val_data, block_size=model.config.block_size)
+        _, loss = model(input_ids, targets)
         losses[k] = loss.item()
         out = losses.mean()
     model.train()
     return out
 
 
-def get_batch(fabric, data, block_size=1024):
+def get_batch(fabric, data, block_size):
     ix = torch.randint(len(data) - block_size, (batch_size,))
     x = torch.stack([torch.from_numpy((data[i : i + block_size]).astype(np.int64)) for i in ix])
     y = torch.stack([torch.from_numpy((data[i + 1 : i + 1 + block_size]).astype(np.int64)) for i in ix])

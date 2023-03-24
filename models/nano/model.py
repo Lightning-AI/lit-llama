@@ -173,7 +173,7 @@ class Block(nn.Module):
 
 @dataclass
 class LLaMAConfig:
-    block_size: int = 4096  # 7B
+    block_size: int = 2048  # 7B
     vocab_size: int = 32000
     n_layer: int = 32
     n_head: int = 32
@@ -222,7 +222,6 @@ class LLaMA(nn.Module):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self, idx, targets=None):
-        device = idx.device
         b, t = idx.size()
         assert t <= self.config.block_size, f"Cannot forward sequence of length {t}, block size is only {self.config.block_size}"
 
