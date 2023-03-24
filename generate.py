@@ -1,7 +1,6 @@
 # adapted from karpathy/minGPT
 import os
 import torch
-from model import LLaMA, LLaMAConfig
 from tokenizer import Tokenizer
 import lightning as L
 
@@ -36,6 +35,24 @@ def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=
     return idx
 
 
+def get_model(original: bool = False):
+    if original:
+        try:
+            from llama_model import Transformer, ModelArgs
+        except ModuleNotFoundError:
+            from scripts.download import download_original
+            download_original(os.path.dirname(__file__))
+
+            from llama_model import Transformer, ModelArgs
+        config = ModelArgs()
+        return Transformer(config)
+    else:
+        from model import LLaMA, LLaMAConfig
+
+        config = LLaMAConfig()
+        return LLaMA(config)
+
+
 def main(
     prompt: str = "Hello, my name is",
     *,
@@ -45,7 +62,9 @@ def main(
     temperature: float = 0.8,
     compile: bool = False,
     accelerator: str = "auto",
-    precision: str = "32-true"
+    precision: str = "32-true",
+    checkpoint_path: str = "/srv/data/checkpoints/llama/converted_meta/7B/state_dict.pt",
+    original_llama: bool = False,
 ):
     """
     Generates text samples based on a pre-trained LLaMA model and tokenizer.
@@ -62,17 +81,18 @@ def main(
             ``"cpu"``, ``"cuda"``, ``"mps"``, ``"gpu"``, ``"tpu"``, ``"auto"``.
         precision: Double precision (``"64"``), full precision (``"32"``), half precision AMP (``"16-mixed"``),
             or bfloat16 precision AMP (``"bf16-mixed"``).
+        checkpoint_path: The checkpoint path to load.
+        original_llama: Whether to use the original LLaMA model from Meta.
     """
+    assert os.path.isfile(checkpoint_path)
+
     L.seed_everything(1234)
 
     fabric = L.Fabric(accelerator=accelerator, precision=precision, devices=1)
 
-    checkpoint_path = "/srv/data/checkpoints/llama/converted_meta/7B/state_dict.pt"
-    assert os.path.isfile(checkpoint_path)
-    llama_config = LLaMAConfig()
     # initialize the model directly on the device
     with fabric.device:
-        model = LLaMA(llama_config)
+        model = get_model(original_llama)
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint)
     model.eval()
