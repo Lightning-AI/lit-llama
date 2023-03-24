@@ -35,11 +35,11 @@ def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=
     return idx
 
 
-def generate(
+def main(
     prompt: str = "Hello, my name is",
     *,
     num_samples: int = 1,
-    steps: int = 20,
+    max_new_tokens: int = 20,
     top_k: int = 200,
     temperature: float = 0.8,
     compile: bool = False,
@@ -52,7 +52,7 @@ def generate(
     Args:
         prompt: The prompt string to use for generating the samples.
         num_samples: The number of text samples to generate.
-        steps: The number of generation steps to take.
+        max_new_tokens: The number of generation steps to take.
         top_k: The number of top most probable tokens to consider in the sampling process.
         temperature: A value controlling the randomness of the sampling process. Higher values result in more random
             samples.
@@ -83,11 +83,13 @@ def generate(
     encoded_prompt = tokenizer.encode(prompt, bos=True, eos=False).to(fabric.device)
     encoded_prompt = encoded_prompt[None, :]
     for _ in range(num_samples):
-        y = generate(model, encoded_prompt, steps, model.params.max_seq_length, temperature=temperature, top_k=top_k)
+        y = generate(
+            model, encoded_prompt, max_new_tokens, model.params.max_seq_length, temperature=temperature, top_k=top_k
+        )
         print(tokenizer.decode(y[0]))
 
 
 if __name__ == "__main__":
     from jsonargparse import CLI
 
-    CLI()
+    CLI(main)
