@@ -1,8 +1,10 @@
 __pycache__
 .idea
-/scripts/llama_model.py
 .DS_Store
 
 # data
 data
 !data/shakespeare/prepare.py
+
+# downloaded by scripts/compare.py
+original_model.py
