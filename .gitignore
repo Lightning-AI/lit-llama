@@ -1,4 +1,6 @@
 __pycache__
+.idea
+
+# data
 data
 !data/shakespeare/prepare.py
-.idea
