@@ -7,7 +7,7 @@ def download_original(wd: str):
     if not os.path.isfile(filepath):
         print(f"Downloading original implementation to {filepath!r}")
         urllib.request.urlretrieve(
-            url="https://gist.githubusercontent.com/lantiga/fd36849fb1c498da949a0af635318a7b/raw/9364b3e5bf6da42bfb7b57db5b822518b2fa4a74/llama_model.py",
+            url="https://gist.githubusercontent.com/lantiga/fd36849fb1c498da949a0af635318a7b/raw/c4509e48a53ebb6a195a6f073b5267a69e47b45a/llama_model.py",
             filename="original_model.py",
         )
         print("Done")
