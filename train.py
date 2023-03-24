@@ -126,7 +126,7 @@ def validate(fabric, model, val_data):
         input_ids, targets = get_batch(fabric, val_data, block_size=model.config.block_size)
         _, loss = model(input_ids, targets)
         losses[k] = loss.item()
-        out = losses.mean()
+    out = losses.mean()
     model.train()
     return out
 
