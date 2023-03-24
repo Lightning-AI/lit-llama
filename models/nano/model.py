@@ -15,6 +15,10 @@ from torch.nn import functional as F
 # MIT licensed: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/license
 
 def build_rope_cache(seq_len, n_elem, dtype, device, base=10000):
+    """
+    Derived from: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/transformers/rope/__init__.py
+    MIT licensed: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/license
+    """
     # $\Theta = {\theta_i = 10000^{\frac{2(i-1)}{d}}, i \in [1, 2, ..., \frac{d}{2}]}$
     theta = 1. / (base ** (torch.arange(0, n_elem, 2, dtype=dtype, device=device) / n_elem))
 
