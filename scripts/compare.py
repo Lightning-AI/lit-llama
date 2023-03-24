@@ -15,7 +15,7 @@ else:
 
 sys.path.append("..")
 
-import llama.model as llama
+import model as llama
 import llama_model as orig_llama
 
 import torch
