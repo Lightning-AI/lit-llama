@@ -11,30 +11,21 @@ from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 
 import models.llama as llama
 
-# TODO: clean up hyperparameters
 
 out_dir = "out"
 eval_interval = 2000
-log_interval = 1
 eval_iters = 200
-always_save_checkpoint = True
+log_interval = 1
+compile = False
 
-# TODO: hyperparameters
-gradient_accumulation_steps = 1
-batch_size = 2
-block_size = 1024
-
-# TODO: hparams for LLaMA
+# Hyperparameters
 learning_rate = 6e-4
+batch_size = 2
 max_iters = 600000
 weight_decay = 1e-1
 beta1 = 0.9
 beta2 = 0.95
 grad_clip = 1.0
-compile = False
-
-torch.backends.cuda.matmul.allow_tf32 = True
-torch.backends.cudnn.allow_tf32 = True
 
 
 def main():
@@ -49,7 +40,7 @@ def main():
     fabric = L.Fabric(
         accelerator="cuda",
         devices=4,
-        precision="bf16",
+        precision="bf16-mixed",
         strategy=strategy,
     )
     fabric.launch()
@@ -70,17 +61,19 @@ def main():
 
     model = fabric.setup_module(model)
 
-    # TODO: AdamW from paper
-    optimizer = torch.optim.Adam(model.parameters())
+    optimizer = torch.optim.AdamW(
+        model.parameters(), 
+        lr=learning_rate, 
+        weight_decay=weight_decay,
+        betas=(beta1, beta2),
+    )
     optimizer = fabric.setup_optimizers(optimizer)
 
     train(fabric, model, optimizer, train_data, val_data)
 
 
 def train(fabric, model, optimizer, train_data, val_data):
-    t0 = time.time()
     iter_num = 0
-    best_val_loss = 1e9
 
     while True:
         # TODO: add learning rate scheduling
@@ -89,27 +82,16 @@ def train(fabric, model, optimizer, train_data, val_data):
         if iter_num > 0 and iter_num % eval_interval == 0 and fabric.global_rank == 0:
             val_loss = validate(fabric, model, val_data)
             fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
-            if val_loss < best_val_loss or always_save_checkpoint:
-                best_val_loss = val_loss
-                # TODO: Save with Fabric
-                # checkpoint = {
-                #     "model": model.state_dict(),
-                #     "optimizer": optimizer.state_dict(),
-                #     "iter_num": iter_num,
-                #     "best_val_loss": best_val_loss,
-                # }
-                # print(f"saving checkpoint to {out_dir}")
-                # torch.save(checkpoint, os.path.join(out_dir, 'ckpt.pt'))
+            # TODO: Save with Fabric
+            # print(f"saving checkpoint to {out_dir}")
+            # torch.save(checkpoint, os.path.join(out_dir, 'ckpt.pt'))
 
-        # TODO: efficient gradient accumulation
-        # TODO: Should we do gradient accumulation at all?
-        for _ in range(gradient_accumulation_steps):
-            input_ids, targets = get_batch(train_data, device=fabric.device)
-            logits = model(input_ids)
-            loss = F.cross_entropy(
-                logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1
-            )
-            fabric.backward(loss)
+        t0 = time.time()
+        
+        input_ids, targets = get_batch(fabric, train_data)
+        logits = model(input_ids)
+        loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+        fabric.backward(loss)
 
         # TODO: Gradient clipping
         # if grad_clip != 0.0:
@@ -118,14 +100,9 @@ def train(fabric, model, optimizer, train_data, val_data):
         optimizer.step()
         optimizer.zero_grad(set_to_none=True)
 
-        # timing and logging
-        t1 = time.time()
-        dt = t1 - t0
-        t0 = t1
-        if iter_num % log_interval == 0 and fabric.global_rank == 0:
-            fabric.print(
-                f"iter {iter_num}: loss {loss.item():.4f}, time {dt*1000:.2f}ms"
-            )
+        dt = time.time() - t0
+        if iter_num % log_interval == 0:
+            fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
         iter_num += 1
 
         if iter_num > max_iters:
@@ -134,47 +111,34 @@ def train(fabric, model, optimizer, train_data, val_data):
 
 @torch.no_grad()
 def validate(fabric, model, val_data):
-    out = {}
+    fabric.print("Validating ...")
     model.eval()
     losses = torch.zeros(eval_iters)
     for k in range(eval_iters):
-        input_ids, targets = get_batch(val_data, device=fabric.device)
+        input_ids, targets = get_batch(fabric, val_data)
         logits = model(input_ids)
-        loss = F.cross_entropy(
-            logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1
-        )
+        loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
         losses[k] = loss.item()
         out = losses.mean()
     model.train()
     return out
 
 
-def get_batch(data, device):
+def get_batch(fabric, data, block_size=1024):
     ix = torch.randint(len(data) - block_size, (batch_size,))
-    x = torch.stack(
-        [torch.from_numpy((data[i : i + block_size]).astype(np.int64)) for i in ix]
-    )
-    y = torch.stack(
-        [
-            torch.from_numpy((data[i + 1 : i + 1 + block_size]).astype(np.int64))
-            for i in ix
-        ]
-    )
-
-    # TODO: Use fabric here
-    x, y = x.pin_memory().to(device, non_blocking=True), y.pin_memory().to(
-        device, non_blocking=True
-    )
+    x = torch.stack([torch.from_numpy((data[i : i + block_size]).astype(np.int64)) for i in ix])
+    y = torch.stack([torch.from_numpy((data[i + 1 : i + 1 + block_size]).astype(np.int64)) for i in ix])
+    x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
     return x, y
 
 
 def load_datasets(data_dir="data/shakespeare"):
-    train_data = np.memmap(
-        os.path.join(data_dir, "train.bin"), dtype=np.uint16, mode="r"
-    )
+    train_data = np.memmap(os.path.join(data_dir, "train.bin"), dtype=np.uint16, mode="r")
     val_data = np.memmap(os.path.join(data_dir, "val.bin"), dtype=np.uint16, mode="r")
     return train_data, val_data
 
 
 if __name__ == "__main__":
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
     main()
