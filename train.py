@@ -106,7 +106,7 @@ def train(fabric, model, optimizer, train_data, val_data):
         #     fabric.clip_gradients(model, optimizer, max_norm=grad_clip)
 
         optimizer.step()
-        optimizer.zero_grad(set_to_none=True)
+        optimizer.zero_grad()
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:
