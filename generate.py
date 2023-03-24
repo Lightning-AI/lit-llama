@@ -9,13 +9,16 @@ import lightning as L
 def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=None):
     """
     Takes a conditioning sequence (prompt) as input and continues to generate as many tokens as requested.
+
+    The implementation of this function is modified from A. Karpathy's nanoGPT.
+
     Args:
+        model: The model to use.
         idx: Tensor of shape (B, T) with indices of the prompt sequence.
         max_new_tokens: The number of new tokens to generate.
         max_seq_length: The maximum sequence length allowed.
         temperature: Scales the predicted logits by 1 / temperature
-        top_k: If specified, only sample among the tokens with the k highest probabilities.
-    The implementation of this function is modified from A. Karpathy's nanoGPT.
+        top_k: If specified, only sample among the tokens with the k highest probabilities
     """
     for _ in range(max_new_tokens):
         # if the sequence context is growing too long we must crop it at max_seq_length
@@ -46,12 +49,12 @@ def get_model(original: bool = False):
 
             from llama_model import Transformer, ModelArgs
         config = ModelArgs()
-        return Transformer(config)
+        return Transformer(config), config.max_seq_len
     else:
         from model import LLaMA, LLaMAConfig
 
         config = LLaMAConfig()
-        return LLaMA(config)
+        return LLaMA(config), config.block_size
 
 
 def main(
@@ -88,14 +91,14 @@ def main(
     assert os.path.isfile(checkpoint_path)
 
     L.seed_everything(1234)
-
     fabric = L.Fabric(accelerator=accelerator, precision=precision, devices=1)
 
     # initialize the model directly on the device
     with fabric.device:
-        model = get_model(original_llama)
-        checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint)
+        model, max_seq_length = get_model(original_llama)
+        # TODO: checkpoint loading is currently broken
+        # checkpoint = torch.load(checkpoint_path)
+        # model.load_state_dict(checkpoint)
     model.eval()
     if compile:
         model = torch.compile(model)
@@ -106,7 +109,7 @@ def main(
     encoded_prompt = encoded_prompt[None, :]
     for _ in range(num_samples):
         y = generate(
-            model, encoded_prompt, max_new_tokens, model.params.max_seq_length, temperature=temperature, top_k=top_k
+            model, encoded_prompt, max_new_tokens, max_seq_length, temperature=temperature, top_k=top_k
         )
         print(tokenizer.decode(y[0]))
 
