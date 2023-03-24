@@ -55,10 +55,8 @@ def main():
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
-
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
-
 
     train_data, val_data = load_datasets()
 
@@ -125,7 +123,9 @@ def train(fabric, model, optimizer, train_data, val_data):
         dt = t1 - t0
         t0 = t1
         if iter_num % log_interval == 0 and fabric.global_rank == 0:
-            fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time {dt*1000:.2f}ms")
+            fabric.print(
+                f"iter {iter_num}: loss {loss.item():.4f}, time {dt*1000:.2f}ms"
+            )
         iter_num += 1
 
         if iter_num > max_iters:
@@ -169,7 +169,9 @@ def get_batch(data, device):
 
 
 def load_datasets(data_dir="data/shakespeare"):
-    train_data = np.memmap(os.path.join(data_dir, "train.bin"), dtype=np.uint16, mode="r")
+    train_data = np.memmap(
+        os.path.join(data_dir, "train.bin"), dtype=np.uint16, mode="r"
+    )
     val_data = np.memmap(os.path.join(data_dir, "val.bin"), dtype=np.uint16, mode="r")
     return train_data, val_data
 
