@@ -2,6 +2,7 @@ __pycache__
 data
 .idea
 .DS_Store
+*.egg-info
 
 # downloaded by scripts/compare.py
 original_model.py
