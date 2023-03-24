@@ -173,7 +173,7 @@ class Block(nn.Module):
 
 @dataclass
 class LLaMAConfig:
-    block_size: int = 2048  # 7B
+    block_size: int = 4096  # 7B
     vocab_size: int = 32000
     n_layer: int = 32
     n_head: int = 32
