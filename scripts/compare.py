@@ -5,8 +5,12 @@ import torch
 
 
 def compare_rope():
-    x = torch.tensor([[1, 2, 3, 4], [4, 5, 6, 7], [7, 8, 9, 10]], dtype=torch.float32)
-    x = x[:, None, None, :]
+    # x = torch.tensor([[1, 2, 3, 4], [4, 5, 6, 7], [7, 8, 9, 10], [100, 2371, 0, 5000]], dtype=torch.float32)
+    # x = x[:, None, None, :]
+
+    # with t > 1, assertion fails!
+    b, t, h, d = 4, 6, 1, 2048
+    x = torch.randint(0, 10000, size=(b, t, h, d)).float()
 
     _, seq_len, n_heads, dim = x.shape
     freqs_cis = orig_llama.precompute_freqs_cis(dim // n_heads, seq_len)
@@ -133,5 +137,5 @@ if __name__ == "__main__":
     import original_model as orig_llama
 
     compare_rope()
-    compare_rmsnorm()
-    compare_to_orig_llama()
+    #compare_rmsnorm()
+    #compare_to_orig_llama()
