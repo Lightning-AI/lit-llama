@@ -68,9 +68,8 @@ def main(
     compile: bool = False,
     accelerator: str = "auto",
     precision: str = "32-true",
-    # TODO: update defaults
-    checkpoint_path: str = "/srv/data/checkpoints/llama/converted_meta/7B/state_dict.pt",
-    tokenizer_path: str = "/srv/data/checkpoints/llama/converted_meta/tokenizer.model",
+    checkpoint_path: str = "/srv/data/checkpoints/llama/converted_nano/7B/state_dict.pth",
+    tokenizer_path: str = "/srv/data/checkpoints/llama/converted_nano/tokenizer.model",
     original_model: bool = False,
 ):
     """

@@ -58,10 +58,16 @@ def meta_weights_for_nano_model(
 
     checkpoint_files = sorted(ckpt_dir.glob("*.pth"))
    
+    
+    # for the bigger models, there are multiple model-parallel checkpoints
+    # and we combine them into one single file
+    combined = {}
     for file in tqdm(checkpoint_files, total=len(checkpoint_files)):
         checkpoint = torch.load(file, map_location="cpu")
         converted = convert_state_dict(checkpoint)
-        torch.save(converted, Path(output_dir, file.name))
+        combined.update(converted)
+    
+    torch.save(combined, Path(output_dir, "state_dict.pth"))
 
 
 if __name__ == "__main__":
