@@ -142,9 +142,9 @@ class Block(nn.Module):
 
     def __init__(self, config, rope_cache):
         super().__init__()
-        self.rms_1 = RMSNorm(config.n_embd, eps=1e-5)
+        self.rms_1 = RMSNorm(config.n_embd)
         self.attn = CausalSelfAttention(config, rope_cache)
-        self.rms_2 = RMSNorm(config.n_embd, eps=1e-5)
+        self.rms_2 = RMSNorm(config.n_embd)
         self.mlp = MLP(config)
 
     def forward(self, x):
@@ -182,7 +182,7 @@ class LLaMA(nn.Module):
         self.transformer = nn.ModuleDict(dict(
             wte = nn.Embedding(config.vocab_size, config.n_embd),
             h = nn.ModuleList([Block(config, self.rope_cache) for _ in range(config.n_layer)]),
-            ln_f = RMSNorm(config.n_embd, eps=1e-5),
+            ln_f = RMSNorm(config.n_embd),
         ))
 
         # init all weights
