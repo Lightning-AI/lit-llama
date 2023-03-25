@@ -1,8 +1,11 @@
 __pycache__
-data
 .idea
 .DS_Store
 *.egg-info
+
+# data
+data
+!data/shakespeare/prepare.py
 
 # downloaded by scripts/compare.py
 original_model.py
