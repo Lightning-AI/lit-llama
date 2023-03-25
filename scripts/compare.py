@@ -121,6 +121,56 @@ def compare_to_orig_llama():
     print(f"Comparing forward:\t\t{'OK' if forward_matches else 'KO'}")
 
 
+def compare_with_loaded_checkpoint():
+    original_ckpt_path = "/srv/data/checkpoints/llama/raw/7B/consolidated.00.pth"
+    ckpt_path = "converted/7B/consolidated.00.pth"
+
+    device = torch.device("cuda")
+
+    batch_size = 3
+    vocab_size = 32000
+    max_seq_len = 2048
+    token_sample = torch.randint(0, vocab_size, size=(batch_size, max_seq_len), dtype=torch.int64, device=device)
+
+    seq_len = token_sample.shape[1]
+    mask = torch.full((1, 1, seq_len, seq_len), float("-inf"))
+    mask = torch.triu(mask, diagonal=1)
+
+    print("Loading original...")
+    with device:
+        original_config = orig_llama.ModelArgs(dim=4096, n_layers=32, n_heads=32, vocab_size=32000, max_batch_size=1)  # 7B config
+        orig_llama_model = orig_llama.Transformer(original_config)
+        original_checkpoint = torch.load(original_ckpt_path)
+        orig_llama_model.load_state_dict(original_checkpoint, strict=False)
+
+    orig_llama_embed = orig_llama_model.tok_embeddings(token_sample)
+    orig_llama_block_out = orig_llama_model.layers[0](orig_llama_embed, 0, orig_llama_model.freqs_cis[: seq_len], mask)
+    expected = orig_llama_model(token_sample, 0)
+
+    del orig_llama_model
+    del original_checkpoint
+    del original_config
+
+    print("Loading ours...")
+    with device:
+        config = llama.LLaMAConfig()  # 7B default
+        llama_model = llama.LLaMA(config)
+        checkpoint = torch.load(ckpt_path)
+        llama_model.load_state_dict(checkpoint, strict=True)
+
+    llama_embed = llama_model.transformer.wte(token_sample)
+    embed_matches = torch.allclose(orig_llama_embed, llama_embed)
+    print(f"Comparing embed:\t\t{'OK' if embed_matches else 'KO'}")
+
+    llama_block_out = llama_model.transformer.h[0](llama_embed)
+    block_matches = torch.allclose(orig_llama_block_out, llama_block_out)
+    print(f"Comparing block out:\t\t{'OK' if block_matches else 'KO'}")
+
+    out = llama_model(token_sample)
+    forward_matches = torch.allclose(out, expected)
+    print(f"Comparing forward:\t\t{'OK' if forward_matches else 'KO'}")
+
+
 if __name__ == "__main__":
     wd = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
     sys.path.append(wd)
@@ -132,6 +182,7 @@ if __name__ == "__main__":
     import model as llama
     import original_model as orig_llama
 
-    compare_rope()
-    compare_rmsnorm()
-    compare_to_orig_llama()
+    #compare_rope()
+    #compare_rmsnorm()
+    #compare_to_orig_llama()
+    compare_with_loaded_checkpoint()
