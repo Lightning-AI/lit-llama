@@ -18,7 +18,7 @@ def convert_state_dict(state_dict):
     converted = {}
     converted["transformer.wte.weight"] = state_dict["tok_embeddings.weight"]
     converted["lm_head.weight"] = state_dict["output.weight"]
-    converted["transformer.ln_f.scale"] = state_dict["norm.weight"]  # todo: correct?
+    converted["transformer.ln_f.scale"] = state_dict["norm.weight"]
 
     for key in [k for k in state_dict if k.startswith("layers")]:
         layer_idx = key.split(".")[1]
