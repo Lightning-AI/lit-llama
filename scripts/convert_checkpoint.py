@@ -1,5 +1,8 @@
 from pathlib import Path
 import torch
+from tqdm import tqdm
+import os 
+import shutil
 
 """
 Sample usage:
@@ -45,20 +48,14 @@ def meta_weights_for_nano_model(
     tokenizer_path: Path = Path("/srv/data/checkpoints/llama/raw/tokenizer.model"),
     model_size: str = "7B",
 ):
-
-    from pathlib import Path
-    from tqdm import tqdm
-    import os 
-    import shutil
-
     output_dir = output_dir / model_size
     ckpt_dir = ckpt_dir / model_size
     os.makedirs(output_dir, exist_ok=True)
 
-    if "tokenizer.model" not in os.listdir(output_dir):
-        shutil.copy(tokenizer_path, output_dir)
+    # the tokenizer is the same for all model sizes, so we store it in the parent dir
+    if "tokenizer.model" not in os.listdir(output_dir.parent):
+        shutil.copy(tokenizer_path, output_dir.parent)
 
-    tokenizer_path = output_dir / "tokenizer.model"
     checkpoint_files = sorted(ckpt_dir.glob("*.pth"))
    
     for file in tqdm(checkpoint_files, total=len(checkpoint_files)):
