@@ -5,17 +5,19 @@ import torch
 
 
 def compare_rope():
-    x = torch.tensor([[1, 2, 3, 4], [4, 5, 6, 7], [7, 8, 9, 10]], dtype=torch.float32)
-    x = x[:, None, None, :]
+    b, t = 1, 6
+    n_embed = 8
+    n_head = 2
 
-    _, seq_len, n_heads, dim = x.shape
-    freqs_cis = orig_llama.precompute_freqs_cis(dim // n_heads, seq_len)
-    llama_rope_cache = llama.build_rope_cache(seq_len, dim, dtype=x.dtype, device=x.device, base=10000)
+    x = torch.randint(0, 10000, size=(b, t, n_head, n_embed // n_head)).float()
+
+    freqs_cis = orig_llama.precompute_freqs_cis(n_embed // n_head, t)
+    llama_rope_cache = llama.build_rope_cache(t, n_embed // n_head, dtype=x.dtype, device=x.device, base=10000)
 
     llama_x_rope = llama.apply_rope(x, llama_rope_cache)
     orig_llama_x_rope, _ = orig_llama.apply_rotary_emb(x, x, freqs_cis)
-    apply_rope_matches = torch.allclose(llama_x_rope, orig_llama_x_rope)
 
+    apply_rope_matches = torch.allclose(llama_x_rope, orig_llama_x_rope)
     print(f"Comparing apply rope:\t\t{'OK' if apply_rope_matches else 'KO'}")
 
 
@@ -114,8 +116,9 @@ def compare_to_orig_llama():
 
     print(f"Comparing block out:\t\t{'OK' if block_matches else 'KO'}")
 
-    expected = orig_llama_model(token_sample, 0)
-    out = llama_model(token_sample)
+    with torch.no_grad():
+        expected = orig_llama_model(token_sample, 0)
+        out = llama_model(token_sample)
 
     forward_matches = torch.allclose(out, expected)
     print(f"Comparing forward:\t\t{'OK' if forward_matches else 'KO'}")

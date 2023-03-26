@@ -1,0 +1,7 @@
+LICENSE
+README.md
+setup.py
+lightning_llama.egg-info/PKG-INFO
+lightning_llama.egg-info/SOURCES.txt
+lightning_llama.egg-info/dependency_links.txt
+lightning_llama.egg-info/top_level.txt
