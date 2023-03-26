@@ -122,17 +122,6 @@ def compare_to_orig_llama():
         expected = orig_llama_model(token_sample, 0)
         out = llama_model(token_sample)
 
-    # y
-    assert torch.equal(llama_model.transformer["h"][0].y, orig_llama_model.layers[0].y)
-
-    # before rope
-    assert torch.equal(llama_model.transformer["h"][0].attn.q_before_rope.transpose(1, 2), orig_llama_model.layers[0].attention.q_before_rope)
-
-    # after rope
-    assert torch.allclose(llama_model.transformer["h"][0].attn.q_after_rope.sum(), orig_llama_model.layers[0].attention.q_after_rope.sum())
-
-    assert torch.allclose(llama_model.transformer["h"][0].attn_x, orig_llama_model.layers[0].attn_x)
-    assert torch.allclose(orig_llama_model.transformer_out, llama_model.transformer_out)
 
     forward_matches = torch.allclose(out, expected)
     print(f"Comparing forward:\t\t{'OK' if forward_matches else 'KO'}")

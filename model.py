@@ -43,7 +43,6 @@ def apply_rope(x: torch.Tensor, rope_cache: torch.Tensor):
     return x_out.transpose(1, 2).type_as(x)
 
 
-
 class RMSNorm(nn.Module):
     """
     Derived from https://github.com/bzhangGo/rmsnorm/blob/master/rmsnorm_torch.py
@@ -92,12 +91,8 @@ class CausalSelfAttention(nn.Module):
         q = q.view(B, T, self.n_head, head_size).transpose(1, 2) # (B, nh, T, hs)
         v = v.view(B, T, self.n_head, head_size).transpose(1, 2) # (B, nh, T, hs)
 
-        self.q_before_rope = q
-
         q = apply_rope(q, self.rope_cache)
         k = apply_rope(k, self.rope_cache)
-
-        self.q_after_rope = q
 
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         # efficient attention using Flash Attention CUDA kernels
@@ -140,13 +135,8 @@ class Block(nn.Module):
         self.mlp = MLP(config)
 
     def forward(self, x):
-        y = self.rms_1(x)
-        self.y = y
-        x = x + self.attn(y)
-        self.attn_x = x
-        z = self.rms_2(x)
-        self.z = z
-        x = x + self.mlp(z)
+        x = x + self.attn(self.rms_1(x))
+        x = x + self.mlp(self.rms_2(x))
         return x
 
 
@@ -201,7 +191,6 @@ class LLaMA(nn.Module):
         for block in self.transformer.h:
             x = block(x)
 
-        self.transformer_out = x
         x = self.transformer.ln_f(x)
 
         logits = self.lm_head(x)
