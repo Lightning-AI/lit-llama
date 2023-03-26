@@ -94,7 +94,6 @@ def main(
     assert os.path.isfile(checkpoint_path)
     assert os.path.isfile(tokenizer_path)
 
-    L.seed_everything(1234)
     fabric = L.Fabric(accelerator=accelerator, precision=precision, devices=1)
 
     # initialize the model directly on the device
@@ -111,6 +110,8 @@ def main(
     tokenizer = Tokenizer(tokenizer_path)
     encoded_prompt = tokenizer.encode(prompt, bos=True, eos=False).to(fabric.device)
     encoded_prompt = encoded_prompt[None, :]
+
+    L.seed_everything(1234)
     for _ in range(num_samples):
         y = generate(
             model, encoded_prompt, max_new_tokens, max_seq_length, temperature=temperature, top_k=top_k
