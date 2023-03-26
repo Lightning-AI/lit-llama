@@ -6,18 +6,36 @@ import torch
 
 
 def compare_rope():
-    x = torch.tensor([[1, 2, 3, 4], [4, 5, 6, 7], [7, 8, 9, 10]], dtype=torch.float32)
-    x = x[:, None, None, :]
+    # with t > 1, assertion fails!
+    b, t = 1, 6
+    n_embed = 8
+    n_head = 2
 
-    _, seq_len, n_heads, dim = x.shape
-    freqs_cis = orig_llama.precompute_freqs_cis(dim // n_heads, seq_len)
-    llama_rope_cache = llama.build_rope_cache(seq_len, dim, dtype=x.dtype, device=x.device, base=10000)
+    x = torch.randint(0, 10000, size=(b, t, n_head, n_embed // n_head)).float()
 
-    llama_x_rope = llama.apply_rope(x, llama_rope_cache)
-    orig_llama_x_rope, _ = orig_llama.apply_rotary_emb(x, x, freqs_cis)
-    apply_rope_matches = torch.allclose(llama_x_rope, orig_llama_x_rope)
+    freqs_cis = orig_llama.precompute_freqs_cis(n_embed // n_head, t)
+    llama_rope_cache = llama.build_rope_cache(t, n_embed // n_head, dtype=x.dtype, device=x.device, base=10000)
+    llama_rope_cache2 = llama.build_rope_cache(t, n_embed // n_head, dtype=x.dtype, device=x.device, base=10000)
+    assert torch.equal(llama_rope_cache, llama_rope_cache2)
 
-    print(f"Comparing apply rope:\t\t{'OK' if apply_rope_matches else 'KO'}")
+    # llama_x_rope = llama.apply_rope(x, llama_rope_cache)
+    from model import rotate_neg_half
+    neg_half_x = rotate_neg_half(x)
+    cos, sin = llama_rope_cache
+    T = x.size(2)
+    cos = cos[:, :, :T]
+    sin = sin[:, :, :T]
+    llama_x_rope = (x * cos) + (neg_half_x * sin)
+
+
+    # orig_llama_x_rope, _ = orig_llama.apply_rotary_emb(x, x, freqs_cis)
+    xq_ = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
+    # freqs_cis = reshape_for_broadcast(freqs_cis, xq_)
+    freqs_cis = freqs_cis.view(1, xq_.size(1), 1, xq_.size(3))
+    orig_llama_x_rope = torch.view_as_real(xq_ * freqs_cis).flatten(3)
+
+    assert torch.allclose(llama_x_rope, orig_llama_x_rope)
+
 
 
 def compare_rmsnorm():
@@ -69,10 +87,10 @@ def copy_weights(llama_model, orig_llama_model):
 
 
 def compare_to_orig_llama():
-    block_size = 64
+    block_size = 3
     vocab_size = 32000
-    n_layer = 16
-    n_head = 16
+    n_layer = 1
+    n_head = 2
     n_embd = 32
 
     llama_config = llama.LLaMAConfig(
@@ -91,7 +109,7 @@ def compare_to_orig_llama():
         max_seq_len=block_size
     )
 
-    batch_size = 3
+    batch_size = 1
 
     token_sample = torch.randint(0, orig_llama_config.vocab_size, size=(batch_size, orig_llama_config.max_seq_len), dtype=torch.int64)
 
@@ -100,23 +118,21 @@ def compare_to_orig_llama():
 
     copy_weights(llama_model, orig_llama_model)
 
-    orig_llama_embed = orig_llama_model.tok_embeddings(token_sample)
-    llama_embed = llama_model.transformer.wte(token_sample)
-    embed_matches = torch.allclose(orig_llama_embed, llama_embed)
+    with torch.no_grad():
+        expected = orig_llama_model(token_sample, 0)
+        out = llama_model(token_sample)
 
-    print(f"Comparing embed:\t\t{'OK' if embed_matches else 'KO'}")
+    # y
+    assert torch.equal(llama_model.transformer["h"][0].y, orig_llama_model.layers[0].y)
 
-    seq_len = token_sample.shape[1]
-    mask = torch.full((1, 1, seq_len, seq_len), float("-inf"))
-    mask = torch.triu(mask, diagonal=1)
-    orig_llama_block_out = orig_llama_model.layers[0](orig_llama_embed, 0, orig_llama_model.freqs_cis[: seq_len], mask)
-    llama_block_out = llama_model.transformer.h[0](llama_embed)
-    block_matches = torch.allclose(orig_llama_block_out, llama_block_out)
+    # before rope
+    assert torch.equal(llama_model.transformer["h"][0].attn.q_before_rope.transpose(1, 2), orig_llama_model.layers[0].attention.q_before_rope)
 
-    print(f"Comparing block out:\t\t{'OK' if block_matches else 'KO'}")
+    # after rope
+    # assert torch.allclose(llama_model.transformer["h"][0].attn.q_after_rope.sum(), orig_llama_model.layers[0].attention.q_after_rope.sum())
 
-    expected = orig_llama_model(token_sample, 0)
-    out = llama_model(token_sample)
+    # assert torch.allclose(llama_model.transformer["h"][0].attn_x, orig_llama_model.layers[0].attn_x)
+    # assert torch.allclose(orig_llama_model.transformer_out, llama_model.transformer_out)
 
     forward_matches = torch.allclose(out, expected)
     print(f"Comparing forward:\t\t{'OK' if forward_matches else 'KO'}")
@@ -132,7 +148,7 @@ def on_dtype(dtype):
 
 def compare_with_loaded_checkpoint():
     original_ckpt_path = "/srv/data/checkpoints/llama/raw/7B/consolidated.00.pth"
-    ckpt_path = "converted/7B/consolidated.00.pth"
+    ckpt_path = "/srv/data/checkpoints/llama/converted_nano/7B/state_dict.pth"
 
     device = torch.device("cuda")
     dtype = torch.float32
@@ -200,7 +216,7 @@ if __name__ == "__main__":
     import model as llama
     import original_model as orig_llama
 
-    #compare_rope()
+    compare_rope()
     #compare_rmsnorm()
-    #compare_to_orig_llama()
-    compare_with_loaded_checkpoint()
+    # compare_to_orig_llama()
+    # compare_with_loaded_checkpoint()
