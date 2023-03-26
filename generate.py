@@ -94,7 +94,6 @@ def main(
     assert os.path.isfile(checkpoint_path)
     assert os.path.isfile(tokenizer_path)
 
-    L.seed_everything(1234)
     fabric = L.Fabric(accelerator=accelerator, precision=precision, devices=1)
 
     # initialize the model directly on the device
@@ -108,6 +107,7 @@ def main(
         model = torch.compile(model)
     model = fabric.setup_module(model, move_to_device=False)
 
+    L.seed_everything(1234)
     tokenizer = Tokenizer(tokenizer_path)
     encoded_prompt = tokenizer.encode(prompt, bos=True, eos=False).to(fabric.device)
     encoded_prompt = encoded_prompt[None, :]
