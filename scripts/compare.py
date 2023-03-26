@@ -129,10 +129,10 @@ def compare_to_orig_llama():
     assert torch.equal(llama_model.transformer["h"][0].attn.q_before_rope.transpose(1, 2), orig_llama_model.layers[0].attention.q_before_rope)
 
     # after rope
-    # assert torch.allclose(llama_model.transformer["h"][0].attn.q_after_rope.sum(), orig_llama_model.layers[0].attention.q_after_rope.sum())
+    assert torch.allclose(llama_model.transformer["h"][0].attn.q_after_rope.sum(), orig_llama_model.layers[0].attention.q_after_rope.sum())
 
-    # assert torch.allclose(llama_model.transformer["h"][0].attn_x, orig_llama_model.layers[0].attn_x)
-    # assert torch.allclose(orig_llama_model.transformer_out, llama_model.transformer_out)
+    assert torch.allclose(llama_model.transformer["h"][0].attn_x, orig_llama_model.layers[0].attn_x)
+    assert torch.allclose(orig_llama_model.transformer_out, llama_model.transformer_out)
 
     forward_matches = torch.allclose(out, expected)
     print(f"Comparing forward:\t\t{'OK' if forward_matches else 'KO'}")
@@ -216,7 +216,7 @@ if __name__ == "__main__":
     import model as llama
     import original_model as orig_llama
 
-    compare_rope()
+    # compare_rope()
     #compare_rmsnorm()
-    # compare_to_orig_llama()
+    compare_to_orig_llama()
     # compare_with_loaded_checkpoint()
