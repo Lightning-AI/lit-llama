@@ -5,14 +5,11 @@ import torch
 
 
 def compare_rope():
-    b, t = 1, 6
-    n_embed = 8
-    n_head = 2
+    bs, seq_len, n_head, n_embed = 1, 6, 2, 8
+    x = torch.randint(0, 10000, size=(bs, seq_len, n_head, n_embed // n_head)).float()
 
-    x = torch.randint(0, 10000, size=(b, t, n_head, n_embed // n_head)).float()
-
-    freqs_cis = orig_llama.precompute_freqs_cis(n_embed // n_head, t)
-    llama_rope_cache = llama.build_rope_cache(t, n_embed // n_head, dtype=x.dtype, device=x.device, base=10000)
+    freqs_cis = orig_llama.precompute_freqs_cis(n_embed // n_head, seq_len)
+    llama_rope_cache = llama.build_rope_cache(seq_len, n_embed // n_head, dtype=x.dtype, device=x.device)
     assert torch.equal(freqs_cis, llama_rope_cache)
 
     llama_x_rope = llama.apply_rope(x.transpose(1, 2), llama_rope_cache).transpose(1, 2)
