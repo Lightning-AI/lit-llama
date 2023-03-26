@@ -13,11 +13,12 @@ def compare_rope():
 
     freqs_cis = orig_llama.precompute_freqs_cis(n_embed // n_head, t)
     llama_rope_cache = llama.build_rope_cache(t, n_embed // n_head, dtype=x.dtype, device=x.device, base=10000)
+    assert torch.equal(freqs_cis, llama_rope_cache)
 
-    llama_x_rope = llama.apply_rope(x, llama_rope_cache)
+    llama_x_rope = llama.apply_rope(x.transpose(1, 2), llama_rope_cache).transpose(1, 2)
     orig_llama_x_rope, _ = orig_llama.apply_rotary_emb(x, x, freqs_cis)
 
-    apply_rope_matches = torch.allclose(llama_x_rope, orig_llama_x_rope)
+    apply_rope_matches = torch.equal(llama_x_rope, orig_llama_x_rope)
     print(f"Comparing apply rope:\t\t{'OK' if apply_rope_matches else 'KO'}")
 
 
