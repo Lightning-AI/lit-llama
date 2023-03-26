@@ -15,24 +15,11 @@ def compare_rope():
 
     freqs_cis = orig_llama.precompute_freqs_cis(n_embed // n_head, t)
     llama_rope_cache = llama.build_rope_cache(t, n_embed // n_head, dtype=x.dtype, device=x.device, base=10000)
-    llama_rope_cache2 = llama.build_rope_cache(t, n_embed // n_head, dtype=x.dtype, device=x.device, base=10000)
-    assert torch.equal(llama_rope_cache, llama_rope_cache2)
 
-    # llama_x_rope = llama.apply_rope(x, llama_rope_cache)
-    from model import rotate_neg_half
-    neg_half_x = rotate_neg_half(x)
-    cos, sin = llama_rope_cache
-    T = x.size(2)
-    cos = cos[:, :, :T]
-    sin = sin[:, :, :T]
-    llama_x_rope = (x * cos) + (neg_half_x * sin)
+    assert torch.allclose(freqs_cis, llama_rope_cache)
 
-
-    # orig_llama_x_rope, _ = orig_llama.apply_rotary_emb(x, x, freqs_cis)
-    xq_ = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
-    # freqs_cis = reshape_for_broadcast(freqs_cis, xq_)
-    freqs_cis = freqs_cis.view(1, xq_.size(1), 1, xq_.size(3))
-    orig_llama_x_rope = torch.view_as_real(xq_ * freqs_cis).flatten(3)
+    orig_llama_x_rope, _ = orig_llama.apply_rotary_emb(x, x, freqs_cis)
+    llama_x_rope = llama.apply_rope(x.transpose(1, 2), llama_rope_cache).transpose(1, 2)
 
     assert torch.allclose(llama_x_rope, orig_llama_x_rope)
 
@@ -205,7 +192,7 @@ if __name__ == "__main__":
     import model as llama
     import original_model as orig_llama
 
-    # compare_rope()
+    compare_rope()
     #compare_rmsnorm()
     compare_to_orig_llama()
     # compare_with_loaded_checkpoint()
