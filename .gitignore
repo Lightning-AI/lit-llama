@@ -10,4 +10,4 @@ checkpoints
 !data/shakespeare/prepare.py
 
 # downloaded by scripts/compare.py
-llama_model.py
+original_model.py
