@@ -4,6 +4,7 @@ import torch
 from tokenizer import Tokenizer
 import lightning as L
 from quantization.bnb import quantize as quantize_model
+import sys
 
 
 @torch.no_grad()
@@ -145,8 +146,8 @@ def main(
         )
         print(tokenizer.decode(y[0]))
 
-    print(f"Time for inference: {time.time() - t0:.02f} seconds")
-    print(f"Memory used (GB): {torch.cuda.max_memory_reserved() / 1e9:.02f}")
+    print(f"Time for inference: {time.time() - t0:.02f} seconds", file=sys.stderr)
+    print(f"Memory used (GB): {torch.cuda.max_memory_reserved() / 1e9:.02f}", file=sys.stderr)
 
 
 if __name__ == "__main__":
