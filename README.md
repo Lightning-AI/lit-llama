@@ -100,6 +100,8 @@ Join us and start contributing, especially on the following areas:
 
 Look at `train.py` for a starting point towards pre-training / fine-tuning using [Lightning Fabric](https://lightning.ai/docs/fabric/stable/).
 
+Don't forget to [join our Discord](https://discord.gg/VptPCZkGNa)!
+
 ## Acknowledgements
 
 - [@karpathy](https://github.com/karpathy) for [nanoGPT](https://github.com/karpathy/nanoGPT)
