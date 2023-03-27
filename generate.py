@@ -5,10 +5,11 @@ from tokenizer import Tokenizer
 import lightning as L
 from quantization.bnb import quantize as quantize_model
 import sys
+from model import LLaMA, LLaMAConfig
 
 
 @torch.no_grad()
-def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=None):
+def generate(model, idx, max_new_tokens, temperature=1.0, top_k=None):
     """
     Takes a conditioning sequence (prompt) as input and continues to generate as many tokens as requested.
 
@@ -18,7 +19,6 @@ def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=
         model: The model to use.
         idx: Tensor of shape (B, T) with indices of the prompt sequence.
         max_new_tokens: The number of new tokens to generate.
-        max_seq_length: The maximum sequence length allowed.
         temperature: Scales the predicted logits by 1 / temperature
         top_k: If specified, only sample among the tokens with the k highest probabilities
     """
@@ -33,8 +33,8 @@ def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=
     for t in range(T, T_new):
         # ignore the not-filled-yet tokens
         idx_cond = idx[:, :t]
-        # if the sequence context is growing too long we must crop it at max_seq_length
-        idx_cond = idx_cond if T <= max_seq_length else idx_cond[:, -max_seq_length:]
+        # if the sequence context is growing too long we must crop it at block size
+        idx_cond = idx_cond if T <= model.config.block_size else idx_cond[:, -model.config.block_size:]
 
         # forward
         logits = model(idx_cond)
@@ -54,26 +54,6 @@ def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=
     return idx
 
 
-def get_model(original: bool = False):
-    if original:
-        try:
-            from original_model import Transformer, ModelArgs
-        except ModuleNotFoundError:
-            from scripts.download import download_original
-
-            download_original(os.path.dirname(__file__))
-
-            from original_model import Transformer, ModelArgs
-
-        config = ModelArgs(dim=4096, n_layers=32, n_heads=32, vocab_size=32000, max_batch_size=1)  # 7B config
-        return Transformer(config), config.max_seq_len
-    else:
-        from model import LLaMA, LLaMAConfig
-
-        config = LLaMAConfig()  # 7B default
-        return LLaMA(config), config.block_size
-
-
 def main(
     prompt: str = "Hello, my name is",
     *,
@@ -86,7 +66,6 @@ def main(
     accelerator: str = "auto",
     checkpoint_path: str = "/srv/data/checkpoints/llama/converted_nano/7B/state_dict.pth",
     tokenizer_path: str = "/srv/data/checkpoints/llama/converted_nano/tokenizer.model",
-    original_model: bool = False,
     quantize: bool = False,
 ):
     """
@@ -104,7 +83,6 @@ def main(
             ``"cpu"``, ``"cuda"``, ``"mps"``, ``"gpu"``, ``"tpu"``, ``"auto"``.
         checkpoint_path: The checkpoint path to load.
         tokenizer_path: The tokenizer path to load.
-        original_model: Whether to use the original LLaMA model from Meta.
         quantize: Whether to quantize the model using the `LLM.int8()` method
     """
     assert os.path.isfile(checkpoint_path)
@@ -115,17 +93,16 @@ def main(
     if quantize:
         print("Running quantization. This may take a minute ...")
         # TODO: Initializing the model directly on the device does not work with quantization
-        model, max_seq_length = get_model(original_model)
-
+        model = LLaMA(LLaMAConfig())
         # The output layer can be sensitive to quantization, we keep it in default precision
         model = quantize_model(model, skip=("lm_head", "output", ))
         checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint, strict=(not original_model))
+        model.load_state_dict(checkpoint)
     else:
         with fabric.device:
-            model, max_seq_length = get_model(original_model)
+            model = LLaMA(LLaMAConfig())
             checkpoint = torch.load(checkpoint_path)
-            model.load_state_dict(checkpoint, strict=(not original_model))
+            model.load_state_dict(checkpoint)
 
     model.eval()
     
@@ -141,9 +118,7 @@ def main(
     L.seed_everything(1234)
     t0 = time.time()
     for _ in range(num_samples):
-        y = generate(
-            model, encoded_prompt, max_new_tokens, max_seq_length, temperature=temperature, top_k=top_k
-        )
+        y = generate(model, encoded_prompt, max_new_tokens, temperature=temperature, top_k=top_k)
         print(tokenizer.decode(y[0]))
 
     print(f"Time for inference: {time.time() - t0:.02f} seconds", file=sys.stderr)
