@@ -28,10 +28,7 @@ import numpy as np
 from sentencepiece import SentencePieceTrainer
 
 
-def prepare(
-    tokenizer_path: str = "checkpoints/llama/tokenizer.model",
-    destination_path: str = "data/shakespeare",
-) -> None:
+def prepare(destination_path: str = "data/shakespeare") -> None:
     os.makedirs(destination_path, exist_ok=True)
     # download the tiny shakespeare dataset
     input_file_path = os.path.join(destination_path, "input.txt")
@@ -46,11 +43,12 @@ def prepare(
     train_data = data[: int(n * 0.9)]
     val_data = data[int(n * 0.9) :]
 
+    tokenizer_prefix = os.path.join(destination_path, "tokenizer")
+    SentencePieceTrainer.Train(input=input_file_path, model_prefix=tokenizer_prefix)
+    
     from tokenizer import Tokenizer
 
-    SentencePieceTrainer.Train(input=input_file_path, model_prefix=os.path.join(destination_path, "tokenizer"))
-
-    tokenizer = Tokenizer(tokenizer_path)
+    tokenizer = Tokenizer(tokenizer_prefix + ".model")
     train_ids = tokenizer.encode(train_data)
     val_ids = tokenizer.encode(val_data)
     print(f"train has {len(train_ids):,} tokens")
