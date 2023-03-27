@@ -21,11 +21,8 @@
 # SOFTWARE.
 import os
 import sys
-
 import requests
-
 import numpy as np
-from sentencepiece import SentencePieceTrainer
 
 
 def prepare(destination_path: str = "data/shakespeare") -> None:
@@ -43,12 +40,10 @@ def prepare(destination_path: str = "data/shakespeare") -> None:
     train_data = data[: int(n * 0.9)]
     val_data = data[int(n * 0.9) :]
 
-    tokenizer_prefix = os.path.join(destination_path, "tokenizer")
-    SentencePieceTrainer.Train(input=input_file_path, model_prefix=tokenizer_prefix)
-    
     from tokenizer import Tokenizer
-
-    tokenizer = Tokenizer(tokenizer_prefix + ".model")
+    
+    Tokenizer.train(input=input_file_path, destination=destination_path)
+    tokenizer = Tokenizer(os.path.join(destination_path, "tokenizer.model"))
     train_ids = tokenizer.encode(train_data)
     val_ids = tokenizer.encode(val_data)
     print(f"train has {len(train_ids):,} tokens")
