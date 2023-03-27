@@ -92,7 +92,7 @@ def main(
     if not checkpoint_path:
         checkpoint_path = f"./checkpoints/lit-llama/{model_size}/state_dict.pth"
     if not tokenizer_path:
-        tokenizer_path = "./checkpoints/lit-llama/tokenizer.model"
+        tokenizer_path = "./data/vocab.txt"
 
     assert os.path.isfile(checkpoint_path)
     assert os.path.isfile(tokenizer_path)
