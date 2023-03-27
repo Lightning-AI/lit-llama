@@ -88,7 +88,7 @@ python scripts/convert_checkpoint.py \
 Run inference:
 
 ```bash
-python scripts/generate.py --prompt "Hello, my name is"
+python generate.py --prompt "Hello, my name is"
 ```
 
 This will run the 7B model and require ~26 GB of GPU memory (A100 GPU).
@@ -99,10 +99,10 @@ For GPUs with less memory, enable quantization (`--quantize true`). This will ta
 This can run on any consumer GPU.   
 
 ```bash
-python scripts/generate.py --quantize true --prompt "Hello, my name is"
+python generate.py --quantize true --prompt "Hello, my name is"
 ```
 
-See `python scripts/generate.py --help` for more options.
+See `python generate.py --help` for more options.
 
 &nbsp;
 
