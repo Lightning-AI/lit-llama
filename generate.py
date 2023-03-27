@@ -5,10 +5,9 @@ import time
 import lightning as L
 import torch
 
-from quantization.bnb import quantize as quantize_model
-import sys
-from tokenizer import Tokenizer
 from model import LLaMA, LLaMAConfig
+from quantization.bnb import quantize as quantize_model
+from tokenizer import Tokenizer
 
 
 @torch.no_grad()
@@ -120,7 +119,9 @@ def main(
     L.seed_everything(1234)
     t0 = time.time()
     for _ in range(num_samples):
-        y = generate(model, encoded_prompt, max_new_tokens, model.config.block_size, temperature=temperature, top_k=top_k)
+        y = generate(
+            model, encoded_prompt, max_new_tokens, model.config.block_size, temperature=temperature, top_k=top_k
+        )
         print(tokenizer.decode(y[0]))
 
     print(f"Time for inference: {time.time() - t0:.02f} seconds", file=sys.stderr)
