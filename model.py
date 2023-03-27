@@ -2,7 +2,7 @@
 
 Based on the nanoGPT implementation: https://github.com/karpathy/nanoGPT.
 """
-
+# mypy: ignore-errors
 import math
 from dataclasses import dataclass
 
@@ -199,11 +199,11 @@ class LLaMA(nn.Module):
         ), f"Cannot forward sequence of length {t}, block size is only {self.config.block_size}"
 
         # forward the LLaMA model itself
-        x = self.transformer.wte(idx)  # type: ignore[operator]  # token embeddings of shape (b, t, n_embd)
+        x = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
 
-        for block in self.transformer.h:  # type: ignore[union-attr]
+        for block in self.transformer.h:
             x = block(x)
-        x = self.transformer.ln_f(x)  # type: ignore[operator]
+        x = self.transformer.ln_f(x)
 
         logits = self.lm_head(x)
 
