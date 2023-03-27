@@ -67,18 +67,17 @@ allow_redefinition = "True"
 warn_no_return = "False"
 
 
-#[tool.pytest.ini_options]
-#norecursedirs = [
-#    ".git",
-#    ".github",
-#]
-#addopts = [
-#    "--strict-markers",
-#    "--doctest-modules",
-#    "--color=yes",
-#    "--disable-pytest-warnings",
-#]
-#filterwarnings = [
-#    "error::FutureWarning",
-#]
-#junit_duration_report = "call"
+[tool.pytest.ini_options]
+norecursedirs = [
+    ".git",
+    ".github",
+]
+addopts = [
+    "--strict-markers",
+    "--doctest-modules",
+    "--color=yes",
+    "--disable-pytest-warnings",
+]
+filterwarnings = [
+    "error::FutureWarning",
+]
