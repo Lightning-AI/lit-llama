@@ -25,6 +25,7 @@ import sys
 import requests
 
 import numpy as np
+from sentencepiece import SentencePieceTrainer
 
 
 def prepare(
@@ -46,6 +47,8 @@ def prepare(
     val_data = data[int(n * 0.9) :]
 
     from tokenizer import Tokenizer
+
+    SentencePieceTrainer.Train(input=input_file_path, model_prefix=os.path.join(destination_path, "tokenizer"))
 
     tokenizer = Tokenizer(tokenizer_path)
     train_ids = tokenizer.encode(train_data)
