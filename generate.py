@@ -1,6 +1,7 @@
 import os
 import time
 import torch
+from typing import Optional
 from tokenizer import Tokenizer
 import lightning as L
 from quantization.bnb import quantize as quantize_model
@@ -70,7 +71,8 @@ def get_model(original: bool = False):
     else:
         from model import LLaMA, LLaMAConfig
 
-        return LLaMA.from_name("7B"), config.block_size
+        config = LLaMAConfig.from_name("7B")
+        return LLaMA(config), config.block_size
 
 
 def main(
@@ -83,8 +85,9 @@ def main(
     # compilation fails as it does not support torch.complex64 for RoPE
     # compile: bool = False,
     accelerator: str = "auto",
-    checkpoint_path: str = "./checkpoints/lit-llama/7B/state_dict.pth",
-    tokenizer_path: str = "./checkpoints/lit-llama/tokenizer.model",
+    checkpoint_path: Optional[str] = None,
+    tokenizer_path: Optional[str] = None,
+    model_size="7B",
     original_model: bool = False,
     quantize: bool = False,
 ):
@@ -106,6 +109,11 @@ def main(
         original_model: Whether to use the original LLaMA model from Meta.
         quantize: Whether to quantize the model using the `LLM.int8()` method
     """
+    if not checkpoint_path:
+        checkpoint_path = f"./checkpoints/lit-llama/{model_size}/state_dict.pth"
+    if not tokenizer_path:
+        tokenizer_path = "./checkpoints/lit-llama/tokenizer.model"
+
     assert os.path.isfile(checkpoint_path)
     assert os.path.isfile(tokenizer_path)
 

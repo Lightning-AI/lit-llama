@@ -158,7 +158,7 @@ class LLaMAConfig:
 
     @classmethod
     def from_name(cls, name: str):
-        return llama_configs[name]
+        return cls(**llama_configs[name])
 
 
 class LLaMA(nn.Module):
