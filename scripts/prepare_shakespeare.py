@@ -27,7 +27,7 @@ from tokenizer import Tokenizer
 
 
 def prepare(
-    tokenizer_path: str = "/srv/data/checkpoints/llama/converted_meta/tokenizer.model",
+    tokenizer_path: str = "checkpoints/llama/tokenizer.model",
     destination_path: str = "data/shakespeare",
 ):
     os.makedirs(destination_path, exist_ok=True)
