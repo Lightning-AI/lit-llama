@@ -1,17 +1,19 @@
 import os
+import sys
 import time
 import torch
 from typing import Optional
-from tokenizer import Tokenizer
+
 import lightning as L
+import torch
+
 from quantization.bnb import quantize as quantize_model
-import sys
+from tokenizer import Tokenizer
 
 
 @torch.no_grad()
 def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=None):
-    """
-    Takes a conditioning sequence (prompt) as input and continues to generate as many tokens as requested.
+    """Takes a conditioning sequence (prompt) as input and continues to generate as many tokens as requested.
 
     The implementation of this function is modified from A. Karpathy's nanoGPT.
 
@@ -58,13 +60,13 @@ def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=
 def get_model(original: bool = False, model_size: str = "7B"):
     if original:
         try:
-            from original_model import Transformer, ModelArgs
+            from original_model import ModelArgs, Transformer
         except ModuleNotFoundError:
             from scripts.download import download_original
 
             download_original(os.path.dirname(__file__))
 
-            from original_model import Transformer, ModelArgs
+            from original_model import ModelArgs, Transformer
 
         config = ModelArgs(dim=4096, n_layers=32, n_heads=32, vocab_size=32000, max_batch_size=1)  # 7B config
         return Transformer(config), config.max_seq_len
@@ -91,8 +93,7 @@ def main(
     original_model: bool = False,
     quantize: bool = False,
 ):
-    """
-    Generates text samples based on a pre-trained LLaMA model and tokenizer.
+    """Generates text samples based on a pre-trained LLaMA model and tokenizer.
 
     Args:
         prompt: The prompt string to use for generating the samples.
@@ -125,7 +126,7 @@ def main(
         model, max_seq_length = get_model(original_model, model_size)
 
         # The output layer can be sensitive to quantization, we keep it in default precision
-        model = quantize_model(model, skip=("lm_head", "output", ))
+        model = quantize_model(model, skip=("lm_head", "output"))
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint, strict=(not original_model))
     else:
@@ -135,7 +136,7 @@ def main(
             model.load_state_dict(checkpoint, strict=(not original_model))
 
     model.eval()
-    
+
     # if compile:
     #     model = torch.compile(model)
 
@@ -148,9 +149,7 @@ def main(
     L.seed_everything(1234)
     t0 = time.time()
     for _ in range(num_samples):
-        y = generate(
-            model, encoded_prompt, max_new_tokens, max_seq_length, temperature=temperature, top_k=top_k
-        )
+        y = generate(model, encoded_prompt, max_new_tokens, max_seq_length, temperature=temperature, top_k=top_k)
         print(tokenizer.decode(y[0]))
 
     print(f"Time for inference: {time.time() - t0:.02f} seconds", file=sys.stderr)
@@ -160,5 +159,5 @@ def main(
 if __name__ == "__main__":
     from jsonargparse import CLI
 
-    torch.set_float32_matmul_precision('high')
+    torch.set_float32_matmul_precision("high")
     CLI(main)
