@@ -2,7 +2,7 @@ import os
 import torch
 from tokenizer import Tokenizer
 import lightning as L
-from quantization.bnb import quantize
+from quantization.bnb import quantize as quantize_model
 
 
 @torch.inference_mode()
@@ -70,6 +70,7 @@ def main(
     checkpoint_path: str = "/srv/data/checkpoints/llama/converted_nano/7B/state_dict.pth",
     tokenizer_path: str = "/srv/data/checkpoints/llama/converted_nano/tokenizer.model",
     original_model: bool = False,
+    quantize: bool = False,
 ):
     """
     Generates text samples based on a pre-trained LLaMA model and tokenizer.
@@ -87,29 +88,32 @@ def main(
         checkpoint_path: The checkpoint path to load.
         tokenizer_path: The tokenizer path to load.
         original_model: Whether to use the original LLaMA model from Meta.
+        quantize: Whether to quantize the model using the `LLM.int8()` method
     """
     assert os.path.isfile(checkpoint_path)
     assert os.path.isfile(tokenizer_path)
 
     fabric = L.Fabric(accelerator=accelerator, devices=1)
 
-    # initialize the model directly on the device
-    with fabric.device:
+    if quantize:
+        print("Running quantization. This may take a minute ...")
+        # TODO: Initializing the model directly on the device does not work with quantization
         model, max_seq_length = get_model(original_model)
+        model = quantize_model(model, skip=("lm_head", "output", ))
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint, strict=(not original_model))
-    
-    model.eval()
-    model = model.to(fabric.device)
-    
-    # model = fabric.setup_module(model)
-    # TODO: fix this later in the model (buffer)
-    model.cos_cached = fabric.to_device(model.cos_cached)
-    model.sin_cached = fabric.to_device(model.sin_cached)
+    else:
+        with fabric.device:
+            model, max_seq_length = get_model(original_model)
+            checkpoint = torch.load(checkpoint_path)
+            model.load_state_dict(checkpoint, strict=(not original_model))
 
+    model.eval()
+    
     if compile:
         model = torch.compile(model)
-    model = fabric.setup_module(model, move_to_device=False)
+
+    model = fabric.setup_module(model)
 
     tokenizer = Tokenizer(tokenizer_path)
     encoded_prompt = tokenizer.encode(prompt, bos=True, eos=False).to(fabric.device)
@@ -122,10 +126,11 @@ def main(
         )
         print(tokenizer.decode(y[0]))
 
-    # print("Max memory used:", torch.cuda.max_memory_reserved() // 1e9)
+    print(f"Memory used (GB): {torch.cuda.max_memory_reserved() / 1e9:.02f}")
 
 
 if __name__ == "__main__":
     from jsonargparse import CLI
 
+    torch.set_float32_matmul_precision('high')
     CLI(main)
