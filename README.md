@@ -1,6 +1,11 @@
 
 <img align="right" style="padding: 1em" src="assets/Lit_LLaMA_Badge3x.png" alt="Lit-LLaMA" width="85"/>
 
+<!--
+[![Discord](https://img.shields.io/discord/1077906959069626439?style=plastic)](https://discord.gg/VptPCZkGNa)
+[![license](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/Lightning-AI/lit-llama/blob/master/LICENSE)
+-->
+
 # ⚡ Lit-LLaMA ️
 
 **Lit-LLaMA** is an independent implementation of [LLaMA](<https://github.com/facebookresearch/llama>) based on [nanoGPT](<https://github.com/karpathy/nanoGPT>), and released under the **Apache 2.0 license**.
@@ -92,9 +97,9 @@ See `python scripts/generate.py --help` for more options.
 
 ## Want to contribute?
 
-<img align="right" src="assets/Lit_LLaMA_Illustration3x.png" alt="Lit-LLaMA" width="128"/>
+We're in a quest towards fully open source AI, especially focusing on models in the 5-20B range, trained using the LLaMA approach (smaller models trained for longer).
 
-We're in a quest towards fully open source AI, especially focusing on models in the 5-20B range, trained using the LLaMA philosophy.
+<img align="right" src="assets/Lit_LLaMA_Illustration3x.png" alt="Lit-LLaMA" width="128"/>
 
 Join us and start contributing, especially on the following areas:
 
