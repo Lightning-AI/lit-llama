@@ -77,7 +77,7 @@ You can now run inference:
 ```bash
 python scripts/generate.py \
     --prompt "Hello, my name is"" \
-    --checkpoint_path checkpoints/lit-llama/7B \
+    --checkpoint_path checkpoints/lit-llama/7B/state_dict.pt \
     --tokenizer_path checkpoints/lit-llama/tokenizer.model
 ```
 
