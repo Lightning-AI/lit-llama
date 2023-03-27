@@ -42,7 +42,7 @@ def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=
         if top_k is not None:
             v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
             logits[logits < v[:, [-1]]] = -float("Inf")
-            
+
         probs = torch.nn.functional.softmax(logits, dim=-1)
         idx_next = torch.multinomial(probs, num_samples=1)
 
