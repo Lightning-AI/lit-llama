@@ -12,7 +12,7 @@ git clone https://github.com/Lightning-AI/lightning-llama
 cd lightning-llama
 ```
 
-Create a new Python environment. We recommend using Anaconda/Miniconda:
+Create a new Python environment. We recommend using [Anaconda/Miniconda](https://docs.conda.io/en/latest/miniconda.html):
 
 ```bash
 conda create -n llama python=3.10
@@ -31,7 +31,7 @@ You are all set!
 
 ## Inference
 
-To generate text prediction, you first need to download the trained model weights following the instructions on the official [LLaMA repository](https://github.com/facebookresearch/llama) from Meta. After you have done that, you should have a folder like this:
+To generate text predictions, you first need to download the trained model weights following the instructions on the official [LLaMA repository](https://github.com/facebookresearch/llama) from Meta. After you have done that, you should have a folder like this:
 
 ```
 checkpoints/llama
