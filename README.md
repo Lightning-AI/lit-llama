@@ -1,4 +1,4 @@
-# ⚡ Lit LLaMA 🦙
+# ⚡ Lit-LLaMA 🦙
 
 **Lit-LLaMA** is an independent implementation of [LLaMA](<https://github.com/facebookresearch/llama>) based on [nanoGPT](<https://github.com/karpathy/nanoGPT>), and released under the **Apache 2.0 license**.
 
@@ -11,6 +11,8 @@ This means that any project containing LLaMA code **must be released as GPL**. W
 - **Numerically equivalent** to the original model
 - **Optimized** to run on consumer hardware or at scale
 - **Open-source** no strings attached
+
+Interested in **making this perfect together**? [Join our Discord](https://discord.gg/VptPCZkGNa)!
 
 ## Installation
 
