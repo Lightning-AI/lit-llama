@@ -43,7 +43,7 @@ def convert_state_dict(state_dict):
 
 def meta_weights_for_nano_model(
     *,
-    output_dir: Path("checkpoints/lit-llama"),
+    output_dir: Path = Path("checkpoints/lit-llama"),
     ckpt_dir: Path = Path("checkpoints/llama/"),
     tokenizer_path: Path = Path("checkpoints/llama/tokenizer.model"),
     model_size: str = "7B",
