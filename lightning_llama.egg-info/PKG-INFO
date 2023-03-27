@@ -1,0 +1,7 @@
+Metadata-Version: 2.1
+Name: lightning-llama
+Version: 0.0.1
+Home-page: https://lightning.ai
+Author: Lightning AI
+Requires-Python: >=3.8
+License-File: LICENSE

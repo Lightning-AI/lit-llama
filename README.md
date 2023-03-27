@@ -71,9 +71,14 @@ See `python scripts/generate.py --help` for more options.
 
 ## Training (coming soon!)
 
-As part of the Lightning open LLM initiative, our goal is to train LLaMA from scratch to obtain open-sourced checkpoints that everyone can use. The file `train.py` contains a simple training skeleton that will evolve into a fully reproducing training script for LLaMA.
+As part of the Lightning open LLM initiative, our goal is to collaboratively train LLaMA from scratch to obtain open-sourced checkpoints that everyone can use without restrictions. The file `train.py` contains a simple training skeleton that will evolve into a fully reproducing training script for LLaMA.
 
 To learn more join the [Open LLM Initiative channel](todo) on our discord server.
 
 ## Fine-tuning (coming soon!)
 
+As part of the Lightning open LLM initiative, we will develop scripts for instruction-tuning LLaMA following these works:
+- [Stanford Alpaca](https://github.com/tatsu-lab/stanford_alpaca)
+- [LoRA: Low-Rank Adaptation of Large Language Models](https://arxiv.org/abs/2106.09685)
+
+Join the [Open LLM Initiative channel](todo) on our discord server to learn more!
