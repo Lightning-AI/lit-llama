@@ -76,4 +76,3 @@ addopts = [
 filterwarnings = [
     "error::FutureWarning",
 ]
-junit_duration_report = "call"
