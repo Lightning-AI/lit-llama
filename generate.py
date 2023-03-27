@@ -1,4 +1,5 @@
 import os
+import time
 import torch
 from tokenizer import Tokenizer
 import lightning as L
@@ -99,6 +100,8 @@ def main(
         print("Running quantization. This may take a minute ...")
         # TODO: Initializing the model directly on the device does not work with quantization
         model, max_seq_length = get_model(original_model)
+
+        # The output layer can be sensitive to quantization, we keep it in default precision
         model = quantize_model(model, skip=("lm_head", "output", ))
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint, strict=(not original_model))
@@ -120,12 +123,14 @@ def main(
     encoded_prompt = encoded_prompt[None, :]
 
     L.seed_everything(1234)
+    t0 = time.time()
     for _ in range(num_samples):
         y = generate(
             model, encoded_prompt, max_new_tokens, max_seq_length, temperature=temperature, top_k=top_k
         )
         print(tokenizer.decode(y[0]))
 
+    print(f"Time for inference: {time.time() - t0:.02f} seconds")
     print(f"Memory used (GB): {torch.cuda.max_memory_reserved() / 1e9:.02f}")
 
 
