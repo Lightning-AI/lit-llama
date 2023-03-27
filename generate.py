@@ -9,7 +9,7 @@ from model import LLaMA, LLaMAConfig
 
 
 @torch.no_grad()
-def generate(model, idx, max_new_tokens, temperature=1.0, top_k=None):
+def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=None):
     """
     Takes a conditioning sequence (prompt) as input and continues to generate as many tokens as requested.
 
@@ -19,6 +19,7 @@ def generate(model, idx, max_new_tokens, temperature=1.0, top_k=None):
         model: The model to use.
         idx: Tensor of shape (B, T) with indices of the prompt sequence.
         max_new_tokens: The number of new tokens to generate.
+        max_seq_length: The maximum sequence length allowed.
         temperature: Scales the predicted logits by 1 / temperature
         top_k: If specified, only sample among the tokens with the k highest probabilities
     """
@@ -34,7 +35,7 @@ def generate(model, idx, max_new_tokens, temperature=1.0, top_k=None):
         # ignore the not-filled-yet tokens
         idx_cond = idx[:, :t]
         # if the sequence context is growing too long we must crop it at block size
-        idx_cond = idx_cond if T <= model.config.block_size else idx_cond[:, -model.config.block_size:]
+        idx_cond = idx_cond if T <= max_seq_length else idx_cond[:, -max_seq_length:]
 
         # forward
         logits = model(idx_cond)
@@ -118,7 +119,7 @@ def main(
     L.seed_everything(1234)
     t0 = time.time()
     for _ in range(num_samples):
-        y = generate(model, encoded_prompt, max_new_tokens, temperature=temperature, top_k=top_k)
+        y = generate(model, encoded_prompt, max_new_tokens, model.config.block_size, temperature=temperature, top_k=top_k)
         print(tokenizer.decode(y[0]))
 
     print(f"Time for inference: {time.time() - t0:.02f} seconds", file=sys.stderr)
