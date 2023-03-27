@@ -1,4 +1,4 @@
-# Lightning LLaMA
+# ⚡ Lightning LLaMA 🦙
 
 TODO: Introduction
 
