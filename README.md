@@ -98,7 +98,7 @@ Join us and start contributing, especially on the following areas:
 - [ ] Pre-training
 - [ ] Fine-tuning (full and LoRA)
 - [ ] Quantization
-- [ ] Sparsificaiton
+- [ ] Sparsification
 
 Look at `train.py` for a starting point towards pre-training / fine-tuning using [Lightning Fabric](https://lightning.ai/docs/fabric/stable/).
 
