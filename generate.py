@@ -7,6 +7,7 @@ import torch
 
 from quantization.bnb import quantize as quantize_model
 import sys
+from tokenizer import Tokenizer
 from model import LLaMA, LLaMAConfig
 
 
