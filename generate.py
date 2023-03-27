@@ -84,8 +84,8 @@ def main(
     # compilation fails as it does not support torch.complex64 for RoPE
     # compile: bool = False,
     accelerator: str = "auto",
-    checkpoint_path: str = "/srv/data/checkpoints/llama/converted_nano/7B/state_dict.pth",
-    tokenizer_path: str = "/srv/data/checkpoints/llama/converted_nano/tokenizer.model",
+    checkpoint_path: str = "./checkpoints/lit-llama/7B/state_dict.pth",
+    tokenizer_path: str = "./checkpoints/lit-llama/tokenizer.model",
     original_model: bool = False,
     quantize: bool = False,
 ):
