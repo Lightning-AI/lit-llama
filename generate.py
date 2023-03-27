@@ -55,7 +55,7 @@ def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=
     return idx
 
 
-def get_model(original: bool = False):
+def get_model(original: bool = False, model_size: str = "7B"):
     if original:
         try:
             from original_model import Transformer, ModelArgs
@@ -71,7 +71,7 @@ def get_model(original: bool = False):
     else:
         from model import LLaMA, LLaMAConfig
 
-        config = LLaMAConfig.from_name("7B")
+        config = LLaMAConfig.from_name(model_size)
         return LLaMA(config), config.block_size
 
 
@@ -87,7 +87,7 @@ def main(
     accelerator: str = "auto",
     checkpoint_path: Optional[str] = None,
     tokenizer_path: Optional[str] = None,
-    model_size :str = "7B",
+    model_size: str = "7B",
     original_model: bool = False,
     quantize: bool = False,
 ):
@@ -122,7 +122,7 @@ def main(
     if quantize:
         print("Running quantization. This may take a minute ...")
         # TODO: Initializing the model directly on the device does not work with quantization
-        model, max_seq_length = get_model(original_model)
+        model, max_seq_length = get_model(original_model, model_size)
 
         # The output layer can be sensitive to quantization, we keep it in default precision
         model = quantize_model(model, skip=("lm_head", "output", ))
