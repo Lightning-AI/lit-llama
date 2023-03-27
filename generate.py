@@ -1,8 +1,10 @@
 import os
+import sys
 import time
-import torch
-from tokenizer import Tokenizer
+
 import lightning as L
+import torch
+
 from quantization.bnb import quantize as quantize_model
 import sys
 from model import LLaMA, LLaMAConfig
@@ -69,8 +71,7 @@ def main(
     tokenizer_path: str = "/srv/data/checkpoints/llama/converted_nano/tokenizer.model",
     quantize: bool = False,
 ):
-    """
-    Generates text samples based on a pre-trained LLaMA model and tokenizer.
+    """Generates text samples based on a pre-trained LLaMA model and tokenizer.
 
     Args:
         prompt: The prompt string to use for generating the samples.
@@ -96,7 +97,7 @@ def main(
         # TODO: Initializing the model directly on the device does not work with quantization
         model = LLaMA(LLaMAConfig())
         # The output layer can be sensitive to quantization, we keep it in default precision
-        model = quantize_model(model, skip=("lm_head", "output", ))
+        model = quantize_model(model, skip=("lm_head", "output"))
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint)
     else:
@@ -106,7 +107,7 @@ def main(
             model.load_state_dict(checkpoint)
 
     model.eval()
-    
+
     # if compile:
     #     model = torch.compile(model)
 
@@ -129,5 +130,5 @@ def main(
 if __name__ == "__main__":
     from jsonargparse import CLI
 
-    torch.set_float32_matmul_precision('high')
+    torch.set_float32_matmul_precision("high")
     CLI(main)
