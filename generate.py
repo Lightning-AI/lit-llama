@@ -87,7 +87,7 @@ def main(
     accelerator: str = "auto",
     checkpoint_path: Optional[str] = None,
     tokenizer_path: Optional[str] = None,
-    model_size="7B",
+    model_size :str = "7B",
     original_model: bool = False,
     quantize: bool = False,
 ):
