@@ -49,7 +49,7 @@ class RMSNorm(nn.Module):
     BSD 3-Clause License: https://github.com/bzhangGo/rmsnorm/blob/master/LICENSE
     """
 
-    def __init__(self, size, dim=-1, eps=1e-6):
+    def __init__(self, size, dim=-1, eps=1e-5):
         super().__init__()
         self.scale = nn.Parameter(torch.ones(size))
         self.eps = eps
