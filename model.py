@@ -40,6 +40,7 @@ def apply_rope(x: torch.Tensor, rope_cache: torch.Tensor) -> torch.Tensor:
     T = x.size(1)
     rope_cache = rope_cache[:T]
 
+    # cast because `view_as_complex` does not support 16 bit tensors
     xc = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
     rope_cache = rope_cache.view(1, xc.size(1), 1, xc.size(3))
     x_out = torch.view_as_real(xc * rope_cache).flatten(3)
