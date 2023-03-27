@@ -76,8 +76,7 @@ You can now run inference:
 ```bash
 python scripts/generate.py \
     --prompt "Hello, my name is" \
-    --checkpoint_path checkpoints/lit-llama/7B/state_dict.pt \
-    --tokenizer_path checkpoints/lit-llama/tokenizer.model
+    --model_size 7B
 ```
 
 This will run using the 7B model and will require roughly 26 GB of GPU memory (A100 GPU).
