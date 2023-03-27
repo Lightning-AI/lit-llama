@@ -105,13 +105,13 @@ def main(
     fabric = L.Fabric(accelerator=accelerator, devices=1)
 
     if quantize:
-        from lit_llama.quantization import quantize as quantize_model
+        from lit_llama.quantization import quantize
 
         print("Running quantization. This may take a minute ...")
         # TODO: Initializing the model directly on the device does not work with quantization
         model = LLaMA.from_name(model_size)
         # The output layer can be sensitive to quantization, we keep it in default precision
-        model = quantize_model(model, skip=("lm_head", "output"))
+        model = quantize(model, skip=("lm_head", "output"))
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint)
     else:
