@@ -8,8 +8,8 @@ def build_rope_cache_old(seq_len, n_elem, dtype, base=10000):
     """This is the `build_rope_cache` implementation we initially intended to use, but it is numerically not
     exactly equivalent to the one in the Meta model. We keep it here for posterity.
 
-    Derived from: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/transformers/rope/__init__.py
-    MIT License: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/license
+    Derived from:mers/rope/__init__.py
+    https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/license MIT License:
     """  # noqa: E501
     # $\Theta = {\theta_i = 10000^{\frac{2(i-1)}{d}}, i \in [1, 2, ..., \frac{d}{2}]}$
     theta = 1.0 / (base ** (torch.arange(0, n_elem, 2, dtype=dtype) / n_elem))

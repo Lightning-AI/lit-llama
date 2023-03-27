@@ -15,7 +15,7 @@ def build_rope_cache(seq_len, n_elem, dtype, base=10000):
     """Enhanced Transformer with Rotary Position Embedding.
 
     Derived from: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/
-    transformers/rope/__init__.py MIT License:
+    transformers/rope/__init__.py. MIT License:
     https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/license.
     """
     # $\Theta = {\theta_i = 10000^{\frac{2(i-1)}{d}}, i \in [1, 2, ..., \frac{d}{2}]}$
@@ -48,7 +48,7 @@ def apply_rope(x: torch.Tensor, rope_cache: torch.Tensor):
 class RMSNorm(nn.Module):
     """Root Mean Square Layer Normalization.
 
-    Derived from https://github.com/bzhangGo/rmsnorm/blob/master/rmsnorm_torch.py BSD 3-Clause License:
+    Derived from https://github.com/bzhangGo/rmsnorm/blob/master/rmsnorm_torch.py. BSD 3-Clause License:
     https://github.com/bzhangGo/rmsnorm/blob/master/LICENSE.
     """
 
