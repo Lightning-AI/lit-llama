@@ -15,19 +15,32 @@
 
 </div>
 
-**Lit-LLaMA** is an independent implementation of [LLaMA](<https://github.com/facebookresearch/llama>) based on [nanoGPT](<https://github.com/karpathy/nanoGPT>), and released under the **Apache 2.0 license**.
+# ⚡ Lit-LLaMA ️
+Independent implementation of [LLaMA](<https://github.com/facebookresearch/llama>) that is fully open source under the **Apache 2.0 license.**
 
-**Backstory**: Meta released the original [LLaMA code](https://github.com/facebookresearch/llama) under the [GPL license](https://github.com/facebookresearch/llama/blob/main/LICENSE).
-This means that any project containing LLaMA code **must be released as GPL**. We've seen LLaMA code leaking into the Apache 2.0 / BSD / MIT deep learning ecosystem, and that is an actual problem. **Lit-LLaMA solves that for good.**
+This implementation builds on [nanoGPT](<https://github.com/karpathy/nanoGPT>).  
 
+## Why?
+The original [LLaMA code](https://github.com/facebookresearch/llama) is [GPL licensed](https://github.com/facebookresearch/llama/blob/main/LICENSE) which means any project using it must also be released under GPL.
+
+This "taints" any other code and prevents meaningful academic and commercial use.
+
+**Lit-LLaMA solves that for good.**
+
+&nbsp;
+
+## Design principles
 **Lit-LLaMA** is:
 
-- **Simple**, single-file implementaton without boilerplate
-- **Numerically equivalent** to the original model
-- **Optimized** to run on consumer hardware or at scale
-- **Open-source** and no strings attached
+- **Simple:** Single-file implementaton without boilerplate.    
+- **Correct:** Numerically equivalent to the original model.   
+- **Optimized:** Runs on consumer hardware or at scale.   
+- **Open-source:** No strings attached.
 
-Interested in **making this perfect together**? [Join our Discord](https://discord.gg/VptPCZkGNa)!
+## Get involved!
+[Join our Discord](https://discord.gg/VptPCZkGNa) to build high-performance, truly open-source models for the common benefit of the community. 
+
+&nbsp;
 
 ## Setup
 
@@ -38,7 +51,7 @@ git clone https://github.com/Lightning-AI/lit-llama
 cd lit-llama
 ```
 
-and install dependencies
+install dependencies
 
 ```bash
 pip install -r requirements.txt
@@ -46,9 +59,9 @@ pip install -r requirements.txt
 
 You are all set! 🎉
 
-## Inference
+## Use the model
 
-To generate text predictions, you first need to download the model weights following the instructions on the official [LLaMA repository](https://github.com/facebookresearch/llama). After you've done that, you should have a folder like this:
+To generate text predictions, download the model weights following the instructions on the official [LLaMA repository](https://github.com/facebookresearch/llama). Now you should have a folder like this:
 
 ```text
 checkpoints/llama
@@ -62,7 +75,7 @@ checkpoints/llama
 └── tokenizer.model
 ```
 
-You need to convert the weights to the Lit-LLaMA format by running:
+Convert the weights to the Lit-LLaMA format:
 
 ```bash
 python scripts/convert_checkpoint.py \
@@ -72,21 +85,28 @@ python scripts/convert_checkpoint.py \
     --model_size 7B
 ```
 
-You can now run inference:
+Run inference:
 
 ```bash
 python scripts/generate.py --prompt "Hello, my name is"
 ```
 
-This will run using the 7B model and will require roughly 26 GB of GPU memory (A100 GPU).
+This will run the 7B model and require ~26 GB of GPU memory (A100 GPU).
 
 ### Run Lit-LLaMA on consumer devices
 
-If you have a GPU with less memory, you can enable quantization with `--quantize true` which will take longer to load, but requires only ~8 GB of memory. It will run on any modern consumer GPU.
+For GPUs with less memory, enable quantization (`--quantize true`). This will take longer to load but require ~8GB of memory.   
+This can run on any consumer GPU.   
+
+```bash
+python scripts/generate.py --quantize true --prompt "Hello, my name is"
+```
 
 See `python scripts/generate.py --help` for more options.
 
-## Want to contribute?
+&nbsp;
+
+## Get involved!
 
 We're in a quest towards fully open source AI, especially focusing on models in the 5-20B range, trained using the LLaMA approach (smaller models trained for longer).
 
