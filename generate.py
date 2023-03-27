@@ -8,7 +8,7 @@ import lightning as L
 import torch
 
 from model import LLaMA
-from quantization.bnb import quantize as quantize_model, Linear8bitLt
+from quantization.bnb import as_8_bit_quantized
 from tokenizer import Tokenizer
 
 
@@ -99,45 +99,46 @@ def main(
 
     fabric = L.Fabric(accelerator=accelerator, devices=1)
 
-    with fabric.device:
-        if quantize:
-            torch.nn.Linear = Linear8bitLt
-            # TODO: Initializing the model directly on the device does not work with quantization
-            print("Initializing the model. This may take a minute ...")
-            LLaMA._init_weights = lambda *_: None
-            model = LLaMA.from_name(model_size)
+    with as_8_bit_quantized(fabric.device, enabled=quantize):
+        # if quantize:
+        # torch.nn.Linear = Linear8bitLt
+        # TODO: Initializing the model directly on the device does not work with quantization
+        print("Initializing the model. This may take a minute ...")
+        LLaMA._init_weights = lambda *_: None
+        model = LLaMA.from_name(model_size)
 
-            print("Preparing the model for quantization.")
-            # The output layer can be sensitive to quantization, we keep it in default precision
-            # model = quantize_model(model, skip=("lm_head", "output"))
-            quant_checkpoint_path = checkpoint_path + ".q8"
-            
-            # if not os.path.isfile(quant_checkpoint_path):
-                # create a quantized checkpoint if it doesn't already
-            # checkpoint = torch.load(checkpoint_path)
-            # model.load_state_dict(checkpoint)
-            # torch.save(model.state_dict(), quant_checkpoint_path)
-            # print("Saved a quantized version of the checkpoint.")
-            # else:
-            #     # load the quantized checkpoint if it exists
-            #     checkpoint = torch.load(quant_checkpoint_path)
-            #     model.load_state_dict(checkpoint)
-            #     print("Quantized checkpoint loaded.")
-        else:
-            model = LLaMA.from_name(model_size)
-            checkpoint = torch.load(checkpoint_path)
-            model.load_state_dict(checkpoint)
+        print("Preparing the model for quantization.")
+        # The output layer can be sensitive to quantization, we keep it in default precision
+        # model = quantize_model(model, skip=("lm_head", "output"))
+        quant_checkpoint_path = checkpoint_path + ".q8"
+        
+        # if not os.path.isfile(quant_checkpoint_path):
+            # create a quantized checkpoint if it doesn't already
+        # checkpoint = torch.load(checkpoint_path)
+        # model.load_state_dict(checkpoint)
+        # torch.save(model.state_dict(), quant_checkpoint_path)
+        # print("Saved a quantized version of the checkpoint.")
+        # else:
+        #     # load the quantized checkpoint if it exists
+        #     checkpoint = torch.load(quant_checkpoint_path)
+        #     model.load_state_dict(checkpoint)
+        #     print("Quantized checkpoint loaded.")
+    # else:
+    #     model = LLaMA.from_name(model_size)
+    #     checkpoint = torch.load(checkpoint_path)
+    #     model.load_state_dict(checkpoint)
 
     print(torch.cuda.max_memory_reserved() // 1e9)
-    checkpoint = torch.load(quant_checkpoint_path)
+    checkpoint = torch.load(checkpoint_path)
     model.load_state_dict(checkpoint)
+    model.cuda()
 
     print(torch.cuda.max_memory_reserved() // 1e9)
     model.eval()
 
-    assert isinstance(model.lm_head, Linear8bitLt)
+    # assert isinstance(model.lm_head, Linear8bitLt)
     # model = model.cuda()
-    assert model.lm_head.weight.dtype == torch.int8
+    # assert model.lm_head.weight.dtype == torch.int8
 
     # if compile:
     #     model = torch.compile(model)
