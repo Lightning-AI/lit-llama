@@ -1,4 +1,7 @@
-# ⚡ Lit-LLaMA 🦙
+
+<img align="right" style="padding: 1em" src="assets/Lit_LLaMA_Badge3x.png" alt="Lit-LLaMA" width="85"/>
+
+# ⚡ Lit-LLaMA ️
 
 **Lit-LLaMA** is an independent implementation of [LLaMA](<https://github.com/facebookresearch/llama>) based on [nanoGPT](<https://github.com/karpathy/nanoGPT>), and released under the **Apache 2.0 license**.
 
@@ -88,6 +91,8 @@ If you have a GPU with less memory, you can enable quantization with `--quantize
 See `python scripts/generate.py --help` for more options.
 
 ## Want to contribute?
+
+<img align="right" src="assets/Lit_LLaMA_Illustration3x.png" alt="Lit-LLaMA" width="128"/>
 
 We're in a quest towards fully open source AI, especially focusing on models in the 5-20B range, trained using the LLaMA philosophy.
 
