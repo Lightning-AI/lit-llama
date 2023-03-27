@@ -1,6 +1,13 @@
 # ⚡ Lightning LLaMA 🦙
 
-TODO: Introduction
+This code base is part of the [Lightning Open LLM Initiative](todo link). We aim to reproduce LLaMA completely in the open together with the community and distribute the code and weights without restrictions.
+
+Lightning LLaMA is
+
+- Easy: The code is minimal, easy to understand and boilerplate-free
+- Optimized: It is Lightning-fast and optimized to run on any hardware.
+- Community-driven: Everyone can participate in discussions, developing the code or training/fine-tuning
+- Open source friendly: The license allows you to take the code and build awesome stuff with it!
 
 
 ## Installation
