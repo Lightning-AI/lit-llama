@@ -36,7 +36,7 @@ def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=
     for t in range(T, T_new):
         # ignore the not-filled-yet tokens
         idx_cond = idx[:, :t]
-        # if the sequence context is growing too long we must crop it at block size
+        # if the sequence context is growing too long we must crop it at max_seq_length
         idx_cond = idx_cond if T <= max_seq_length else idx_cond[:, -max_seq_length:]
 
         # forward
