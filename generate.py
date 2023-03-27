@@ -12,8 +12,7 @@ from model import LLaMA, LLaMAConfig
 
 @torch.no_grad()
 def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=None):
-    """
-    Takes a conditioning sequence (prompt) as input and continues to generate as many tokens as requested.
+    """Takes a conditioning sequence (prompt) as input and continues to generate as many tokens as requested.
 
     The implementation of this function is modified from A. Karpathy's nanoGPT.
 
