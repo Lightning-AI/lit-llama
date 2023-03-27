@@ -19,11 +19,12 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 import os
+import sys
+
 import requests
+
 import numpy as np
-from tokenizer import Tokenizer
 
 
 def prepare(
@@ -38,11 +39,13 @@ def prepare(
         with open(input_file_path, "w") as f:
             f.write(requests.get(data_url).text)
 
-    with open(input_file_path, "r") as f:
+    with open(input_file_path) as f:
         data = f.read()
     n = len(data)
     train_data = data[: int(n * 0.9)]
     val_data = data[int(n * 0.9) :]
+
+    from tokenizer import Tokenizer
 
     tokenizer = Tokenizer(tokenizer_path)
     train_ids = tokenizer.encode(train_data)
@@ -57,8 +60,10 @@ def prepare(
     val_ids.tofile(os.path.join(destination_path, "val.bin"))
 
 
-
 if __name__ == "__main__":
+    wd = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
+    sys.path.append(wd)
+
     from jsonargparse import CLI
 
     CLI(prepare)
