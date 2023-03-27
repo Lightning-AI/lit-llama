@@ -1,4 +1,3 @@
-# adapted from karpathy/nanoGPT
 import os
 import torch
 from tokenizer import Tokenizer
@@ -80,7 +79,6 @@ def main(
     temperature: float = 0.8,
     compile: bool = False,
     accelerator: str = "auto",
-    precision: str = "32-true",
     checkpoint_path: str = "/srv/data/checkpoints/llama/converted_meta/7B/state_dict.pt",
     tokenizer_path: str = "/srv/data/checkpoints/llama/converted_meta/tokenizer.model",
     original_model: bool = False,
@@ -98,8 +96,6 @@ def main(
         compile: Whether to compile the model.
         accelerator: The hardware to run on. Possible choices are:
             ``"cpu"``, ``"cuda"``, ``"mps"``, ``"gpu"``, ``"tpu"``, ``"auto"``.
-        precision: Double precision (``"64"``), full precision (``"32"``), half precision AMP (``"16-mixed"``),
-            or bfloat16 precision AMP (``"bf16-mixed"``).
         checkpoint_path: The checkpoint path to load.
         tokenizer_path: The tokenizer path to load.
         original_model: Whether to use the original LLaMA model from Meta.
@@ -108,7 +104,7 @@ def main(
     assert os.path.isfile(tokenizer_path)
 
     L.seed_everything(1234)
-    fabric = L.Fabric(accelerator=accelerator, precision=precision, devices=1)
+    fabric = L.Fabric(accelerator=accelerator, devices=1)
 
     # initialize the model directly on the device
     with fabric.device:
