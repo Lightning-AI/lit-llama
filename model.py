@@ -115,8 +115,8 @@ class CausalSelfAttention(nn.Module):
         q = q.view(B, T, self.n_head, head_size).transpose(1, 2)  # (B, nh, T, hs)
         v = v.view(B, T, self.n_head, head_size).transpose(1, 2)  # (B, nh, T, hs)
 
-        q = apply_rope(q, self.rope_cache)  # type: ignore[arg-type]
-        k = apply_rope(k, self.rope_cache)  # type: ignore[arg-type]
+        q = apply_rope(q, self.rope_cache)
+        k = apply_rope(k, self.rope_cache)
 
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         # efficient attention using Flash Attention CUDA kernels
