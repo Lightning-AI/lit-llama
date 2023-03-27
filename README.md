@@ -1,46 +1,56 @@
-# ⚡ Lightning LLaMA 🦙
+# ⚡ Lit LLaMA 🦙
 
-This code base is part of the [Lightning Open LLM Initiative](todolink). We aim to reproduce LLaMA completely in the open together with the community and distribute the code and weights without restrictions.
+**Lit-LLaMA** is an independent implementation of [LLaMA](<https://github.com/facebookresearch/llama>) based on [nanoGPT](<https://github.com/karpathy/nanoGPT>), and released under the **Apache 2.0 license**.
 
-Lightning LLaMA is
+**Backstory**: Meta released the original [LLaMA code](https://github.com/facebookresearch/llama) under the [GPL license](https://github.com/facebookresearch/llama/blob/main/LICENSE).
+This means that any project containing LLaMA code **must be released as GPL**. We've seen LLaMA code leaking into the Apache 2.0 / BSD / MIT deep learning ecosystem, and that is an actual problem. **Lit-LLaMA solves that for good.**
 
-- Easy: The code is minimal, easy to understand and boilerplate-free
-- Optimized: It is Lightning-fast and optimized to run on any hardware.
-- Community-driven: Everyone can participate in discussions, developing the code or training/fine-tuning
-- Open source friendly: The license allows you to take the code and build awesome stuff with it!
+**Lit-LLaMA** is:
 
+- **Simple**, single-file, no boilerplate
+- **Numerically equivalent** to the original model
+- **Optimized** to run on consumer hardware or at scale
+- **Open-source** no strings attached
 
 ## Installation
 
-First, clone the repo:
+### Clone the repo
 
 ```bash
-git clone https://github.com/Lightning-AI/lightning-llama
-cd lightning-llama
+git clone https://github.com/Lightning-AI/lit-llama
+cd lit-llama
 ```
 
-Create a new Python environment. We recommend using [Anaconda/Miniconda](https://docs.conda.io/en/latest/miniconda.html):
+### Create a new Python environment
+
+With `venv`
 
 ```bash
-conda create -n llama python=3.10
-conda activate llama
+python -m venv lit-llama
+source lit-llama/bin/activate
 ```
 
-Install the package:
+or [Anaconda/Miniconda](https://docs.conda.io/en/latest/miniconda.html):
+
+```bash
+conda create -n lit-llama python=3.10
+conda activate lit-llama
+```
+
+### Install the package
 
 ```bash
 pip install -e .
 pip install -r requirements.txt
 ```
 
-You are all set!
-
+You are all set! 🎉
 
 ## Inference
 
-To generate text predictions, you first need to download the trained model weights following the instructions on the official [LLaMA repository](https://github.com/facebookresearch/llama) from Meta. After you have done that, you should have a folder like this:
+To generate text predictions, you first need to download the model weights following the instructions on the official [LLaMA repository](https://github.com/facebookresearch/llama). After you've done that, you should have a folder like this:
 
-```
+```text
 checkpoints/llama
 ├── 7B
 │   ├── checklist.chk
@@ -52,7 +62,7 @@ checkpoints/llama
 └── tokenizer.model
 ```
 
-You need to convert these weights to the Lightning LLaMA format by running:
+You need to convert the weights to the Lit-LLaMA format by running:
 
 ```bash
 python scripts/convert_checkpoint.py \
@@ -62,7 +72,7 @@ python scripts/convert_checkpoint.py \
     --model_size 7B
 ```
 
-Now you can run inference:
+You can now run inference:
 
 ```bash
 python scripts/generate.py \
@@ -71,22 +81,33 @@ python scripts/generate.py \
     --tokenizer_path checkpoints/lit-llama/tokenizer.model
 ```
 
-This will run using the 7B model and will require roughly 26 GB of GPU memory (A100). If you have a GPU with less memory, you can enable quantization with `--quantize true` which will take longer to load but requires only ~8 GB of memory.
+This will run using the 7B model and will require roughly 26 GB of GPU memory (A100 GPU).
+
+### Run Lit-LLaMA on consumer devices
+
+If you have a GPU with less memory, you can enable quantization with `--quantize true` which will take longer to load, but requires only ~8 GB of memory. It will run on any modern consumer GPU.
 
 See `python scripts/generate.py --help` for more options.
 
+## Want to contribute?
 
-## Training (coming soon!)
+We're in a quest towards fully open source AI, especially focusing on models in the 5-20B range, trained using the LLaMA philosophy.
 
-As part of the Lightning open LLM initiative, our goal is to collaboratively train LLaMA from scratch to obtain open-sourced checkpoints that everyone can use without restrictions. The file `train.py` contains a simple training skeleton that will evolve into a fully reproducing training script for LLaMA.
+Join us and start contributing, especially on the following areas:
 
-To learn more join the [Open LLM Initiative channel](todo) on our discord server.
+- [ ] Pre-training
+- [ ] Fine-tuning (full and LoRA)
+- [ ] Quantization
+- [ ] Sparsificaiton
 
-## Fine-tuning (coming soon!)
+Look at `train.py` for a starting point towards pre-training / fine-tuning using [Lightning Fabric](https://lightning.ai/docs/fabric/stable/).
 
-As part of the Lightning open LLM initiative, we will develop scripts for instruction-tuning LLaMA which incorporate the following methods:
-- [Stanford Alpaca](https://github.com/tatsu-lab/stanford_alpaca)
-- [LoRA: Low-Rank Adaptation of Large Language Models](https://arxiv.org/abs/2106.09685)
-- Reinforcement Learning from Human Feedback (RLHF)
+## Acknowledgements
 
-Join the [Open LLM Initiative channel](todo) on our discord server to learn more!
+- [@karpathy](https://github.com/karpathy) for [nanoGPT](https://github.com/karpathy/nanoGPT)
+- [@FacebookResearch](https://github.com/facebookresearch) for the original [LLaMA implementation](https://github.com/facebookresearch/llama)
+- [@TimDettmers](https://github.com/TimDettmers) for [bitsandbytes](https://github.com/TimDettmers/bitsandbytes)
+
+## License
+
+Lit-LLaMA is released under the [Apache 2.0](https://github.com/Lightning-AI/lightning-llama/blob/main/LICENSE) license.
