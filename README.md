@@ -74,9 +74,7 @@ python scripts/convert_checkpoint.py \
 You can now run inference:
 
 ```bash
-python scripts/generate.py \
-    --prompt "Hello, my name is" \
-    --model_size 7B
+python scripts/generate.py --prompt "Hello, my name is"
 ```
 
 This will run using the 7B model and will require roughly 26 GB of GPU memory (A100 GPU).
