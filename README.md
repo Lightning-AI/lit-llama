@@ -37,10 +37,9 @@ conda create -n lit-llama python=3.10
 conda activate lit-llama
 ```
 
-### Install the package
+### Install dependencies
 
 ```bash
-pip install -e .
 pip install -r requirements.txt
 ```
 
