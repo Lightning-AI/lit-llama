@@ -70,8 +70,7 @@ def get_model(original: bool = False):
     else:
         from model import LLaMA, LLaMAConfig
 
-        config = LLaMAConfig()  # 7B default
-        return LLaMA(config), config.block_size
+        return LLaMA.from_name("7B"), config.block_size
 
 
 def main(
