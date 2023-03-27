@@ -36,4 +36,4 @@ jobs:
         pip list
 
     - name: Check typing
-      run: mypy
+      run: mypy --install-types
