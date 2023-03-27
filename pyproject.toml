@@ -50,7 +50,9 @@ files = [
     "*.py",
 ]
 exclude = [
-    # "original_model.py", doesn't work: https://github.com/python/mypy/issues/11760#issuecomment-995364004
+    # doesn't work: https://github.com/python/mypy/issues/11760#issuecomment-995364004
+    "model.py",
+    "original_model.py",
     # the models are not importable, so the type annotations won't work
     "scripts/compare.py"
 ]
