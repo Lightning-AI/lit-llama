@@ -7,6 +7,7 @@ from typing import Optional
 import lightning as L
 import torch
 
+from model import LLaMA, LLaMAConfig
 from quantization.bnb import quantize as quantize_model
 from tokenizer import Tokenizer
 
@@ -57,26 +58,6 @@ def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=
     return idx
 
 
-def get_model(original: bool = False, model_size: str = "7B"):
-    if original:
-        try:
-            from original_model import ModelArgs, Transformer
-        except ModuleNotFoundError:
-            from scripts.download import download_original
-
-            download_original(os.path.dirname(__file__))
-
-            from original_model import ModelArgs, Transformer
-
-        config = ModelArgs(dim=4096, n_layers=32, n_heads=32, vocab_size=32000, max_batch_size=1)  # 7B config
-        return Transformer(config), config.max_seq_len
-    else:
-        from model import LLaMA, LLaMAConfig
-
-        config = LLaMAConfig.from_name(model_size)
-        return LLaMA(config), config.block_size
-
-
 def main(
     prompt: str = "Hello, my name is",
     *,
@@ -90,7 +71,6 @@ def main(
     checkpoint_path: Optional[str] = None,
     tokenizer_path: Optional[str] = None,
     model_size: str = "7B",
-    original_model: bool = False,
     quantize: bool = False,
 ):
     """Generates text samples based on a pre-trained LLaMA model and tokenizer.
@@ -107,7 +87,6 @@ def main(
             ``"cpu"``, ``"cuda"``, ``"mps"``, ``"gpu"``, ``"tpu"``, ``"auto"``.
         checkpoint_path: The checkpoint path to load.
         tokenizer_path: The tokenizer path to load.
-        original_model: Whether to use the original LLaMA model from Meta.
         quantize: Whether to quantize the model using the `LLM.int8()` method
     """
     if not checkpoint_path:
@@ -123,17 +102,16 @@ def main(
     if quantize:
         print("Running quantization. This may take a minute ...")
         # TODO: Initializing the model directly on the device does not work with quantization
-        model, max_seq_length = get_model(original_model, model_size)
-
+        model = LLaMA(LLaMAConfig())
         # The output layer can be sensitive to quantization, we keep it in default precision
         model = quantize_model(model, skip=("lm_head", "output"))
         checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint, strict=(not original_model))
+        model.load_state_dict(checkpoint)
     else:
         with fabric.device:
-            model, max_seq_length = get_model(original_model)
+            model = LLaMA(LLaMAConfig())
             checkpoint = torch.load(checkpoint_path)
-            model.load_state_dict(checkpoint, strict=(not original_model))
+            model.load_state_dict(checkpoint)
 
     model.eval()
 
@@ -149,7 +127,9 @@ def main(
     L.seed_everything(1234)
     t0 = time.time()
     for _ in range(num_samples):
-        y = generate(model, encoded_prompt, max_new_tokens, max_seq_length, temperature=temperature, top_k=top_k)
+        y = generate(
+            model, encoded_prompt, max_new_tokens, model.config.block_size, temperature=temperature, top_k=top_k
+        )
         print(tokenizer.decode(y[0]))
 
     print(f"Time for inference: {time.time() - t0:.02f} seconds", file=sys.stderr)
