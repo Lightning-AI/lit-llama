@@ -1,6 +1,6 @@
 # ⚡ Lightning LLaMA 🦙
 
-This code base is part of the [Lightning Open LLM Initiative](todo link). We aim to reproduce LLaMA completely in the open together with the community and distribute the code and weights without restrictions.
+This code base is part of the [Lightning Open LLM Initiative](todolink). We aim to reproduce LLaMA completely in the open together with the community and distribute the code and weights without restrictions.
 
 Lightning LLaMA is
 
