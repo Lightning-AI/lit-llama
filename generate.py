@@ -6,7 +6,7 @@ import lightning as L
 from quantization.bnb import quantize as quantize_model
 
 
-@torch.inference_mode()
+@torch.no_grad()
 def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=None):
     """
     Takes a conditioning sequence (prompt) as input and continues to generate as many tokens as requested.
@@ -21,9 +21,21 @@ def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=
         temperature: Scales the predicted logits by 1 / temperature
         top_k: If specified, only sample among the tokens with the k highest probabilities
     """
-    for _ in range(max_new_tokens):
+    # create an empty tensor of the expected final shape and fill in the current tokens
+    B, T = idx.shape
+    T_new = T + max_new_tokens
+    empty = torch.empty(B, T_new, dtype=idx.dtype, device=idx.device)
+    empty[:, :T] = idx
+    idx = empty
+
+    # generate max_new_tokens tokens
+    for t in range(T, T_new):
+        # ignore the not-filled-yet tokens
+        idx_cond = idx[:, :t]
         # if the sequence context is growing too long we must crop it at max_seq_length
-        idx_cond = idx if idx.size(1) <= max_seq_length else idx[:, -max_seq_length:]
+        idx_cond = idx_cond if T <= max_seq_length else idx_cond[:, -max_seq_length:]
+
+        # forward
         logits = model(idx_cond)
         logits = logits[:, -1, :] / temperature
 
@@ -34,7 +46,9 @@ def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=
 
         probs = torch.nn.functional.softmax(logits, dim=-1)
         idx_next = torch.multinomial(probs, num_samples=1)
-        idx = torch.cat((idx, idx_next), dim=1)
+
+        # concatenate the new column
+        idx[:, t] = idx_next
 
     return idx
 
@@ -66,7 +80,8 @@ def main(
     max_new_tokens: int = 50,
     top_k: int = 200,
     temperature: float = 0.8,
-    compile: bool = False,
+    # compilation fails as it does not support torch.complex64 for RoPE
+    # compile: bool = False,
     accelerator: str = "auto",
     checkpoint_path: str = "/srv/data/checkpoints/llama/converted_nano/7B/state_dict.pth",
     tokenizer_path: str = "/srv/data/checkpoints/llama/converted_nano/tokenizer.model",
@@ -83,7 +98,7 @@ def main(
         top_k: The number of top most probable tokens to consider in the sampling process.
         temperature: A value controlling the randomness of the sampling process. Higher values result in more random
             samples.
-        compile: Whether to compile the model.
+        # compile: Whether to compile the model.
         accelerator: The hardware to run on. Possible choices are:
             ``"cpu"``, ``"cuda"``, ``"mps"``, ``"gpu"``, ``"tpu"``, ``"auto"``.
         checkpoint_path: The checkpoint path to load.
@@ -113,8 +128,8 @@ def main(
 
     model.eval()
     
-    if compile:
-        model = torch.compile(model)
+    # if compile:
+    #     model = torch.compile(model)
 
     model = fabric.setup_module(model)
 
