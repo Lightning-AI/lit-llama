@@ -21,7 +21,9 @@
 # SOFTWARE.
 
 import os
+
 import requests
+
 import numpy as np
 from tokenizer import Tokenizer
 
@@ -38,7 +40,7 @@ def prepare(
         with open(input_file_path, "w") as f:
             f.write(requests.get(data_url).text)
 
-    with open(input_file_path, "r") as f:
+    with open(input_file_path) as f:
         data = f.read()
     n = len(data)
     train_data = data[: int(n * 0.9)]
@@ -55,7 +57,6 @@ def prepare(
     val_ids = np.array(val_ids, dtype=np.uint16)
     train_ids.tofile(os.path.join(destination_path, "train.bin"))
     val_ids.tofile(os.path.join(destination_path, "val.bin"))
-
 
 
 if __name__ == "__main__":
