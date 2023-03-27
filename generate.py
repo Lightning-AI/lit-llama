@@ -23,6 +23,7 @@ def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=
     for _ in range(max_new_tokens):
         # if the sequence context is growing too long we must crop it at max_seq_length
         idx_cond = idx if idx.size(1) <= max_seq_length else idx[:, -max_seq_length:]
+        idx_cond = idx if idx.size(1) <= max_seq_length else idx[:, -max_seq_length:]
         logits = model(idx_cond)
         logits = logits[:, -1, :] / temperature
 
@@ -62,7 +63,7 @@ def main(
     prompt: str = "Hello, my name is",
     *,
     num_samples: int = 1,
-    max_new_tokens: int = 20,
+    max_new_tokens: int = 50,
     top_k: int = 200,
     temperature: float = 0.8,
     compile: bool = False,
