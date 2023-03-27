@@ -77,8 +77,9 @@ To learn more join the [Open LLM Initiative channel](todo) on our discord server
 
 ## Fine-tuning (coming soon!)
 
-As part of the Lightning open LLM initiative, we will develop scripts for instruction-tuning LLaMA following these works:
+As part of the Lightning open LLM initiative, we will develop scripts for instruction-tuning LLaMA which incorporate the following methods:
 - [Stanford Alpaca](https://github.com/tatsu-lab/stanford_alpaca)
 - [LoRA: Low-Rank Adaptation of Large Language Models](https://arxiv.org/abs/2106.09685)
+- Reinforcement Learning from Human Feedback (RLHF)
 
 Join the [Open LLM Initiative channel](todo) on our discord server to learn more!
