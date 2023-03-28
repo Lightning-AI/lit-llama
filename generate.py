@@ -8,9 +8,7 @@ from jsonargparse import CLI
 import lightning as L
 import torch
 
-from lit_llama.model import LLaMA
-from quantization.bnb import as_8_bit_quantized
-from lit_llama.tokenizer import Tokenizer
+from lit_llama import LLaMA, Tokenizer, as_8_bit_quantized
 
 
 @torch.no_grad()
@@ -118,7 +116,6 @@ def main(
         # init model
         model = LLaMA.from_name(model_size)
 
-        print(torch.cuda.max_memory_reserved() // 1e9)
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint)
         print(f"Time to load model: {time.time() - t0:.02f} seconds.")
