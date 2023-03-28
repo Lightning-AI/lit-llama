@@ -134,8 +134,6 @@ def main(
     L.seed_everything(1234)
     t0 = time.time()
 
-    print("\n\nInput:", prompt)
-    print("Output:\n")
     for _ in range(num_samples):
         y = generate(
             model,
