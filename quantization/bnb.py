@@ -113,15 +113,14 @@ import bitsandbytes as bnb  # noqa: E402
 class Linear8bitLt(bnb.nn.Linear8bitLt):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, has_fp16_weights=False, threshold=6.0)
-        self.quantize_weight(self.weight)
+        self._quantize_weight(self.weight.data)
 
     def _load_from_state_dict(self, local_state_dict, *args, **kwargs):
         weight = local_state_dict[next(iter(local_state_dict.keys()))]
-        # print(weight.view(-1)[0])
-        self.quantize_weight(weight)
+        self._quantize_weight(weight)
     
-    def quantize_weight(self, weight):
-        B = weight.data.contiguous().half().cuda()
+    def _quantize_weight(self, weight: torch.Tensor) -> None:
+        B = weight.contiguous().half().cuda()
         CB, CBt, SCB, SCBt, coo_tensorB = bnb.functional.double_quant(B)
         del CBt
         del SCBt
@@ -129,26 +128,7 @@ class Linear8bitLt(bnb.nn.Linear8bitLt):
         setattr(self.weight, "CB", CB)
         setattr(self.weight, "SCB", SCB)
         self.init_8bit_state()
-        #return super().load_state_dict(state_dict, strict)
 
-    # def register_parameter(self, name, param):
-    #     super().register_parameter(name=name, param=param)
-    #     if isinstance(param, bnb.nn.Int8Params):
-    #         device = param.device
-    #         if device == "cuda":
-    #             self.cuda(device)
-
-    # def forward(self, x):
-    #     assert x.device.type == "cuda"
-    #     assert self.weight.device.type == "cuda"
-    #     # assert self.bias.device.type == "cuda"
-    #     return super().forward(x)
-
-
-# def trigger_quantization(model):
-#     for module in model.modules():
-#         if isinstance(module, Linear8bitLt):
-#             module.init_8bit_state()
 
 @contextmanager
 def as_8_bit_quantized(device: torch.device, enabled: bool = True):
@@ -164,17 +144,18 @@ def as_8_bit_quantized(device: torch.device, enabled: bool = True):
         yield
         torch.nn.Linear = torch_linear_cls
 
-# def quantize(model: nn.Module, threshold: float = 6.0, skip: Tuple[str, ...] = ()) -> nn.Module:
-#     for name, module in model.named_children():
-#         if isinstance(module, nn.Linear) and name not in skip:
-#             linear8bit = bnb.nn.Linear8bitLt(
-#                 module.in_features, module.out_features, bias=module.bias, has_fp16_weights=False, threshold=threshold
-#             )
 
-#             device = linear8bit.weight.device
-#             if device == "cuda":
-#                 linear8bit.cuda(device)
+def quantize(model: nn.Module, threshold: float = 6.0, skip: Tuple[str, ...] = ()) -> nn.Module:
+    for name, module in model.named_children():
+        if isinstance(module, nn.Linear) and name not in skip:
+            model._modules[name] = Linear8bitLt(
+                module.in_features, module.out_features, bias=module.bias, has_fp16_weights=False, threshold=threshold
+            )
 
-#         if module.children():
-#             quantize(module, threshold=threshold, skip=skip)
-#     return model
+            # device = linear8bit.weight.device
+            # if device == "cuda":
+            #     linear8bit.cuda(device)
+
+        if module.children():
+            quantize(module, threshold=threshold, skip=skip)
+    return model

@@ -100,11 +100,12 @@ def main(
     fabric = L.Fabric(accelerator=accelerator, devices=1)
 
     with as_8_bit_quantized(fabric.device, enabled=quantize):
-        # if quantize:
-        # torch.nn.Linear = Linear8bitLt
-        # TODO: Initializing the model directly on the device does not work with quantization
-        print("Initializing the model. This may take a minute ...")
+        print("Loading model ...")
+
+        # skip initializing the weights, it is redundant
+        # bitsandbytes does not like it when we call `torch.nn.init.normal_`
         LLaMA._init_weights = lambda *_: None
+        
         model = LLaMA.from_name(model_size)
 
         print("Preparing the model for quantization.")
@@ -131,15 +132,8 @@ def main(
         print(torch.cuda.max_memory_reserved() // 1e9)
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint)
-        #trigger_quantization(model)
-    # model.cuda()
 
-    print(torch.cuda.max_memory_reserved() // 1e9)
     model.eval()
-
-    assert isinstance(model.lm_head, Linear8bitLt)
-    # model = model.cuda()
-    print(model.lm_head.weight.dtype)  #  == torch.int8
 
     # if compile:
     #     model = torch.compile(model)
@@ -166,5 +160,4 @@ def main(
 if __name__ == "__main__":
     from jsonargparse import CLI
 
-    # torch.set_float32_matmul_precision("high")
     CLI(main)
