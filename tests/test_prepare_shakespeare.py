@@ -13,7 +13,7 @@ def test_prepare(tmp_path):
 
     prepare_shakespeare.prepare(tmp_path)
 
-    assert os.listdir(tmp_path) == ["train.bin", "tokenizer.model", "tokenizer.vocab", "input.txt", "val.bin"]
+    assert set(os.listdir(tmp_path)) == {"train.bin", "tokenizer.model", "tokenizer.vocab", "input.txt", "val.bin"}
 
 
 def test_cli():
