@@ -84,7 +84,6 @@ def test_main(tmp_path, monkeypatch):
             checkpoint_path=checkpoint_path,
             tokenizer_path=tokenizer_path,
             model_size="1T",
-            accelerator="litpu",
             temperature=2.0,
             top_k=2,
             num_samples=num_samples,
