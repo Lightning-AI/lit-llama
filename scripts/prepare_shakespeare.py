@@ -19,7 +19,6 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import os
 import sys
 from pathlib import Path
 
@@ -43,8 +42,8 @@ def prepare(destination_path: Path = Path("data/shakespeare")) -> None:
     train_data = data[: int(n * 0.9)]
     val_data = data[int(n * 0.9) :]
 
-    from tokenizer import Tokenizer
-    
+    from lit_llama.tokenizer import Tokenizer
+
     Tokenizer.train(input=input_file_path, destination=destination_path)
     tokenizer = Tokenizer(destination_path / "tokenizer.model")
     train_ids = tokenizer.encode(train_data)
@@ -55,13 +54,14 @@ def prepare(destination_path: Path = Path("data/shakespeare")) -> None:
     # export to bin files
     train_ids = np.array(train_ids, dtype=np.uint16)
     val_ids = np.array(val_ids, dtype=np.uint16)
-    train_ids.tofile(os.path.join(destination_path, "train.bin"))
-    val_ids.tofile(os.path.join(destination_path, "val.bin"))
+    train_ids.tofile(destination_path / "train.bin")
+    val_ids.tofile(destination_path / "val.bin")
 
 
 if __name__ == "__main__":
-    wd = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
-    sys.path.append(wd)
+    # support running without installing as a package
+    wd = Path(__file__).parent.parent.resolve()
+    sys.path.append(str(wd))
 
     from jsonargparse import CLI
 
