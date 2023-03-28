@@ -11,6 +11,7 @@ class Model(nn.Module):
 with torch.device("cuda"):
     torch.set_default_tensor_type(torch.cuda.HalfTensor)
     model = Model()
+    model.load_state_dict
     print(torch.cuda.max_memory_reserved() / 1e9)
     print(model.layer.weight.dtype)
     print(model.layer.weight.device)

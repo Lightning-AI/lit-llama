@@ -8,7 +8,7 @@ import lightning as L
 import torch
 
 from model import LLaMA
-from quantization.bnb import as_8_bit_quantized
+from quantization.bnb import *
 from tokenizer import Tokenizer
 
 
@@ -128,22 +128,23 @@ def main(
     #     checkpoint = torch.load(checkpoint_path)
     #     model.load_state_dict(checkpoint)
 
-    print(torch.cuda.max_memory_reserved() // 1e9)
-    checkpoint = torch.load(checkpoint_path)
-    model.load_state_dict(checkpoint)
-    model.cuda()
+        print(torch.cuda.max_memory_reserved() // 1e9)
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint)
+        #trigger_quantization(model)
+    # model.cuda()
 
     print(torch.cuda.max_memory_reserved() // 1e9)
     model.eval()
 
-    # assert isinstance(model.lm_head, Linear8bitLt)
+    assert isinstance(model.lm_head, Linear8bitLt)
     # model = model.cuda()
-    # assert model.lm_head.weight.dtype == torch.int8
+    print(model.lm_head.weight.dtype)  #  == torch.int8
 
     # if compile:
     #     model = torch.compile(model)
 
-    # model = fabric.setup_module(model, move_to_device=False)
+    model = fabric.setup_module(model)
 
     tokenizer = Tokenizer(tokenizer_path)
     encoded_prompt = tokenizer.encode(prompt, bos=True, eos=False).to(fabric.device)
@@ -157,7 +158,8 @@ def main(
         )
         print(tokenizer.decode(y[0]))
 
-    print(f"Time for inference: {time.time() - t0:.02f} seconds", file=sys.stderr)
+    t = time.time() - t0
+    print(f"Time for inference: {t:.02f} sec total, {max_new_tokens / t:.02f} tokens/sec", file=sys.stderr)
     print(f"Memory used (GB): {torch.cuda.max_memory_reserved() / 1e9:.02f}", file=sys.stderr)
 
 
