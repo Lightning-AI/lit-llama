@@ -191,7 +191,7 @@ class CausalSelfAttention(llama.CausalSelfAttention):
     def __init__(self, config: llama.LLaMAConfig, rope_cache: torch.Tensor) -> None:
         # Skip the parent class __init__ altogether and replace it to avoid
         # useless allocations
-        nn.Module.__init__()
+        nn.Module.__init__(self)
         assert config.n_embd % config.n_head == 0
 
         # key, query, value projections for all heads, but in a batch
@@ -202,7 +202,7 @@ class CausalSelfAttention(llama.CausalSelfAttention):
             lora_alpha=self.lora_config.alpha,
             lora_dropout=self.lora_config.dropout,
             enable_lora=[True, False, True],
-            fin_in_fan_out = False,
+            fan_in_fan_out = False,
             merge_weights=True,
             bias=False)
         # output projection

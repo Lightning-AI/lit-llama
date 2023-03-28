@@ -12,6 +12,7 @@ from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 import numpy as np
 
 from lit_llama.model import Block, LLaMA, LLaMAConfig
+from lit_llama.lora import with_lora
 
 out_dir = "out"
 eval_interval = 2000
@@ -49,7 +50,7 @@ def main() -> None:
     config = LLaMAConfig.from_name("7B")
     config.block_size = block_size
 
-    with fabric.device:
+    with fabric.device, with_lora(0.0, 1.0, 0.0):
         model = LLaMA(config)
 
     # if compile:
