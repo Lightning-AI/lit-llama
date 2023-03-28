@@ -21,6 +21,9 @@ Independent implementation of [LLaMA](<https://github.com/facebookresearch/llama
 This implementation builds on [nanoGPT](<https://github.com/karpathy/nanoGPT>).
 
 ## Why?
+
+We believe that AI should be fully open source and part of the collective knowledge.
+
 The original [LLaMA code](https://github.com/facebookresearch/llama) is [GPL licensed](https://github.com/facebookresearch/llama/blob/main/LICENSE) which means any project using it must also be released under GPL.
 
 This "taints" any other code and prevents meaningful academic and commercial use.
@@ -108,16 +111,16 @@ See `python generate.py --help` for more options.
 
 ## Get involved!
 
-We're in a quest towards fully open source AI, especially focusing on models in the 5-20B range, trained using the LLaMA approach (smaller models trained for longer).
+We're in a quest towards fully open source AI.
 
 <img align="right" src="https://pl-public-data.s3.amazonaws.com/assets_lightning/Lit_LLaMA_Illustration3x.png" alt="Lit-LLaMA" width="128"/>
 
 Join us and start contributing, especially on the following areas:
 
-- [ ] Pre-training
-- [ ] Fine-tuning (full and LoRA)
-- [ ] Quantization
-- [ ] Sparsification
+- [ ] [Pre-training](https://github.com/Lightning-AI/lit-llama/labels/pre-training)
+- [ ] [Fine-tuning (full and LoRA)](https://github.com/Lightning-AI/lit-llama/labels/fine-tuning)
+- [ ] [Quantization](https://github.com/Lightning-AI/lit-llama/labels/quantization)
+- [ ] [Sparsification](https://github.com/Lightning-AI/lit-llama/labels/sparsification)
 
 Look at `train.py` for a starting point towards pre-training / fine-tuning using [Lightning Fabric](https://lightning.ai/docs/fabric/stable/).
 
