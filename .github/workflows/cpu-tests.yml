@@ -50,6 +50,5 @@ jobs:
     - name: Run tests
       run: |
         pip install . --no-deps
-        pip list
 
         pytest -v --durations=10 --disable-pytest-warnings --strict-markers
