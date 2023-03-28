@@ -58,13 +58,14 @@ def as_8_bit_quantized(device: torch.device, enabled: bool = True):
     """A context manager under which you can instantiate the model with 8-bit quantized tensors
     being created directly on the given device.
     """
-    if device.type != "cuda":
-        raise ValueError("Quantization is only supported on the GPU.")
 
     with torch.device(device):
         if not enabled:
             yield
             return
+
+        if device.type != "cuda":
+            raise ValueError("Quantization is only supported on the GPU.")
 
         torch_linear_cls = torch.nn.Linear
         torch.nn.Linear = Linear8bitLt
