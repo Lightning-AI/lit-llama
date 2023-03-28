@@ -54,7 +54,6 @@ def test_to_orig_llama(orig_llama) -> None:
     )
 
     llama_model = lit_llama.LLaMA(llama_config)
-    # init all weights
     llama_model.apply(llama_model._init_weights)
     orig_llama_model = orig_llama.Transformer(orig_llama_config)
 
