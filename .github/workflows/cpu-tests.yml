@@ -38,7 +38,7 @@ jobs:
           requirements.txt
           setup.py
 
-    - name: Install dependencies
+    - name: Run tests without the package installed
       run: |
         pip list
         pip uninstall -y .
