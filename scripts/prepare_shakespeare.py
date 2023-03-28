@@ -27,6 +27,7 @@ import requests
 
 
 def prepare(destination_path: Path = Path("data/shakespeare")) -> None:
+    """Prepare the "Tiny Shakespeare" dataset."""
     destination_path.mkdir(parents=True, exist_ok=True)
 
     # download the tiny shakespeare dataset

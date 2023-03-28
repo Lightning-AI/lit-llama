@@ -1,3 +1,4 @@
+import functools
 import subprocess
 import sys
 from contextlib import redirect_stdout
@@ -10,13 +11,21 @@ import pytest
 import torch
 
 wd = Path(__file__).parent.parent.absolute()
-sys.path.append(str(wd))
 
-import generate
+
+@functools.lru_cache(maxsize=1)
+def load_generate_script():
+    sys.path.append(str(wd))
+
+    import generate
+
+    return generate
 
 
 @pytest.mark.parametrize("B", (1, 2))
 def test_generate(B):
+    generate = load_generate_script()
+
     T, C = 5, 3
     logits = torch.randn(B, T, C)
     input_idx = torch.randint(10, size=(B, T))
@@ -43,6 +52,8 @@ def test_generate(B):
 
 
 def test_main(tmp_path, monkeypatch):
+    generate = load_generate_script()
+
     checkpoint_path = tmp_path / "ckpt"
     checkpoint_path.touch()
     tokenizer_path = tmp_path / "tokenizer"
@@ -102,7 +113,7 @@ def test_main(tmp_path, monkeypatch):
 
 
 def test_cli():
-    generate_path = wd / "generate.py"
-    output = subprocess.check_output([sys.executable, generate_path, "-h"])
+    cli_path = wd / "generate.py"
+    output = subprocess.check_output([sys.executable, cli_path, "-h"])
     output = str(output.decode())
     assert "Generates text samples" in output
