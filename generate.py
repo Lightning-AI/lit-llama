@@ -3,12 +3,14 @@ import sys
 import time
 import torch
 from typing import Optional
+import warnings
+from jsonargparse import CLI
 
 import lightning as L
 import torch
 
 from model import LLaMA
-from quantization.bnb import *
+from quantization.bnb import as_8_bit_quantized
 from tokenizer import Tokenizer
 
 
@@ -101,37 +103,19 @@ def main(
 
     with as_8_bit_quantized(fabric.device, enabled=quantize):
         print("Loading model ...")
+        t0 = time.time()
 
         # skip initializing the weights, it is redundant
         # bitsandbytes does not like it when we call `torch.nn.init.normal_`
         LLaMA._init_weights = lambda *_: None
         
+        # init model
         model = LLaMA.from_name(model_size)
-
-        print("Preparing the model for quantization.")
-        # The output layer can be sensitive to quantization, we keep it in default precision
-        # model = quantize_model(model, skip=("lm_head", "output"))
-        quant_checkpoint_path = checkpoint_path + ".q8"
-        
-        # if not os.path.isfile(quant_checkpoint_path):
-            # create a quantized checkpoint if it doesn't already
-        # checkpoint = torch.load(checkpoint_path)
-        # model.load_state_dict(checkpoint)
-        # torch.save(model.state_dict(), quant_checkpoint_path)
-        # print("Saved a quantized version of the checkpoint.")
-        # else:
-        #     # load the quantized checkpoint if it exists
-        #     checkpoint = torch.load(quant_checkpoint_path)
-        #     model.load_state_dict(checkpoint)
-        #     print("Quantized checkpoint loaded.")
-    # else:
-    #     model = LLaMA.from_name(model_size)
-    #     checkpoint = torch.load(checkpoint_path)
-    #     model.load_state_dict(checkpoint)
 
         print(torch.cuda.max_memory_reserved() // 1e9)
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint)
+        print(f"Time to load model: {time.time() - t0:.02f} seconds.")
 
     model.eval()
 
@@ -146,6 +130,9 @@ def main(
 
     L.seed_everything(1234)
     t0 = time.time()
+
+    print("\n\nInput:", prompt)
+    print("Output:\n")
     for _ in range(num_samples):
         y = generate(
             model, encoded_prompt, max_new_tokens, model.config.block_size, temperature=temperature, top_k=top_k
@@ -153,11 +140,12 @@ def main(
         print(tokenizer.decode(y[0]))
 
     t = time.time() - t0
-    print(f"Time for inference: {t:.02f} sec total, {max_new_tokens / t:.02f} tokens/sec", file=sys.stderr)
-    print(f"Memory used (GB): {torch.cuda.max_memory_reserved() / 1e9:.02f}", file=sys.stderr)
+    print(f"\n\nTime for inference: {t:.02f} sec total, {max_new_tokens / t:.02f} tokens/sec", file=sys.stderr)
+    print(f"Memory used: {torch.cuda.max_memory_reserved() / 1e9:.02f} GB", file=sys.stderr)
 
 
 if __name__ == "__main__":
-    from jsonargparse import CLI
+    torch.set_float32_matmul_precision("high")
+    warnings.filterwarnings("ignore", message="MatMul8bitLt: inputs will be cast from torch.float32 to float16 during quantization")
 
     CLI(main)
