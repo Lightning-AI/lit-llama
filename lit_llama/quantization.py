@@ -32,7 +32,7 @@ class Linear8bitLt(bnb.nn.Linear8bitLt):
 
     def _load_from_state_dict(self, local_state_dict, *args, **kwargs):
         # There is only one key that ends with `*.weight`, the other one is the bias
-        weight_key = [name for name in local_state_dict.keys() if name.endswith("weight")][0]
+        weight_key = next(name for name in local_state_dict.keys() if name.endswith("weight"))
 
         # Load the weight from the state dict and re-quantize it
         weight = local_state_dict.pop(weight_key)

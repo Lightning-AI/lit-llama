@@ -1,9 +1,7 @@
-import os
 import sys
 import time
 from pathlib import Path
 from typing import Optional
-from jsonargparse import CLI
 
 import lightning as L
 import torch
@@ -143,5 +141,7 @@ def main(
 
 
 if __name__ == "__main__":
+    from jsonargparse import CLI
+    
     torch.set_float32_matmul_precision("high")
     CLI(main)
