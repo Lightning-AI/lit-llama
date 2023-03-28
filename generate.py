@@ -146,6 +146,9 @@ def main(
 
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
-    warnings.filterwarnings("ignore", message="MatMul8bitLt: inputs will be cast from torch.float32 to float16 during quantization")
+    warnings.filterwarnings(
+        "ignore", 
+        message="MatMul8bitLt: inputs will be cast from torch.float32 to float16 during quantization"
+    )
 
     CLI(main)
