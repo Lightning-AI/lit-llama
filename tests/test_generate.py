@@ -70,7 +70,15 @@ def test_main(tmp_path, monkeypatch):
     num_samples = 2
     out = StringIO()
     with redirect_stdout(out):
-        generate.main(checkpoint_path=checkpoint_path, tokenizer_path=tokenizer_path, model_size="1T", accelerator="litpu", temperature=2.0, top_k=2, num_samples=num_samples)
+        generate.main(
+            checkpoint_path=checkpoint_path,
+            tokenizer_path=tokenizer_path,
+            model_size="1T",
+            accelerator="litpu",
+            temperature=2.0,
+            top_k=2,
+            num_samples=num_samples,
+        )
 
     model_mock.assert_called_once_with("1T")
     load_mock.assert_called_once_with(checkpoint_path)
@@ -79,13 +87,16 @@ def test_main(tmp_path, monkeypatch):
     assert torch.allclose(tokenizer_mock.return_value.decode.call_args[0][0], generate_mock.return_value)
     model = model_mock.return_value
     assert fabric_mock.mock_calls == [
-        call(accelerator='litpu', devices=1),
+        call(accelerator="litpu", devices=1),
         call().device.__enter__(),
         call().device.__exit__(None, None, None),
         call().setup_module(model),
     ]
     model = fabric_mock.return_value.setup_module.return_value
-    assert generate_mock.mock_calls == [call(model, ANY, 50, model.config.block_size, temperature=2.0, top_k=2)] * num_samples
+    assert (
+        generate_mock.mock_calls
+        == [call(model, ANY, 50, model.config.block_size, temperature=2.0, top_k=2)] * num_samples
+    )
     # only the generated result is printed to stdout
     assert out.getvalue() == "foo bar baz\n" * num_samples
 
