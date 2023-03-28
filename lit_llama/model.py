@@ -206,7 +206,7 @@ class LLaMA(nn.Module):
             x = block(x)
         x = self.transformer.ln_f(x)
 
-        logits = self.lm_head(x)
+        logits = self.lm_head(x)  # (b, t, vocab_size)
 
         return logits
 
