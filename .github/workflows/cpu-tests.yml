@@ -40,8 +40,6 @@ jobs:
 
     - name: Run tests without the package installed
       run: |
-        pip list
-        pip uninstall -y lit-llama
         pip install pytest -r requirements.txt
         pip list
 
