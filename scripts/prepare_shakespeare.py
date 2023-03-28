@@ -21,15 +21,18 @@
 # SOFTWARE.
 import os
 import sys
-import requests
+from pathlib import Path
+
 import numpy as np
+import requests
 
 
-def prepare(destination_path: str = "data/shakespeare") -> None:
-    os.makedirs(destination_path, exist_ok=True)
+def prepare(destination_path: Path = Path("data/shakespeare")) -> None:
+    destination_path.mkdir(parents=True, exist_ok=True)
+
     # download the tiny shakespeare dataset
-    input_file_path = os.path.join(destination_path, "input.txt")
-    if not os.path.exists(input_file_path):
+    input_file_path = destination_path / "input.txt"
+    if not input_file_path.exists():
         data_url = "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"
         with open(input_file_path, "w") as f:
             f.write(requests.get(data_url).text)
@@ -43,7 +46,7 @@ def prepare(destination_path: str = "data/shakespeare") -> None:
     from tokenizer import Tokenizer
     
     Tokenizer.train(input=input_file_path, destination=destination_path)
-    tokenizer = Tokenizer(os.path.join(destination_path, "tokenizer.model"))
+    tokenizer = Tokenizer(destination_path / "tokenizer.model")
     train_ids = tokenizer.encode(train_data)
     val_ids = tokenizer.encode(val_data)
     print(f"train has {len(train_ids):,} tokens")

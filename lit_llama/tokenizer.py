@@ -10,7 +10,7 @@ class Tokenizer:
     """Tokenizer for LLaMA."""
 
     def __init__(self, model_path: Path) -> None:
-        self.processor = SentencePieceProcessor(model_file=model_path)
+        self.processor = SentencePieceProcessor(model_file=str(model_path))
         self.bos_id = self.processor.bos_id()
         self.eos_id = self.processor.eos_id()
         self.pad_id = self.processor.pad_id()
