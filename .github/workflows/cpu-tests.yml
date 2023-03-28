@@ -40,13 +40,6 @@ jobs:
 
     - name: Install dependencies
       run: |
-<<<<<<< Updated upstream
-        pip install pytest . -r requirements.txt
-        pip list
-
-    - name: Run tests
-      run: |
-=======
         pip list
         pip uninstall -y .
         pip install pytest -r requirements.txt
@@ -59,5 +52,4 @@ jobs:
         pip install . --no-deps
         pip list
 
->>>>>>> Stashed changes
         pytest -v --durations=10 --disable-pytest-warnings --strict-markers
