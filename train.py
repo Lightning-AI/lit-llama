@@ -14,6 +14,12 @@ import numpy as np
 from lit_llama.model import Block, LLaMA, LLaMAConfig
 from lit_llama.lora import with_lora
 
+from datasets import load_dataset
+
+
+dataset = load_dataset("json", data_files="data/alpaca/alpaca_data_cleaned.json")
+print(dataset)
+
 out_dir = "out"
 eval_interval = 2000
 eval_iters = 200
