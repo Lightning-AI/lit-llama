@@ -32,6 +32,7 @@ from tqdm import tqdm
 
 DATA_FILE = "https://raw.githubusercontent.com/tloen/alpaca-lora/main/alpaca_data_cleaned.json"
 DATA_FILE_NAME = "alpaca_data_cleaned.json"
+IGNORE_INDEX = -100
 
 
 def download(file_path: Path):
@@ -74,82 +75,57 @@ def prepare(
     train_set = [generate_and_tokenize_prompt(tokenizer, d) for d in tqdm(train_set)]
     print("Processing test split ...")
     test_set = [generate_and_tokenize_prompt(tokenizer, d) for d in tqdm(test_set)]
+
+    print(train_set[0])
     
     torch.save(train_set, file_path.parent / "train.pt")
     torch.save(test_set, file_path.parent / "test.pt")
 
 
-def tokenize(tokenizer, prompt, add_eos_token=True):
-    # there's probably a way to do this with the tokenizer settings
-    # but again, gotta move fast
-    # yeah me too, gotta move fast too
+def generate_and_tokenize_prompt(tokenizer: Tokenizer, example: dict):
+    full_prompt = generate_prompt(example)
+
+    full_prompt_and_response = full_prompt + example["output"]
+    encoded_full_prompt = tokenize(tokenizer, full_prompt, max_length=256)  # TODO: parameterize this
+    encoded_full_prompt_and_response = tokenize(tokenizer, full_prompt_and_response)
+
+    # The labels are the full prompt with response, but with the prompt masked out
+    labels = encoded_full_prompt_and_response.clone()
+    labels[:len(encoded_full_prompt)] = IGNORE_INDEX
+
+    return {**example, "input_ids": encoded_full_prompt_and_response, "labels": labels}
 
 
-    cutoff_len= 256
-
+def tokenize(tokenizer: Tokenizer, prompt: str, max_length: int) -> torch.Tensor:
     encoded = tokenizer.encode(
         prompt,
-        bos=False,  # bos needed?
-        eos=False,
-        # truncation=True,
-        # max_length=cutoff_len= 256,,
+        bos=True,
+        eos=True,
+        truncate=True,
+        max_length=max_length,
         # padding=False,
-        # return_tensors=None,
     )
-    encoded = encoded[:cutoff_len]
-    if (
-        encoded[-1].item() != tokenizer.eos_id
-        and len(encoded) < cutoff_len
-        and add_eos_token
-    ):
-        encoded = torch.cat((encoded, torch.tensor([tokenizer.eos_id], dtype=encoded.dtype)))
-
+    # if (
+    #     encoded[-1].item() != tokenizer.eos_id
+    #     and len(encoded) < cutoff_len
+    #     and add_eos_token
+    # ):
+    #     encoded = torch.cat((encoded, torch.tensor([tokenizer.eos_id], dtype=encoded.dtype)))
     return encoded
 
 
-def generate_prompt(data_point):
-    if data_point["input"]:
-        prompt_input = (
+def generate_prompt(example):
+    if example["input"]:
+        return (
             "Below is an instruction that describes a task, paired with an input that provides further context. "
             "Write a response that appropriately completes the request.\n\n"
-            f"### Instruction:\n{data_point['instruction']}\n\n### Input:\n{data_point['input']}\n\n### Response:"
+            f"### Instruction:\n{example['instruction']}\n\n### Input:\n{example['input']}\n\n### Response:"
         )
-    else:
-        prompt_input = (
-            "Below is an instruction that describes a task. "
-            "Write a response that appropriately completes the request.\n\n"
-            f"### Instruction:\n{data_point['instruction']}\n\n### Response:"
-        )
-    # TODO: should the output be added here?
-    return prompt_input
-
-#     if data_point["input"]:
-#         return f"""Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.  # noqa: E501
-# ### Instruction:
-# {data_point["instruction"]}
-# ### Input:
-# {data_point["input"]}
-# ### Response:
-# {data_point["output"]}"""
-#     else:
-#         return f"""Below is an instruction that describes a task. Write a response that appropriately completes the request.  # noqa: E501
-# ### Instruction:
-# {data_point["instruction"]}
-# ### Response:
-# {data_point["output"]}"""
-
-
-def generate_and_tokenize_prompt(tokenizer, data_point):
-    full_prompt = generate_prompt(data_point)
-        # prompt_input.format_map(example) if example.get("input", "") != "" else prompt_no_input.format_map(example)
-        #     for example in list_data_dict
-        # ]
-        # targets = [f"{example['output']}{tokenizer.eos_token}" for example in list_data_dict]
-    # print(list(data_point.keys()))
-    full_prompt += data_point["output"]
-    encoded_full_prompt = tokenize(tokenizer, full_prompt)
-    return {**data_point, "input_ids": encoded_full_prompt, "labels": encoded_full_prompt}
-
+    return (
+        "Below is an instruction that describes a task. "
+        "Write a response that appropriately completes the request.\n\n"
+        f"### Instruction:\n{example['instruction']}\n\n### Response:"
+    )
 
 
 if __name__ == "__main__":
@@ -160,3 +136,27 @@ if __name__ == "__main__":
     from jsonargparse import CLI
 
     CLI(prepare)
+
+
+
+# alpaca lora example
+"""
+{'input_ids': tensor([    2, 45943,    16,    41, 15741,    14,  7448,    10,  3685,     4,
+        21062,    10,  1263,    14, 16574, 25830,     5,  2069,     4, 50118,
+        50118, 48134, 41241,    35, 50118, 31033,   130,  4965,    13,  4959,
+         2245,     4, 50118, 50118, 48134, 19121,    35,   134,     4, 21213,
+           10,  9320,  5626,     8,   146,   686,     7,   680,  2710,     9,
+        12849,     8,  8942,     4,  1437, 50118,   176,     4, 30450,  4595,
+            7,   489,   110,   809,  2171,     8,   670,     4,  1437, 50118,
+          246,     4,  2315,   615,  3581,     8,  3014,    10,  4292,  3581,
+         3078,     4,     2]), 'labels': tensor([ -100,  -100,  -100,  -100,  -100,  -100,  -100,  -100,  -100,  -100,
+         -100,  -100,  -100,  -100,  -100,  -100,  -100,  -100,  -100,  -100,
+         -100,  -100,  -100,  -100,  -100,  -100,  -100,  -100,  -100,  -100,
+         -100,  -100,  -100,  -100,  -100,  -100,  -100,   134,     4, 21213,
+           10,  9320,  5626,     8,   146,   686,     7,   680,  2710,     9,
+        12849,     8,  8942,     4,  1437, 50118,   176,     4, 30450,  4595,
+            7,   489,   110,   809,  2171,     8,   670,     4,  1437, 50118,
+          246,     4,  2315,   615,  3581,     8,  3014,    10,  4292,  3581,
+         3078,     4,     2])}
+
+"""

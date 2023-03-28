@@ -20,13 +20,21 @@ class Tokenizer:
         return self.processor.vocab_size()
 
     def encode(
-        self, string: str, bos: bool = True, eos: bool = False, device: Optional[torch.device] = None
+        self,
+        string: str,
+        bos: bool = True,
+        eos: bool = False,
+        max_length: int = -1,
+        truncate: bool = False,
+        device: Optional[torch.device] = None
     ) -> torch.Tensor:
         tokens = self.processor.encode(string)
         if bos:
             tokens = [self.bos_id] + tokens
         if eos:
             tokens = tokens + [self.eos_id]
+        if max_length > 0 and truncate:
+            tokens = tokens[:max_length]
         return torch.tensor(tokens, dtype=torch.int, device=device)
 
     def decode(self, tokens: torch.Tensor) -> str:
