@@ -1,0 +1,28 @@
+name: General checks
+
+on:
+  push:
+    branches: [main, "release/*"]
+  pull_request:
+    branches: [main, "release/*"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref }}
+  cancel-in-progress: ${{ ! (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
+
+jobs:
+  check-schema:
+    uses: Lightning-AI/utilities/.github/workflows/check-schema.yml@main
+    with:
+      azure-dir: ""
+
+  check-package:
+    uses: Lightning-AI/utilities/.github/workflows/check-package.yml@main
+    with:
+      actions-ref: main
+      import-name: "lit_llama"
+      artifact-name: dist-packages-${{ github.sha }}
+      testing-matrix: |
+        {
+          "os": ["ubuntu-latest", "macos-latest", "windows-latest"],
+          "python-version": ["3.10"]
