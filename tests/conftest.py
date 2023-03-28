@@ -3,10 +3,11 @@ from pathlib import Path
 
 import pytest
 
+wd = Path(__file__).parent.parent.absolute()
+
 
 @pytest.fixture()
 def orig_llama():
-    wd = Path(__file__).parent.parent.absolute()
     sys.path.append(str(wd))
 
     from scripts.download import download_original
@@ -21,7 +22,6 @@ def orig_llama():
 @pytest.fixture()
 def lit_llama():
     # this adds support for running tests without the package installed
-    wd = Path(__file__).parent.parent.absolute()
     sys.path.append(str(wd))
 
     import lit_llama
