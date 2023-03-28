@@ -106,7 +106,7 @@ def main(
     fabric = L.Fabric(accelerator=accelerator, devices=1)
 
     with as_8_bit_quantized(fabric.device, enabled=quantize):
-        print("Loading model ...")
+        print("Loading model ...", file=sys.stderr)
         t0 = time.time()
 
         # skip initializing the weights, it is redundant
