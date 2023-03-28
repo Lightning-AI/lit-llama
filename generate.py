@@ -142,5 +142,6 @@ def main(
 
 if __name__ == "__main__":
     from jsonargparse import CLI
+
     torch.set_float32_matmul_precision("high")
     CLI(main)
