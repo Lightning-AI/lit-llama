@@ -1,10 +1,19 @@
 import os
 from contextlib import contextmanager
+import warnings
 
 import torch
-import torch.nn as nn
 
+# configuration for bitsandbytes before import
 os.environ["BITSANDBYTES_NOWELCOME"] = "1"
+warnings.filterwarnings(
+    "ignore", 
+    message="MatMul8bitLt: inputs will be cast from torch.float32 to float16 during quantization"
+)
+warnings.filterwarnings(
+    "ignore", 
+    message="The installed version of bitsandbytes was compiled without GPU support. 8-bit optimizers and GPU quantization are unavailable."
+)
 import bitsandbytes as bnb  # noqa: E402
 
 
@@ -49,7 +58,9 @@ def as_8_bit_quantized(device: torch.device, enabled: bool = True):
     """A context manager under which you can instantiate the model with 8-bit quantized tensors
     being created directly on the given device.
     """
-    
+    if device.type != "cuda":
+        raise ValueError("Quantization is only supported on the GPU.")
+
     with torch.device(device):
         if not enabled:
             yield

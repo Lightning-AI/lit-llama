@@ -2,7 +2,6 @@ import os
 import sys
 import time
 from typing import Optional
-import warnings
 from jsonargparse import CLI
 
 import lightning as L
@@ -152,9 +151,4 @@ def main(
 
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
-    warnings.filterwarnings(
-        "ignore", 
-        message="MatMul8bitLt: inputs will be cast from torch.float32 to float16 during quantization"
-    )
-
     CLI(main)
