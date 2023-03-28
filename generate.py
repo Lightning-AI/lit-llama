@@ -118,7 +118,7 @@ def main(
 
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint)
-        print(f"Time to load model: {time.time() - t0:.02f} seconds.")
+        print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
 
