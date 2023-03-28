@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-import torch
 from typing import Optional
 import warnings
 from jsonargparse import CLI
@@ -9,13 +8,20 @@ from jsonargparse import CLI
 import lightning as L
 import torch
 
-from model import LLaMA
+from lit_llama.model import LLaMA
 from quantization.bnb import as_8_bit_quantized
-from tokenizer import Tokenizer
+from lit_llama.tokenizer import Tokenizer
 
 
 @torch.no_grad()
-def generate(model, idx, max_new_tokens, max_seq_length, temperature=1.0, top_k=None):
+def generate(
+    model: torch.nn.Module,
+    idx: torch.Tensor,
+    max_new_tokens: int,
+    max_seq_length: int,
+    temperature: float = 1.0,
+    top_k: Optional[int] = None,
+) -> torch.Tensor:
     """Takes a conditioning sequence (prompt) as input and continues to generate as many tokens as requested.
 
     The implementation of this function is modified from A. Karpathy's nanoGPT.
@@ -74,7 +80,7 @@ def main(
     tokenizer_path: Optional[str] = None,
     model_size: str = "7B",
     quantize: bool = False,
-):
+) -> None:
     """Generates text samples based on a pre-trained LLaMA model and tokenizer.
 
     Args:
@@ -135,7 +141,12 @@ def main(
     print("Output:\n")
     for _ in range(num_samples):
         y = generate(
-            model, encoded_prompt, max_new_tokens, model.config.block_size, temperature=temperature, top_k=top_k
+            model,
+            encoded_prompt,
+            max_new_tokens,
+            model.config.block_size,  # type: ignore[union-attr,arg-type]
+            temperature=temperature,
+            top_k=top_k,
         )
         print(tokenizer.decode(y[0]))
 

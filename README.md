@@ -1,43 +1,57 @@
-# ⚡ Lit LLaMA 🦙
+<div align="center">
+<img src="https://pl-public-data.s3.amazonaws.com/assets_lightning/Lit_LLaMA_Badge3x.png" alt="Lit-LLaMA" width="128"/>
 
-**Lit-LLaMA** is an independent implementation of [LLaMA](<https://github.com/facebookresearch/llama>) based on [nanoGPT](<https://github.com/karpathy/nanoGPT>), and released under the **Apache 2.0 license**.
+# ⚡ Lit-LLaMA ️
 
-**Backstory**: Meta released the original [LLaMA code](https://github.com/facebookresearch/llama) under the [GPL license](https://github.com/facebookresearch/llama/blob/main/LICENSE).
-This means that any project containing LLaMA code **must be released as GPL**. We've seen LLaMA code leaking into the Apache 2.0 / BSD / MIT deep learning ecosystem, and that is an actual problem. **Lit-LLaMA solves that for good.**
+<!--
+<p align="center">
+  <a href="https://www.lightning.ai/">Lightning.ai</a> •
+  <a href="https://lightning.ai/docs/pytorch/stable/">PyTorch Lightning</a> •
+  <a href="https://lightning.ai/docs/fabric/stable/">Fabric</a>
+</p>
+-->
 
+![cpu-tests](https://github.com/lightning-AI/lit-llama/actions/workflows/cpu-tests.yml/badge.svg) [![license](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/Lightning-AI/lit-llama/blob/master/LICENSE) [![Discord](https://img.shields.io/discord/1077906959069626439?style=plastic)](https://discord.gg/VptPCZkGNa)
+
+</div>
+
+# ⚡ Lit-LLaMA ️
+Independent implementation of [LLaMA](<https://github.com/facebookresearch/llama>) that is fully open source under the **Apache 2.0 license.**
+
+This implementation builds on [nanoGPT](<https://github.com/karpathy/nanoGPT>).
+
+## Why?
+The original [LLaMA code](https://github.com/facebookresearch/llama) is [GPL licensed](https://github.com/facebookresearch/llama/blob/main/LICENSE) which means any project using it must also be released under GPL.
+
+This "taints" any other code and prevents meaningful academic and commercial use.
+
+**Lit-LLaMA solves that for good.**
+
+&nbsp;
+
+## Design principles
 **Lit-LLaMA** is:
 
-- **Simple**, single-file, no boilerplate
-- **Numerically equivalent** to the original model
-- **Optimized** to run on consumer hardware or at scale
-- **Open-source** no strings attached
+- **Simple:** Single-file implementation without boilerplate.
+- **Correct:** Numerically equivalent to the original model.
+- **Optimized:** Runs on consumer hardware or at scale.
+- **Open-source:** No strings attached.
 
-## Installation
+## Get involved!
+[Join our Discord](https://discord.gg/VptPCZkGNa) to build high-performance, truly open-source models for the common benefit of the community.
 
-### Clone the repo
+&nbsp;
+
+## Setup
+
+Clone the repo
 
 ```bash
 git clone https://github.com/Lightning-AI/lit-llama
 cd lit-llama
 ```
 
-### Create a new Python environment
-
-With `venv`
-
-```bash
-python -m venv lit-llama
-source lit-llama/bin/activate
-```
-
-or [Anaconda/Miniconda](https://docs.conda.io/en/latest/miniconda.html):
-
-```bash
-conda create -n lit-llama python=3.10
-conda activate lit-llama
-```
-
-### Install dependencies
+install dependencies
 
 ```bash
 pip install -r requirements.txt
@@ -45,9 +59,9 @@ pip install -r requirements.txt
 
 You are all set! 🎉
 
-## Inference
+## Use the model
 
-To generate text predictions, you first need to download the model weights following the instructions on the official [LLaMA repository](https://github.com/facebookresearch/llama). After you've done that, you should have a folder like this:
+To generate text predictions, download the model weights following the instructions on the official [LLaMA repository](https://github.com/facebookresearch/llama). Now you should have a folder like this:
 
 ```text
 checkpoints/llama
@@ -61,7 +75,7 @@ checkpoints/llama
 └── tokenizer.model
 ```
 
-You need to convert the weights to the Lit-LLaMA format by running:
+Convert the weights to the Lit-LLaMA format:
 
 ```bash
 python scripts/convert_checkpoint.py \
@@ -71,23 +85,32 @@ python scripts/convert_checkpoint.py \
     --model_size 7B
 ```
 
-You can now run inference:
+Run inference:
 
 ```bash
-python scripts/generate.py --prompt "Hello, my name is"
+python generate.py --prompt "Hello, my name is"
 ```
 
-This will run using the 7B model and will require roughly 26 GB of GPU memory (A100 GPU).
+This will run the 7B model and require ~26 GB of GPU memory (A100 GPU).
 
 ### Run Lit-LLaMA on consumer devices
 
-If you have a GPU with less memory, you can enable quantization with `--quantize true` which will take longer to load, but requires only ~8 GB of memory. It will run on any modern consumer GPU.
+For GPUs with less memory, enable quantization (`--quantize true`). This will take longer to load but require ~8GB of memory.
+This can run on any consumer GPU.
 
-See `python scripts/generate.py --help` for more options.
+```bash
+python generate.py --quantize true --prompt "Hello, my name is"
+```
 
-## Want to contribute?
+See `python generate.py --help` for more options.
 
-We're in a quest towards fully open source AI, especially focusing on models in the 5-20B range, trained using the LLaMA philosophy.
+&nbsp;
+
+## Get involved!
+
+We're in a quest towards fully open source AI, especially focusing on models in the 5-20B range, trained using the LLaMA approach (smaller models trained for longer).
+
+<img align="right" src="https://pl-public-data.s3.amazonaws.com/assets_lightning/Lit_LLaMA_Illustration3x.png" alt="Lit-LLaMA" width="128"/>
 
 Join us and start contributing, especially on the following areas:
 
@@ -97,6 +120,8 @@ Join us and start contributing, especially on the following areas:
 - [ ] Sparsification
 
 Look at `train.py` for a starting point towards pre-training / fine-tuning using [Lightning Fabric](https://lightning.ai/docs/fabric/stable/).
+
+Don't forget to [join our Discord](https://discord.gg/VptPCZkGNa)!
 
 ## Acknowledgements
 
