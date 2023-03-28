@@ -107,14 +107,7 @@ def main(
     with as_8_bit_quantized(fabric.device, enabled=quantize):
         print("Loading model ...", file=sys.stderr)
         t0 = time.time()
-
-        # skip initializing the weights, it is redundant
-        # bitsandbytes does not like it when we call `torch.nn.init.normal_`
-        LLaMA._init_weights = lambda *_: None
-        
-        # init model
         model = LLaMA.from_name(model_size)
-
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint)
         print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)

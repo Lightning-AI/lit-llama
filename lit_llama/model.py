@@ -3,7 +3,6 @@
 Based on the nanoGPT implementation: https://github.com/karpathy/nanoGPT.
 """
 # mypy: ignore-errors
-import math
 from dataclasses import dataclass
 
 import torch
@@ -183,15 +182,6 @@ class LLaMA(nn.Module):
                 ln_f=RMSNorm(config.n_embd),
             )
         )
-
-        # init all weights
-        self.apply(self._init_weights)
-
-    def _init_weights(self, module: nn.Module) -> None:
-        if isinstance(module, nn.Linear):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02 / math.sqrt(2 * self.config.n_layer))
-        elif isinstance(module, nn.Embedding):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02 / math.sqrt(2 * self.config.n_layer))
 
     def forward(self, idx: torch.Tensor) -> torch.Tensor:
         _, t = idx.size()
