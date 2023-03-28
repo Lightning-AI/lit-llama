@@ -10,6 +10,11 @@ import torch.nn.functional as F
 import math
 from typing import Dict, List
 
+from . import model as llama
+
+from contextlib import contextmanager
+from dataclasses import dataclass
+
 class LoRALayer():
     def __init__(
         self, 
@@ -299,3 +304,53 @@ def lora_state_dict(model: nn.Module, bias: str = 'none') -> Dict[str, torch.Ten
         return to_return
     else:
         raise NotImplementedError
+
+
+@dataclass
+class LoRAConfig:
+    r: float = 0.0
+    alpha: float = 1.0
+    dropout: float = 0.0
+
+
+class CausalSelfAttention(llama.CausalSelfAttention):
+    lora_config = None
+
+    def __init__(self, config: llama.LLaMAConfig, rope_cache: torch.Tensor) -> None:
+        # Skip the parent class __init__ altogether and replace it to avoid
+        # useless allocations
+        nn.Module.__init__()
+        assert config.n_embd % config.n_head == 0
+
+        # key, query, value projections for all heads, but in a batch
+        self.c_attn = MergedLinear(
+            in_features=config.n_embd,
+            out_features=3 * config.n_embd,
+            r=self.lora_config.r,
+            lora_alpha=self.lora_config.alpha,
+            lora_dropout=self.lora_config.dropout,
+            enable_lora=[True, False, True],
+            fin_in_fan_out = False,
+            merge_weights=True,
+            bias=False)
+        # output projection
+        self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=False)
+        # regularization
+        self.n_head = config.n_head
+        self.n_embd = config.n_embd
+        self.register_buffer("rope_cache", rope_cache, persistent=False)
+
+
+@contextmanager
+def with_lora(r, alpha, dropout):
+    """A context manager under which you can instantiate the model with LLoRA.
+    """
+
+    CausalSelfAttention.lora_config = LoRAConfig(r=r, alpha=alpha, dropout=dropout)
+
+    causal_self_attention = llama.CausalSelfAttention
+    llama.CausalSelfAttention = CausalSelfAttention
+    yield
+    llama.CausalSelfAttention = causal_self_attention
+
+    CausalSelfAttention.lora_config = None
