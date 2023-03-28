@@ -2,13 +2,13 @@ name: General checks
 
 on:
   push:
-    branches: [main, "release/*"]
+    branches: [main]
   pull_request:
-    branches: [main, "release/*"]
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref }}
-  cancel-in-progress: ${{ ! (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   check-schema:
@@ -26,3 +26,4 @@ jobs:
         {
           "os": ["ubuntu-latest", "macos-latest", "windows-latest"],
           "python-version": ["3.10"]
+        }
