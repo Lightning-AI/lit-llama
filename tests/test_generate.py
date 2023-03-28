@@ -1,16 +1,16 @@
-import os
 import subprocess
 import sys
 from contextlib import redirect_stdout
 from io import StringIO
+from pathlib import Path
 from unittest import mock
 from unittest.mock import Mock, PropertyMock, call, ANY
 
 import pytest
 import torch
 
-wd = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.append(wd)
+wd = Path(__file__).parent.parent.absolute()
+sys.path.append(str(wd))
 
 import generate
 
@@ -102,7 +102,7 @@ def test_main(tmp_path, monkeypatch):
 
 
 def test_cli():
-    generate_path = os.path.join(wd, "generate.py")
+    generate_path = wd / "generate.py"
     output = subprocess.check_output([sys.executable, generate_path, "-h"])
     output = str(output.decode())
     assert "Generates text samples" in output
