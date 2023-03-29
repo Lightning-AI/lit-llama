@@ -12,7 +12,7 @@ from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from lit_llama.model import Block, LLaMA, LLaMAConfig
 
 out_dir = "out"
-eval_interval = 200
+eval_interval = 100
 eval_iters = 200
 log_interval = 1
 # compilation fails as it does not support torch.complex64 for RoPE
@@ -25,7 +25,7 @@ learning_rate = 3e-4
 batch_size = 2
 # TODO: Alpaca trained for 3 epochs
 #   should we do proper epoch-based training?
-max_iters = 50000 * 3 // 4
+max_iters = 50000 * 3 // 4 // batch_size
 weight_decay = 0.0
 
 # Stanford Alpaca chooses 512, Alpaca-LoRA chooses 256
@@ -56,6 +56,9 @@ def main() -> None:
         # TODO: Support LoRA
         model = LLaMA(config)
 
+    checkpoint = torch.load("checkpoints/lit-llama/7B/state_dict.pth")
+    model.load_state_dict(checkpoint)
+
     # if compile:
     #     model = torch.compile(model)
 
@@ -63,7 +66,7 @@ def main() -> None:
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     optimizer = fabric.setup_optimizers(optimizer)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iters, last_epoch=0)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iters, last_epoch=-1)
 
     train(fabric, model, optimizer, scheduler, train_data, val_data)
 
@@ -80,12 +83,10 @@ def train(
 
     Loosely based on the nanoGPT implementation: https://github.com/karpathy/nanoGPT.
     """
+    for iter_num in range(max_iters):
 
-    iter_num = 0
-
-    while True:
         # evaluate the loss on train/val sets and write checkpoints
-        if iter_num > 0 and iter_num % eval_interval == 0:
+        if iter_num % eval_interval == 0:
             val_loss = validate(fabric, model, val_data)
             fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
             # TODO: Save with Fabric
@@ -110,11 +111,26 @@ def train(
         dt = time.time() - t0
         if iter_num % log_interval == 0:
             fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
-        iter_num += 1
 
-        if iter_num > max_iters:
-            break
 
+def generate(model, instruction):
+    from scripts.prepare_alpaca import generate_prompt
+    from lit_llama.tokenizer import Tokenizer
+    from generate import generate
+    tokenizer = Tokenizer("checkpoints/lit-llama/tokenizer.model")
+    sample = {"instruction": instruction, "input": ""}
+    prompt = generate_prompt(sample)
+    encoded = tokenizer.encode(prompt, bos=True, eos=True)
+    encoded = encoded[None, :]  # add batch dimension
+
+    output = generate(
+        model,
+        idx=encoded,
+        max_seq_length=block_size,
+        max_new_tokens=100,
+    )
+    output = tokenizer.decode(output[0])
+    return output.split("### Response:")[1].strip()
 
 @torch.no_grad()
 def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> torch.Tensor:
@@ -127,6 +143,12 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
         loss = torch.nn.functional.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
         losses[k] = loss.item()
     out = losses.mean()
+
+    # produce an example:
+    instruction = "Recommend a movie for me to watch during the weekend and explain the reason."
+    fabric.print(instruction)
+    fabric.print(generate(model, instruction))
+
     model.train()
     return out
 
