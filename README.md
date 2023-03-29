@@ -121,15 +121,15 @@ We provide a simple training script in `finetune.py` that finetunes a pretrained
 
 1. Download the data and generate a instruction tuning dataset:
   
-```bash
-python scripts/prepare_alpaca.py
-```
+  ```bash
+  python scripts/prepare_alpaca.py
+  ```
 
 2. Run the finetuning script
 
-```bash
-python finetune.py
-```
+  ```bash
+  python finetune.py
+  ```
 
 It is expected that you have downloaded the pretrained weights as described above.
 The finetuning requires a machine with at least 4 GPUs with 24 GB memory.
