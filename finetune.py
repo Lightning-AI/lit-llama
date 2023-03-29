@@ -1,18 +1,19 @@
+"""
+Instruction-tuning with LoRA on the Alpaca dataset.
+"""
 import os
 import time
-from functools import partial
-from typing import Tuple
 
 import lightning as L
 import numpy as np
 import torch
-from lightning.fabric.strategies import FSDPStrategy
-from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
-
-from lit_llama.model import Block, LLaMA, LLaMAConfig
-from lit_llama.lora import with_lora, mark_only_lora_as_trainable
 from lightning.fabric.strategies import DeepSpeedStrategy
-import json
+
+from generate import generate
+from lit_llama.lora import mark_only_lora_as_trainable, with_lora
+from lit_llama.model import LLaMA, LLaMAConfig
+from lit_llama.tokenizer import Tokenizer
+from scripts.prepare_alpaca import generate_prompt
 
 out_dir = "out"
 eval_interval = 100
@@ -24,30 +25,42 @@ learning_rate = 2e-5
 batch_size = 32
 micro_batch_size = 4
 gradient_accumulation_steps = batch_size // micro_batch_size
-# TODO: Alpaca trained for 3 epochs
-#   should we do proper epoch-based training?
-max_iters = 50000 * 3 // 4 // batch_size
+
+# TODO: Limit to 3 epochs
+max_iters = 100000000 #  50000 * 3 // 4 // batch_size
 weight_decay = 0.0
 block_size = 256
 
-# TODO: These settings from the original repo
-# --gradient_accumulation_steps 8 \
-# --warmup_ratio 0.03 \
-warmup_steps = 100  # TODO
+# TODO: LR scheduling
+warmup_steps = 100
 
-with open("config.json", "r") as file:
-    ds_config = json.load(file)
-ds_config["gradient_accumulation_steps"] = gradient_accumulation_steps
-ds_config["train_micro_batch_size_per_gpu"] = micro_batch_size
+ds_config = {
+    "gradient_accumulation_steps": gradient_accumulation_steps,
+    "train_micro_batch_size_per_gpu": micro_batch_size,
+    "bf16": {
+        "enabled": True
+    },
+    "gradient_clipping": 1,
+    "zero_optimization": {
+        "stage": 2,
+        "offload_param": {
+            "device": "none"
+        },
+            "offload_optimizer": {
+            "device": "none"
+        },
+        "allgather_partitions": True,
+        "allgather_bucket_size": 5e8,
+        "contiguous_gradients": True
+    }
+}
 
 
 def main() -> None:
-    strategy = DeepSpeedStrategy(config=ds_config)
     fabric = L.Fabric(
         accelerator="cuda", 
-        devices=4, 
-        # precision="bf16-mixed", 
-        strategy=strategy
+        devices=4,
+        strategy=DeepSpeedStrategy(config=ds_config)
     )
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
@@ -64,22 +77,22 @@ def main() -> None:
         model = LLaMA(config)
 
     checkpoint = torch.load("checkpoints/lit-llama/7B/state_dict.pth")
-    model.load_state_dict(checkpoint, strict=False)  # missing keys in state dict: transformer.h.0.attn.c_attn.lora_A etc.
-    mark_only_lora_as_trainable(model)
     
+    # strict=False because missing keys due to lora weights not contained in checkpoint state
+    model.load_state_dict(checkpoint, strict=False) 
+    mark_only_lora_as_trainable(model)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     model, optimizer = fabric.setup(model, optimizer)
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iters, last_epoch=-1)
 
-    train(fabric, model, optimizer, None, train_data, val_data)
+    train(fabric, model, optimizer, train_data, val_data)
 
 
 def train(
     fabric: L.Fabric,
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
-    scheduler: torch.optim.lr_scheduler.LRScheduler,
     train_data: np.ndarray,
     val_data: np.ndarray,
 ) -> None:
@@ -119,10 +132,7 @@ def train(
             fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
 
 
-def generate(model, instruction):
-    from scripts.prepare_alpaca import generate_prompt
-    from lit_llama.tokenizer import Tokenizer
-    from generate import generate
+def generate_response(model, instruction):
     tokenizer = Tokenizer("checkpoints/lit-llama/tokenizer.model")
     sample = {"instruction": instruction, "input": ""}
     prompt = generate_prompt(sample)
@@ -139,6 +149,7 @@ def generate(model, instruction):
     output = tokenizer.decode(output[0].cpu())
     return output.split("### Response:")[1].strip()
 
+
 @torch.no_grad()
 def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> torch.Tensor:
     fabric.print("Validating ...")
@@ -154,13 +165,13 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     # produce an example:
     instruction = "Recommend a movie for me to watch during the weekend and explain the reason."
     fabric.print(instruction)
-    fabric.print(generate(model, instruction))
+    fabric.print(generate_response(model, instruction))
 
     model.train()
     return out
 
 
-def get_batch(fabric: L.Fabric, data: list, pad_id: int = 0) -> Tuple[torch.Tensor, torch.Tensor]:
+def get_batch(fabric: L.Fabric, data: list, pad_id: int = 0):
     ix = torch.randint(len(data), (micro_batch_size,))
 
     def pad(x):
