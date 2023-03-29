@@ -4,15 +4,12 @@ from functools import partial
 from typing import Tuple
 
 import lightning as L
-from lightning.fabric.strategies import FSDPStrategy
-
+import numpy as np
 import torch
+from lightning.fabric.strategies import FSDPStrategy
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 
-import numpy as np
-
 from lit_llama.model import Block, LLaMA, LLaMAConfig
-
 
 out_dir = "out"
 eval_interval = 200
@@ -22,17 +19,21 @@ log_interval = 1
 # compile = False
 
 # Hyperparameters
-learning_rate = 3e-4  # alpaca-lora: 3e-4 vs alpaca:  2e-5
-batch_size = 2  # 128
-max_iters = 50000 * 3 // 4  # roughly 3 epochs across 4 devices
+# TODO: Stanford Alpaca choses 2e-5, Alpaca-LoRA chooses 3e-4
+learning_rate = 3e-4
+# TODO: Stanford Alpaca: 128
+batch_size = 2
+# TODO: Alpaca trained for 3 epochs
+#   should we do proper epoch-based training?
+max_iters = 50000 * 3 // 4
 weight_decay = 0.0
 
+# Stanford Alpaca chooses 512, Alpaca-LoRA chooses 256
+block_size = 256
 
+# TODO: These settings from the original repo
 # --gradient_accumulation_steps 8 \
 # --warmup_ratio 0.03 \
-
-# For shakespeare, choose smaller block size than vanilla LLaMA
-block_size = 256
 
 
 def main() -> None:
@@ -51,7 +52,8 @@ def main() -> None:
     config = LLaMAConfig.from_name("7B")
     config.block_size = block_size
 
-    with fabric.device: # , with_lora(0.0, 1.0, 0.0):
+    with fabric.device:
+        # TODO: Support LoRA
         model = LLaMA(config)
 
     # if compile:
@@ -94,12 +96,7 @@ def train(
 
         t0 = time.time()
 
-        input_ids, targets = get_batch(
-            fabric,
-            train_data,
-            # TODO: is the padding id correct?
-            # tokenizer says it is -1, but can't be because embedding layer does not support neg idx
-        )
+        input_ids, targets = get_batch(fabric, train_data)
 
         logits = model(input_ids)
         loss = torch.nn.functional.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
