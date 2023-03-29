@@ -20,7 +20,11 @@ def prepare(
     max_seq_length: int = 256,
     seed: int = 42,
 ) -> None:
-    """Prepare the Alpaca dataset."""
+    """Prepare the Alpaca dataset for instruction tuning.
+    
+    The output is a training and validation dataset saved as `train.pt` and `val.pt`,
+    which stores the preprocessed and tokenized prompts and labels.
+    """
     
     destination_path.mkdir(parents=True, exist_ok=True)
     file_path = destination_path / DATA_FILE_NAME
@@ -54,6 +58,7 @@ def prepare(
 
 
 def download(file_path: Path):
+    """Downloads the raw json data file and saves it in the given destination."""
     if file_path.exists():
         return
     with open(file_path, "w") as f:
@@ -61,6 +66,22 @@ def download(file_path: Path):
 
 
 def prepare_sample(example: dict, tokenizer: Tokenizer, max_length: int):
+    """Processes a single sample.
+    
+    Each sample in the dataset consists of:
+    - instruction: A string describing the task
+    - input: A string holding a special input value for the instruction.
+        This only applies to some samples, and in others this is empty.
+    - output: The response string
+
+    This function processes this data to produce a prompt text and a label for
+    supervised training. The prompt text is formed as a single message including both
+    the instruction and the input. The label/target is the same message but with the
+    response attached.
+
+    Finally, both the prompt and the label get tokenized. In addition, all tokens
+    in the label that correspond to the original input prompt get masked out.
+    """
     full_prompt = generate_prompt(example)
     full_prompt_and_response = full_prompt + example["output"]
     encoded_full_prompt = tokenize(tokenizer, full_prompt, max_length=max_length)
