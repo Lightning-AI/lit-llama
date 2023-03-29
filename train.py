@@ -12,9 +12,6 @@ from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 import numpy as np
 
 from lit_llama.model import Block, LLaMA, LLaMAConfig
-from lit_llama.lora import with_lora
-
-
 
 out_dir = "out"
 eval_interval = 2000
@@ -52,7 +49,7 @@ def main() -> None:
     config = LLaMAConfig.from_name("7B")
     config.block_size = block_size
 
-    with fabric.device: # , with_lora(0.0, 1.0, 0.0):
+    with fabric.device:
         model = LLaMA(config)
 
     # if compile:
@@ -84,28 +81,22 @@ def train(
         # TODO: add learning rate scheduling
 
         # evaluate the loss on train/val sets and write checkpoints
-        # if iter_num > 0 and iter_num % eval_interval == 0 and fabric.global_rank == 0:
-        #     val_loss = validate(fabric, model, val_data)
-        #     fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
-        #     # TODO: Save with Fabric
-        #     # print(f"saving checkpoint to {out_dir}")
-        #     # torch.save(checkpoint, os.path.join(out_dir, 'ckpt.pt'))
+        if iter_num > 0 and iter_num % eval_interval == 0 and fabric.global_rank == 0:
+            val_loss = validate(fabric, model, val_data)
+            fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
+            # TODO: Save with Fabric
+            # print(f"saving checkpoint to {out_dir}")
+            # torch.save(checkpoint, os.path.join(out_dir, 'ckpt.pt'))
 
         t0 = time.time()
 
         input_ids, targets = get_batch(
             fabric,
             train_data,
-            pad_id=-1,  # TODO: don't hardcode
+            block_size=model.config.block_size,  # type: ignore[union-attr,arg-type]
         )
-
         print(input_ids)
-        print(targets)
-        print(input_ids.shape)
-        print(targets.shape)
-
-        # raise SystemExit(0)
-
+        print(input_ids.dtype)
         logits = model(input_ids)
         raise SystemExit(0)
         loss = torch.nn.functional.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
@@ -147,32 +138,17 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     return out
 
 
-def get_batch(fabric: L.Fabric, data: list, pad_id) -> Tuple[torch.Tensor, torch.Tensor]:
-    ix = torch.randint(len(data), (batch_size,))
-    # TODO: don't we need to shift the labels?
-
-    def pad(x):
-        n = block_size - len(x)
-        return torch.cat((x, torch.full((n,), pad_id, dtype=x.dtype)))
-
-    x = torch.stack([pad(data[i]["input_ids"]) for i in ix])
-    y = torch.stack([pad(data[i]["labels"]) for i in ix])
-
-    # TODO: do the padding in advance
-    # x = torch.nn.utils.rnn.pad_sequence(
-    #     x, batch_first=True, padding_value=pad_id,
-    # )
-    # y = torch.nn.utils.rnn.pad_sequence(
-    #     y, batch_first=True, padding_value=-100,  # TODO
-    # )
-
+def get_batch(fabric: L.Fabric, data: np.ndarray, block_size: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    ix = torch.randint(len(data) - block_size, (batch_size,))
+    x = torch.stack([torch.from_numpy((data[i : i + block_size]).astype(np.int64)) for i in ix])
+    y = torch.stack([torch.from_numpy((data[i + 1 : i + 1 + block_size]).astype(np.int64)) for i in ix])
     x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
     return x, y
 
 
-def load_datasets(data_dir: str = "data/alpaca"):
-    train_data = torch.load(os.path.join(data_dir, "train.pt"))
-    val_data = torch.load(os.path.join(data_dir, "test.pt"))
+def load_datasets(data_dir: str = "data/shakespeare") -> Tuple[np.ndarray, np.ndarray]:
+    train_data = np.memmap(os.path.join(data_dir, "train.bin"), dtype=np.uint16, mode="r")
+    val_data = np.memmap(os.path.join(data_dir, "val.bin"), dtype=np.uint16, mode="r")
     return train_data, val_data
 
 

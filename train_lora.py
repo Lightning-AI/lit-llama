@@ -12,28 +12,27 @@ from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 import numpy as np
 
 from lit_llama.model import Block, LLaMA, LLaMAConfig
-from lit_llama.lora import with_lora
-
 
 
 out_dir = "out"
-eval_interval = 2000
+eval_interval = 200
 eval_iters = 200
 log_interval = 1
 # compilation fails as it does not support torch.complex64 for RoPE
 # compile = False
 
 # Hyperparameters
-learning_rate = 6e-4
-batch_size = 2
-max_iters = 600000
-weight_decay = 1e-1
-beta1 = 0.9
-beta2 = 0.95
-grad_clip = 1.0
+learning_rate = 3e-4  # alpaca-lora: 3e-4 vs alpaca:  2e-5
+batch_size = 2  # 128
+max_iters = 50000 * 3 // 4  # roughly 3 epochs across 4 devices
+weight_decay = 0.0
+
+
+# --gradient_accumulation_steps 8 \
+# --warmup_ratio 0.03 \
 
 # For shakespeare, choose smaller block size than vanilla LLaMA
-block_size = 1024
+block_size = 256
 
 
 def main() -> None:
@@ -60,16 +59,18 @@ def main() -> None:
 
     model = fabric.setup_module(model)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2))
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     optimizer = fabric.setup_optimizers(optimizer)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iters, last_epoch=0)
 
-    train(fabric, model, optimizer, train_data, val_data)
+    train(fabric, model, optimizer, scheduler, train_data, val_data)
 
 
 def train(
     fabric: L.Fabric,
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
+    scheduler: torch.optim.lr_scheduler.LRScheduler,
     train_data: np.ndarray,
     val_data: np.ndarray,
 ) -> None:
@@ -81,42 +82,32 @@ def train(
     iter_num = 0
 
     while True:
-        # TODO: add learning rate scheduling
-
         # evaluate the loss on train/val sets and write checkpoints
-        # if iter_num > 0 and iter_num % eval_interval == 0 and fabric.global_rank == 0:
-        #     val_loss = validate(fabric, model, val_data)
-        #     fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
-        #     # TODO: Save with Fabric
-        #     # print(f"saving checkpoint to {out_dir}")
-        #     # torch.save(checkpoint, os.path.join(out_dir, 'ckpt.pt'))
+        if iter_num > 0 and iter_num % eval_interval == 0:
+            val_loss = validate(fabric, model, val_data)
+            fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
+            # TODO: Save with Fabric
+            # print(f"saving checkpoint to {out_dir}")
+            # torch.save(checkpoint, os.path.join(out_dir, 'ckpt.pt'))
+            fabric.barrier()
+        
 
         t0 = time.time()
 
         input_ids, targets = get_batch(
             fabric,
             train_data,
-            pad_id=-1,  # TODO: don't hardcode
+            # TODO: is the padding id correct?
+            # tokenizer says it is -1, but can't be because embedding layer does not support neg idx
         )
 
-        print(input_ids)
-        print(targets)
-        print(input_ids.shape)
-        print(targets.shape)
-
-        # raise SystemExit(0)
-
         logits = model(input_ids)
-        raise SystemExit(0)
         loss = torch.nn.functional.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
 
         fabric.backward(loss)
 
-        # TODO: Gradient clipping
-        # if grad_clip != 0.0:
-        #     fabric.clip_gradients(model, optimizer, max_norm=grad_clip)
-
         optimizer.step()
+        scheduler.step()
         optimizer.zero_grad()
 
         dt = time.time() - t0
@@ -134,11 +125,7 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     model.eval()
     losses = torch.zeros(eval_iters)
     for k in range(eval_iters):
-        input_ids, targets = get_batch(
-            fabric,
-            val_data,
-            block_size=model.config.block_size,  # type: ignore[union-attr,arg-type]
-        )
+        input_ids, targets = get_batch(fabric, val_data)
         logits = model(input_ids)
         loss = torch.nn.functional.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
         losses[k] = loss.item()
@@ -147,25 +134,17 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     return out
 
 
-def get_batch(fabric: L.Fabric, data: list, pad_id) -> Tuple[torch.Tensor, torch.Tensor]:
+def get_batch(fabric: L.Fabric, data: list, pad_id: int = 0) -> Tuple[torch.Tensor, torch.Tensor]:
     ix = torch.randint(len(data), (batch_size,))
     # TODO: don't we need to shift the labels?
 
     def pad(x):
+        # TODO: optimize this to pad to the next multiple of 8 or so?
         n = block_size - len(x)
         return torch.cat((x, torch.full((n,), pad_id, dtype=x.dtype)))
 
-    x = torch.stack([pad(data[i]["input_ids"]) for i in ix])
-    y = torch.stack([pad(data[i]["labels"]) for i in ix])
-
-    # TODO: do the padding in advance
-    # x = torch.nn.utils.rnn.pad_sequence(
-    #     x, batch_first=True, padding_value=pad_id,
-    # )
-    # y = torch.nn.utils.rnn.pad_sequence(
-    #     y, batch_first=True, padding_value=-100,  # TODO
-    # )
-
+    x = torch.stack([pad(data[i]["input_ids"]) for i in ix]).type(torch.int64)
+    y = torch.stack([pad(data[i]["labels"]) for i in ix]).type(torch.int64)
     x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
     return x, y
 
