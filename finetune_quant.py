@@ -13,6 +13,7 @@ from lit_llama.lora import mark_only_lora_as_trainable, with_lora
 from lit_llama.model import LLaMA, LLaMAConfig
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
+import bitsandbytes as bnb
 
 out_dir = "out"
 eval_interval = 100
@@ -20,9 +21,9 @@ eval_iters = 100
 log_interval = 1
 
 # Hyperparameters
-learning_rate = 2e-5
-batch_size = 1
-micro_batch_size = 1
+learning_rate = 3e-4
+batch_size = 128
+micro_batch_size = 4
 gradient_accumulation_steps = batch_size // micro_batch_size
 
 # TODO: Limit to 3 epochs
@@ -30,13 +31,18 @@ max_iters = 100000000 #  50000 * 3 // 4 // batch_size
 weight_decay = 0.0
 block_size = 256
 
+lora_r = 8
+lora_alpha = 16
+lora_dropout = 0.05
+
 # TODO: LR scheduling
 warmup_steps = 100
 
 
+
 def main() -> None:
     fabric = L.Fabric(accelerator="cuda", devices=1)
-    fabric.launch()
+    # fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
     if fabric.global_rank == 0:
@@ -47,7 +53,7 @@ def main() -> None:
     config = LLaMAConfig.from_name("7B")
     config.block_size = block_size
 
-    with fabric.device, with_lora(r=8, alpha=32, dropout=0.1, enabled=True):
+    with fabric.device, with_lora(r=lora_r, alpha=lora_alpha, dropout=lora_dropout, enabled=True):
         model = LLaMA(config)
 
     checkpoint = torch.load("checkpoints/lit-llama/7B/state_dict.pth")
@@ -56,7 +62,7 @@ def main() -> None:
     model.load_state_dict(checkpoint, strict=False) 
     mark_only_lora_as_trainable(model)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    optimizer = bnb.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     model, optimizer = fabric.setup(model, optimizer)
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iters, last_epoch=-1)
 
