@@ -95,10 +95,7 @@ def train(
             train_data,
             block_size=model.config.block_size,  # type: ignore[union-attr,arg-type]
         )
-        print(input_ids)
-        print(input_ids.dtype)
         logits = model(input_ids)
-        raise SystemExit(0)
         loss = torch.nn.functional.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
 
         fabric.backward(loss)
