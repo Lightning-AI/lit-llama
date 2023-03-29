@@ -1,24 +1,3 @@
-# MIT License
-
-# Copyright (c) 2022 Andrej Karpathy
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
 import sys
 from pathlib import Path
 
@@ -35,18 +14,11 @@ DATA_FILE_NAME = "alpaca_data_cleaned.json"
 IGNORE_INDEX = -1
 
 
-def download(file_path: Path):
-    # download the (cleaned) alpaca dataset
-    if file_path.exists():
-        return
-    with open(file_path, "w") as f:
-        f.write(requests.get(DATA_FILE).text)
-
-
 def prepare(
     destination_path: Path = Path("data/alpaca"), 
     test_split_size: int = 2000,
-    seed: int = 21,
+    max_seq_length: int = 256,
+    seed: int = 42,
 ) -> None:
     """Prepare the Alpaca dataset."""
     
@@ -56,7 +28,6 @@ def prepare(
 
     # TODO: If we don't have the Meta weights, where do we get the tokenizer from? Maybe HF
     tokenizer = Tokenizer("checkpoints/lit-llama/tokenizer.model")
-    print("tokenizer pad id", tokenizer.pad_id)
     
     with open(file_path, "r") as file:
         data = json.load(file)
@@ -69,26 +40,31 @@ def prepare(
         generator=torch.Generator().manual_seed(seed),
     )
     train_set, test_set = list(train_set), list(test_set)
-        
-    print(len(train_set), len(test_set))
+
+    print(f"train has {len(train_set):,} samples")
+    print(f"val has {len(test_set):,} samples")
 
     print("Processing train split ...")
-    train_set = [generate_and_tokenize_prompt(tokenizer, d) for d in tqdm(train_set)]
-    print("Processing test split ...")
-    test_set = [generate_and_tokenize_prompt(tokenizer, d) for d in tqdm(test_set)]
-
-    print(train_set[0])
-    
+    train_set = [prepare_sample(sample, tokenizer, max_seq_length) for sample in tqdm(train_set)]
     torch.save(train_set, file_path.parent / "train.pt")
+
+    print("Processing test split ...")
+    test_set = [prepare_sample(sample, tokenizer, max_seq_length) for sample in tqdm(test_set)]
     torch.save(test_set, file_path.parent / "test.pt")
 
 
-def generate_and_tokenize_prompt(tokenizer: Tokenizer, example: dict):
-    full_prompt = generate_prompt(example)
+def download(file_path: Path):
+    if file_path.exists():
+        return
+    with open(file_path, "w") as f:
+        f.write(requests.get(DATA_FILE).text)
 
+
+def prepare_sample(example: dict, tokenizer: Tokenizer, max_length: int):
+    full_prompt = generate_prompt(example)
     full_prompt_and_response = full_prompt + example["output"]
-    encoded_full_prompt = tokenize(tokenizer, full_prompt, max_length=256)  # TODO: parameterize this
-    encoded_full_prompt_and_response = tokenize(tokenizer, full_prompt_and_response, max_length=256)  # TODO: parameterize this
+    encoded_full_prompt = tokenize(tokenizer, full_prompt, max_length=max_length)
+    encoded_full_prompt_and_response = tokenize(tokenizer, full_prompt_and_response, max_length=max_length)
 
     # The labels are the full prompt with response, but with the prompt masked out
     labels = encoded_full_prompt_and_response.clone()
@@ -97,24 +73,14 @@ def generate_and_tokenize_prompt(tokenizer: Tokenizer, example: dict):
     return {**example, "input_ids": encoded_full_prompt_and_response, "labels": labels}
 
 
-def tokenize(tokenizer: Tokenizer, prompt: str, max_length: int) -> torch.Tensor:
-    encoded = tokenizer.encode(
-        prompt,
-        bos=True,
-        eos=True,
-        max_length=max_length,
-        pad=False,
-    )
-    # if (
-    #     encoded[-1].item() != tokenizer.eos_id
-    #     and len(encoded) < cutoff_len
-    #     and add_eos_token
-    # ):
-    #     encoded = torch.cat((encoded, torch.tensor([tokenizer.eos_id], dtype=encoded.dtype)))
-    return encoded
+def tokenize(tokenizer: Tokenizer, string: str, max_length: int) -> torch.Tensor:
+    return tokenizer.encode(string, bos=True, eos=True, max_length=max_length)
 
 
 def generate_prompt(example):
+    """Generates a standardized message to prompt the model with an instruction, optional input and a
+    'response' field."""
+
     if example["input"]:
         return (
             "Below is an instruction that describes a task, paired with an input that provides further context. "
