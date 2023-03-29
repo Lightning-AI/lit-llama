@@ -1,3 +1,4 @@
+"""Implementation derived from https://github.com/tloen/alpaca-lora"""
 import sys
 from pathlib import Path
 
@@ -16,6 +17,7 @@ IGNORE_INDEX = -1
 
 def prepare(
     destination_path: Path = Path("data/alpaca"), 
+    tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
     test_split_size: int = 2000,
     max_seq_length: int = 256,
     seed: int = 42,
@@ -30,8 +32,8 @@ def prepare(
     file_path = destination_path / DATA_FILE_NAME
     download(file_path)
 
-    # TODO: If we don't have the Meta weights, where do we get the tokenizer from? Maybe HF
-    tokenizer = Tokenizer("checkpoints/lit-llama/tokenizer.model")
+    # TODO: If we don't have the Meta weights, where do we get the tokenizer from?
+    tokenizer = Tokenizer(tokenizer_path)
     
     with open(file_path, "r") as file:
         data = json.load(file)
