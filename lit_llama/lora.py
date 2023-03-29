@@ -214,7 +214,7 @@ class CausalSelfAttention(llama.CausalSelfAttention):
 
 
 @contextmanager
-def with_lora(r, alpha, dropout):
+def with_lora(r, alpha: float, dropout: float):
     """A context manager under which you can instantiate the model with LLoRA.
     """
 
