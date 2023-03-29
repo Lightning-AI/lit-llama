@@ -25,7 +25,7 @@ class Tokenizer:
         bos: bool = True,
         eos: bool = False,
         max_length: int = -1,
-        truncate: bool = False,
+        pad: bool = False,
         device: Optional[torch.device] = None
     ) -> torch.Tensor:
         tokens = self.processor.encode(string)
@@ -33,8 +33,11 @@ class Tokenizer:
             tokens = [self.bos_id] + tokens
         if eos:
             tokens = tokens + [self.eos_id]
-        if max_length > 0 and truncate:
+        if max_length > 0:
             tokens = tokens[:max_length]
+        if pad and len(tokens) < max_length:
+            tokens += [self.pad_id] * (max_length - len(tokens))
+
         return torch.tensor(tokens, dtype=torch.int, device=device)
 
     def decode(self, tokens: torch.Tensor) -> str:

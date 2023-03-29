@@ -56,6 +56,7 @@ def prepare(
 
     # TODO: If we don't have the Meta weights, where do we get the tokenizer from? Maybe HF
     tokenizer = Tokenizer("checkpoints/lit-llama/tokenizer.model")
+    print("tokenizer pad id", tokenizer.pad_id)
     
     with open(file_path, "r") as file:
         data = json.load(file)
@@ -87,7 +88,7 @@ def generate_and_tokenize_prompt(tokenizer: Tokenizer, example: dict):
 
     full_prompt_and_response = full_prompt + example["output"]
     encoded_full_prompt = tokenize(tokenizer, full_prompt, max_length=256)  # TODO: parameterize this
-    encoded_full_prompt_and_response = tokenize(tokenizer, full_prompt_and_response)
+    encoded_full_prompt_and_response = tokenize(tokenizer, full_prompt_and_response, max_length=256)  # TODO: parameterize this
 
     # The labels are the full prompt with response, but with the prompt masked out
     labels = encoded_full_prompt_and_response.clone()
@@ -101,9 +102,8 @@ def tokenize(tokenizer: Tokenizer, prompt: str, max_length: int) -> torch.Tensor
         prompt,
         bos=True,
         eos=True,
-        truncate=True,
         max_length=max_length,
-        # padding=False,
+        pad=False,
     )
     # if (
     #     encoded[-1].item() != tokenizer.eos_id
