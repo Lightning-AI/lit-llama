@@ -10,9 +10,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from transformers.pytorch_utils import Conv1D
+import bitsandbytes as bnb
 
 
-class MergedLinear(nn.Linear, LoraLayer):
+class MergedLinear8bitLt(bnb.nn.Linear8bitLt, LoraLayer):
     # Lora implemented in a dense layer
     def __init__(
         self,
@@ -22,22 +23,28 @@ class MergedLinear(nn.Linear, LoraLayer):
         lora_alpha: int = 1,
         lora_dropout: float = 0.0,
         enable_lora: List[bool] = [False],
-        fan_in_fan_out: bool = False,
-        merge_weights: bool = True,
         **kwargs,
     ):
-        nn.Linear.__init__(self, in_features, out_features, **kwargs)
+        bnb.nn.Linear8bitLt.__init__(
+            self,
+            in_features,
+            out_features,
+            bias=kwargs.get("bias", True),
+            has_fp16_weights=kwargs.get("has_fp16_weights", True),
+            memory_efficient_backward=kwargs.get("memory_efficient_backward", False),
+            threshold=kwargs.get("threshold", 0.0),
+            index=kwargs.get("index", None),
+        )
         LoraLayer.__init__(
             self,
             r=r,
             lora_alpha=lora_alpha,
             lora_dropout=lora_dropout,
-            merge_weights=merge_weights,
+            merge_weights=False,
         )
         if out_features % len(enable_lora) != 0:
             raise ValueError("The length of enable_lora must divide out_features")
         self.enable_lora = enable_lora
-        self.fan_in_fan_out = fan_in_fan_out
         # Actual trainable parameters
         if r > 0 and any(enable_lora):
             self.lora_A = nn.Linear(in_features, r * sum(enable_lora), bias=False)
@@ -58,11 +65,8 @@ class MergedLinear(nn.Linear, LoraLayer):
             self.lora_ind[enable_lora, :] = True
             self.lora_ind = self.lora_ind.view(-1)
         self.reset_parameters()
-        if fan_in_fan_out:
-            self.weight.data = self.weight.data.T
 
     def reset_parameters(self):
-        nn.Linear.reset_parameters(self)
         if hasattr(self, "lora_A"):
             # initialize A the same way as the default for nn.Linear and B to zero
             nn.init.kaiming_uniform_(self.lora_A.weight, a=math.sqrt(5))
@@ -76,77 +80,22 @@ class MergedLinear(nn.Linear, LoraLayer):
         )
         return result.view((*x.shape[:-1], self.out_features))
 
-    def train(self, mode: bool = True):
-        nn.Linear.train(self, mode)
-        self.lora_A.train(mode)
-        self.lora_B.train(mode)
-        if not mode and self.merge_weights and not self.merged:
-            # Merge the weights and mark it
-            if self.r > 0 and any(self.enable_lora):
-                delta_w = (
-                    F.conv1d(
-                        self.lora_A.weight.data.unsqueeze(0),
-                        self.lora_B.weight.data,
-                        groups=sum(self.enable_lora),
-                    )
-                    .squeeze(0)
-                    .transpose(-2, -1)
-                )
-                self.weight.data += transpose(
-                    self.zero_pad(delta_w * self.scaling), not self.fan_in_fan_out
-                )
-            self.merged = True
-        elif self.merge_weights and self.merged:
-            # Make sure that the weights are not merged
-            if self.r > 0 and any(self.enable_lora):
-                delta_w = (
-                    F.conv1d(
-                        self.lora_A.weight.data.unsqueeze(0),
-                        self.lora_B.weight.data,
-                        groups=sum(self.enable_lora),
-                    )
-                    .squeeze(0)
-                    .transpose(-2, -1)
-                )
-                self.weight.data -= transpose(
-                    self.zero_pad(delta_w * self.scaling), not self.fan_in_fan_out
-                )
-            self.merged = False
-
-    def eval(self):
-        nn.Linear.eval(self)
-        self.lora_A.eval()
-        self.lora_B.eval()
-
     def forward(self, x: torch.Tensor):
+        result = super().forward(x)
         if self.disable_adapters:
-            if self.r > 0 and self.merged and any(self.enable_lora):
-                delta_w = (
-                    F.conv1d(
-                        self.lora_A.weight.data.unsqueeze(0),
-                        self.lora_B.weight.data,
-                        groups=sum(self.enable_lora),
-                    )
-                    .squeeze(0)
-                    .transpose(-2, -1)
-                )
-                self.weight.data -= transpose(
-                    self.zero_pad(delta_w * self.scaling), not self.fan_in_fan_out
-                )
-                self.merged = False
-            return F.linear(
-                x, transpose(self.weight, self.fan_in_fan_out), bias=self.bias
-            )
-        elif self.merged:
-            return F.linear(
-                x, transpose(self.weight, self.fan_in_fan_out), bias=self.bias
-            )
-        else:
-            result = F.linear(
-                x, transpose(self.weight, self.fan_in_fan_out), bias=self.bias
-            )
-            if self.r > 0:
+            return result
+        elif self.r > 0:
+            if not torch.is_autocast_enabled():
+                expected_dtype = result.dtype
+                if x.dtype != torch.float32:
+                    x = x.float()
                 after_A = self.lora_A(self.lora_dropout(x))
                 after_B = self.lora_B(after_A.transpose(-2, -1)).transpose(-2, -1)
-                result += self.zero_pad(after_B) * self.scaling
-            return result
+                output = self.zero_pad(after_B).to(expected_dtype) * self.scaling
+                result += output
+            else:
+                after_A = self.lora_A(self.lora_dropout(x))
+                after_B = self.lora_B(after_A.transpose(-2, -1)).transpose(-2, -1)
+                output = self.zero_pad(after_B) * self.scaling
+                result += output
+        return result

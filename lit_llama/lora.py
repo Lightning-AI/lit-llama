@@ -94,7 +94,7 @@ class Linear8bitLt(bnb.nn.Linear8bitLt, LoRALayer):
 
 
 
-class MergedLinear(nn.Linear, LoRALayer):
+class MergedLinear(bnb.nn.Linear8bitLt, LoRALayer):
     # LoRA implemented in a dense layer
     def __init__(
         self, 
@@ -108,9 +108,9 @@ class MergedLinear(nn.Linear, LoRALayer):
         merge_weights: bool = True,
         **kwargs
     ):
-        nn.Linear.__init__(self, in_features, out_features, **kwargs)
+        bnb.nn.Linear8bitLt.__init__(self, in_features, out_features, **kwargs)
         LoRALayer.__init__(self, r=r, lora_alpha=lora_alpha, lora_dropout=lora_dropout,
-                           merge_weights=merge_weights)
+                           merge_weights=False)
         assert out_features % len(enable_lora) == 0, \
             'The length of enable_lora must divide out_features'
         self.enable_lora = enable_lora
@@ -136,7 +136,6 @@ class MergedLinear(nn.Linear, LoRALayer):
             self.weight.data = self.weight.data.T
 
     def reset_parameters(self):
-        nn.Linear.reset_parameters(self)
         if hasattr(self, 'lora_A'):
             # initialize A the same way as the default for nn.Linear and B to zero
             nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
@@ -149,36 +148,6 @@ class MergedLinear(nn.Linear, LoRALayer):
             -1, self.out_features // len(self.enable_lora) * sum(self.enable_lora)
         )
         return result.view((*x.shape[:-1], self.out_features))
-
-    def train(self, mode: bool = True):
-        def T(w):
-            return w.T if self.fan_in_fan_out else w
-        nn.Linear.train(self, mode)
-        if self.merge_weights and self.merged:
-            # Make sure that the weights are not merged
-            if self.r > 0 and any(self.enable_lora):
-                delta_w = F.conv1d(
-                    self.lora_A.data.unsqueeze(0), 
-                    self.lora_B.data.unsqueeze(-1), 
-                    groups=sum(self.enable_lora)
-                ).squeeze(0)
-                self.weight.data -= self.zero_pad(T(delta_w * self.scaling))
-            self.merged = False
-    
-    def eval(self):
-        def T(w):
-            return w.T if self.fan_in_fan_out else w
-        nn.Linear.eval(self)
-        if self.merge_weights and not self.merged:
-            # Merge the weights and mark it
-            if self.r > 0 and any(self.enable_lora):
-                delta_w = F.conv1d(
-                    self.lora_A.data.unsqueeze(0), 
-                    self.lora_B.data.unsqueeze(-1), 
-                    groups=sum(self.enable_lora)
-                ).squeeze(0)
-                self.weight.data += self.zero_pad(T(delta_w * self.scaling))
-            self.merged = True
 
     def forward(self, x: torch.Tensor):
         def T(w):
