@@ -10,13 +10,14 @@ import torch
 
 from generate import generate
 from lit_llama.lora import mark_only_lora_as_trainable, with_lora
+# from lit_llama.lora_old import mark_only_lora_as_trainable, with_lora
 from lit_llama.model import LLaMA, LLaMAConfig
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
 import bitsandbytes as bnb
 
-out_dir = "out"
-eval_interval = 100
+out_dir = "out/lora-quant-initial"
+eval_interval = 4000
 eval_iters = 100
 log_interval = 1
 
@@ -39,8 +40,11 @@ lora_dropout = 0.05
 warmup_steps = 100
 
 
+# def convert_weights(state_dict):
+#     return {k: v.half() for k, v in state_dict.items()}
 
-def main() -> None:
+
+def main():
     fabric = L.Fabric(accelerator="cuda", devices=1)
     # fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
@@ -53,16 +57,29 @@ def main() -> None:
     config = LLaMAConfig.from_name("7B")
     config.block_size = block_size
 
-    with fabric.device, with_lora(r=lora_r, alpha=lora_alpha, dropout=lora_dropout, enabled=True):
+    with with_lora(r=lora_r, alpha=lora_alpha, dropout=lora_dropout, enabled=True):
         model = LLaMA(config)
+        print(model.transformer.h[0].attn.c_attn.weight.dtype)
+        print(type(model.transformer.h[0].attn.c_attn))
 
     checkpoint = torch.load("checkpoints/lit-llama/7B/state_dict.pth")
     
     # strict=False because missing keys due to lora weights not contained in checkpoint state
     model.load_state_dict(checkpoint, strict=False) 
     mark_only_lora_as_trainable(model)
+    
+    
+    del checkpoint
 
-    optimizer = bnb.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    # print(model.transformer.h[0].attn.c_attn.weight.dtype)
+    # print(type(model.transformer.h[0].attn.c_attn))
+
+    # print(model.transformer.h[0].attn.weight)
+
+
+    optimizer = bnb.optim.AdamW8bit(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    # optimizer = bnb.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+
     model, optimizer = fabric.setup(model, optimizer)
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iters, last_epoch=-1)
 
@@ -80,18 +97,20 @@ def train(
 
     Loosely based on the nanoGPT implementation: https://github.com/karpathy/nanoGPT.
     """
+    best_val_loss = 100000.
+
     for iter_num in range(max_iters):
 
         # evaluate the loss on train/val sets and write checkpoints
         if iter_num % eval_interval == 0:
             val_loss = validate(fabric, model, val_data)
             fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
-            # TODO: Save with Fabric
-            # print(f"Saving checkpoint to {out_dir}")
-            # checkpoint = {"model": model, "optimizer": optimizer, "iter": iter, "val_loss": val_loss}
-            #fabric.save(os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"), checkpoint)
+            if val_loss < best_val_loss:
+                print(f"Saving checkpoint to {out_dir}")
+                checkpoint = {"model": model, "optimizer": optimizer, "iter": iter, "val_loss": val_loss}
+                fabric.save(os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"), checkpoint)
+                best_val_loss = val_loss
             fabric.barrier()
-        
 
         t0 = time.time()
 
@@ -127,7 +146,7 @@ def generate_response(model, instruction):
         max_new_tokens=100,
     )
     output = tokenizer.decode(output[0].cpu())
-    return output.split("### Response:")[1].strip()
+    return output # output.split("### Response:")[1].strip()
 
 
 @torch.no_grad()
@@ -148,7 +167,7 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     fabric.print(generate_response(model, instruction))
 
     model.train()
-    return out
+    return out.item()
 
 
 def get_batch(fabric: L.Fabric, data: list, pad_id: int = 0):
