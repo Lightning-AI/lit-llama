@@ -215,9 +215,12 @@ class CausalSelfAttention(llama.CausalSelfAttention):
 
 
 @contextmanager
-def with_lora(r, alpha, dropout):
+def with_lora(r, alpha, dropout, enabled: bool = True):
     """A context manager under which you can instantiate the model with LLoRA.
     """
+    if not enabled:
+        yield
+        return
 
     CausalSelfAttention.lora_config = LoRAConfig(r=r, alpha=alpha, dropout=dropout)
 

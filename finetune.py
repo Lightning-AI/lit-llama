@@ -10,7 +10,7 @@ from lightning.fabric.strategies import FSDPStrategy
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 
 from lit_llama.model import Block, LLaMA, LLaMAConfig
-from lit_llama.lora import with_lora
+from lit_llama.lora import with_lora, mark_only_lora_as_trainable
 
 out_dir = "out"
 eval_interval = 100
@@ -20,17 +20,12 @@ log_interval = 1
 # compile = False
 
 # Hyperparameters
-# TODO: Stanford Alpaca choses 2e-5, Alpaca-LoRA chooses 3e-4
-learning_rate = 3e-4
+learning_rate = 2e-5
 batch_size = 2
 # TODO: Alpaca trained for 3 epochs
 #   should we do proper epoch-based training?
-max_iters = 50000 * 3 // batch_size
+max_iters = 50000 * 3 // 4 // batch_size
 weight_decay = 0.0
-
-lora_r = 8
-lora_alpha = 16
-lora_dropout = 0.05
 
 # Stanford Alpaca chooses 512, Alpaca-LoRA chooses 256
 block_size = 256
@@ -41,10 +36,10 @@ block_size = 256
 
 
 def main() -> None:
-    # auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
-    # strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block)
+    #auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
+    #strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block)
 
-    fabric = L.Fabric(accelerator="cuda", devices=1, precision="bf16-mixed")
+    fabric = L.Fabric(accelerator="cuda", devices=4, precision="bf16-mixed", strategy="deepspeed_stage_2")
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
@@ -56,7 +51,7 @@ def main() -> None:
     config = LLaMAConfig.from_name("7B")
     config.block_size = block_size
 
-    with fabric.device, with_lora(r=lora_r, alpha=lora_alpha, dropout=lora_dropout):
+    with fabric.device, with_lora(r=8, alpha=32, dropout=0.1, enabled=True):
         # TODO: Support LoRA
         model = LLaMA(config)
 
@@ -66,12 +61,14 @@ def main() -> None:
     # if compile:
     #     model = torch.compile(model)
 
+    mark_only_lora_as_trainable(model)
+
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     model, optimizer = fabric.setup(model, optimizer)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iters, last_epoch=-1)
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iters, last_epoch=-1)
 
-    train(fabric, model, optimizer, scheduler, train_data, val_data)
+    train(fabric, model, optimizer, None, train_data, val_data)
 
 
 def train(
@@ -95,7 +92,7 @@ def train(
             # TODO: Save with Fabric
             print(f"Saving checkpoint to {out_dir}")
             checkpoint = {"model": model, "optimizer": optimizer, "iter": iter, "val_loss": val_loss}
-            fabric.save(os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"), checkpoint)
+            #fabric.save(os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"), checkpoint)
             fabric.barrier()
         
 

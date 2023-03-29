@@ -57,7 +57,7 @@ def main() -> None:
     config.block_size = block_size
 
     torch.nn.Linear = bnb.nn.Linear8bitLt
-    from lit_llama.lora import with_lora
+    from lit_llama.lora import with_lora, mark_only_lora_as_trainable
     with with_lora(r=lora_r, alpha=lora_alpha, dropout=lora_dropout):
         model = LLaMA(config)
         checkpoint = torch.load("checkpoints/lit-llama/7B/state_dict.pth")
@@ -65,6 +65,11 @@ def main() -> None:
 
     # if compile:
     #     model = torch.compile(model)
+
+    mark_only_lora_as_trainable(model)
+
+    print(model.transformer.h[0].attn.c_attn.weight.dtype)
+    print(type(model.transformer.h[0].attn.c_attn))
    
     optimizer = bnb.optim.AdamW8bit(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     # optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
@@ -161,6 +166,7 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
 def get_batch(fabric: L.Fabric, data: list, pad_id: int = 0) -> Tuple[torch.Tensor, torch.Tensor]:
     ix = torch.randint(len(data), (batch_size,))
     # TODO: don't we need to shift the labels?
+    # see `shift_tokens_right` from transformers
 
     def pad(x):
         # TODO: optimize this to pad to the next multiple of 8 or so?
