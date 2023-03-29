@@ -1,0 +1,18 @@
+{
+    "bf16": {
+        "enabled": true
+    },
+	"gradient_clipping": 1,
+	"zero_optimization": {
+	  "stage": 2,
+	  "offload_param": {
+		"device": "none"
+	  },
+	  "offload_optimizer": {
+		"device": "none"
+	  },
+	  "allgather_partitions": true,
+	  "allgather_bucket_size": 5e8,
+	  "contiguous_gradients": true
+	}
+  }

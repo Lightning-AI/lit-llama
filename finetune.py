@@ -11,35 +11,44 @@ from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 
 from lit_llama.model import Block, LLaMA, LLaMAConfig
 from lit_llama.lora import with_lora, mark_only_lora_as_trainable
+from lightning.fabric.strategies import DeepSpeedStrategy
+import json
 
 out_dir = "out"
 eval_interval = 100
-eval_iters = 200
+eval_iters = 100
 log_interval = 1
-# compilation fails as it does not support torch.complex64 for RoPE
-# compile = False
 
 # Hyperparameters
 learning_rate = 2e-5
-batch_size = 2
+batch_size = 32
+micro_batch_size = 4
+gradient_accumulation_steps = batch_size // micro_batch_size
 # TODO: Alpaca trained for 3 epochs
 #   should we do proper epoch-based training?
 max_iters = 50000 * 3 // 4 // batch_size
 weight_decay = 0.0
-
-# Stanford Alpaca chooses 512, Alpaca-LoRA chooses 256
 block_size = 256
 
 # TODO: These settings from the original repo
 # --gradient_accumulation_steps 8 \
 # --warmup_ratio 0.03 \
+warmup_steps = 100  # TODO
+
+with open("config.json", "r") as file:
+    ds_config = json.load(file)
+ds_config["gradient_accumulation_steps"] = gradient_accumulation_steps
+ds_config["train_micro_batch_size_per_gpu"] = micro_batch_size
 
 
 def main() -> None:
-    #auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
-    #strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block)
-
-    fabric = L.Fabric(accelerator="cuda", devices=4, precision="bf16-mixed", strategy="deepspeed_stage_2")
+    strategy = DeepSpeedStrategy(config=ds_config)
+    fabric = L.Fabric(
+        accelerator="cuda", 
+        devices=4, 
+        # precision="bf16-mixed", 
+        strategy=strategy
+    )
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
@@ -52,17 +61,12 @@ def main() -> None:
     config.block_size = block_size
 
     with fabric.device, with_lora(r=8, alpha=32, dropout=0.1, enabled=True):
-        # TODO: Support LoRA
         model = LLaMA(config)
 
     checkpoint = torch.load("checkpoints/lit-llama/7B/state_dict.pth")
     model.load_state_dict(checkpoint, strict=False)  # missing keys in state dict: transformer.h.0.attn.c_attn.lora_A etc.
-
-    # if compile:
-    #     model = torch.compile(model)
-
     mark_only_lora_as_trainable(model)
-
+    
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     model, optimizer = fabric.setup(model, optimizer)
@@ -90,8 +94,8 @@ def train(
             val_loss = validate(fabric, model, val_data)
             fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
             # TODO: Save with Fabric
-            print(f"Saving checkpoint to {out_dir}")
-            checkpoint = {"model": model, "optimizer": optimizer, "iter": iter, "val_loss": val_loss}
+            # print(f"Saving checkpoint to {out_dir}")
+            # checkpoint = {"model": model, "optimizer": optimizer, "iter": iter, "val_loss": val_loss}
             #fabric.save(os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"), checkpoint)
             fabric.barrier()
         
@@ -105,9 +109,10 @@ def train(
 
         fabric.backward(loss)
 
-        optimizer.step()
-        # scheduler.step()
-        optimizer.zero_grad()
+        if (iter_num + 1) % gradient_accumulation_steps == 0:
+            optimizer.step()
+            # scheduler.step()
+            optimizer.zero_grad()
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:
@@ -156,16 +161,18 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
 
 
 def get_batch(fabric: L.Fabric, data: list, pad_id: int = 0) -> Tuple[torch.Tensor, torch.Tensor]:
-    ix = torch.randint(len(data), (batch_size,))
-    # TODO: don't we need to shift the labels?
+    ix = torch.randint(len(data), (micro_batch_size,))
 
     def pad(x):
         # TODO: optimize this to pad to the next multiple of 8 or so?
         n = block_size - len(x)
         return torch.cat((x, torch.full((n,), pad_id, dtype=x.dtype)))
 
+    def shift_right(x):
+        return x[1:]
+
     x = torch.stack([pad(data[i]["input_ids"]) for i in ix]).type(torch.int64)
-    y = torch.stack([pad(data[i]["labels"]) for i in ix]).type(torch.int64)
+    y = torch.stack([pad(shift_right(data[i]["labels"])) for i in ix]).type(torch.int64)
     x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
     return x, y
 
