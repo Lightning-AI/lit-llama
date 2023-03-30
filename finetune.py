@@ -19,7 +19,7 @@ import loralib as lora
 import wandb
 
 
-out_dir = "out/lora-ms"
+out_dir = "out/lora-native-new-hparams"
 eval_interval = 20
 save_interval = 20
 eval_iters = 100
@@ -36,11 +36,11 @@ max_iters = 100000000
 # TODO: Limit to 3 epochs
 # max_iters = 50000 * 3 // micro_batch_size
 weight_decay = 0.0
-block_size = 256
+block_size = 512  # previously 256
 
-lora_r = 8
-lora_alpha = 16
-lora_dropout = 0.05
+# lora_r = 16
+# lora_alpha = 16
+# lora_dropout = 0.05
 
 warmup_steps = 100
 
@@ -102,26 +102,6 @@ def train(
             lr = learning_rate * step_count / warmup_steps
             for param_group in optimizer.param_groups:
                 param_group['lr'] = lr
-
-        # evaluate the loss on train/val sets and write checkpoints
-        if step_count % eval_interval == 0:
-            val_loss = validate(fabric, model, val_data)
-            wandb.log({"val_loss": val_loss}, commit=False)
-            fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
-            # if val_loss < best_val_loss:
-                # best_val_loss = val_loss
-        
-        fabric.barrier()
-
-        if step_count % save_interval == 0:
-            print(f"Saving checkpoint to {out_dir}")
-
-            # note the use of lora_state_dict here
-            checkpoint = lora.lora_state_dict(model) # , "iter": iter, "val_loss": val_loss}
-            torch.save(checkpoint, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"))
-            
-
-        fabric.barrier()
             
 
         t0 = time.time()
@@ -138,6 +118,23 @@ def train(
             optimizer.step()
             optimizer.zero_grad()
             step_count += 1
+
+                # evaluate the loss on train/val sets and write checkpoints
+            if step_count % eval_interval == 0:
+                val_loss = validate(fabric, model, val_data)
+                wandb.log({"val_loss": val_loss}, commit=False)
+                fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
+                # if val_loss < best_val_loss:
+                    # best_val_loss = val_loss
+            fabric.barrier()
+
+            if step_count % save_interval == 0:
+                print(f"Saving checkpoint to {out_dir}")
+
+                # note the use of lora_state_dict here
+                checkpoint = lora.lora_state_dict(model) # , "iter": iter, "val_loss": val_loss}
+                torch.save(checkpoint, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"))
+            fabric.barrier()
 
 
         dt = time.time() - t0
@@ -197,17 +194,22 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
 def get_batch(fabric: L.Fabric, data: list, pad_id: int = 0):
     ix = torch.randint(len(data), (micro_batch_size,))
 
+    # def shift_right(x):
+    #     # TODO: why is it not necessary to shift the labels?
+    #     return x  # x[1:]
+
+    input_ids = [torch.tensor(data[i]["input_ids"], dtype=torch.int64) for i in ix]
+    labels = [torch.tensor(data[i]["labels"], dtype=torch.int64) for i in ix]
+
+    max_len = max(len(s) for s in input_ids)
+
     def pad_left(x, pad_id):
         # TODO: optimize this to pad to the next multiple of 8 or so?
-        n = block_size - len(x)
+        n = max_len - len(x)
         return torch.cat((torch.full((n,), pad_id, dtype=x.dtype), x))
 
-    def shift_right(x):
-        # TODO: why is it not necessary to shift the labels?
-        return x  # x[1:]
-
-    x = torch.stack([pad_left(torch.tensor(data[i]["input_ids"]), pad_id=0) for i in ix]).type(torch.int64)
-    y = torch.stack([pad_left(shift_right(torch.tensor(data[i]["labels"])), pad_id=-1) for i in ix]).type(torch.int64)
+    x = torch.stack([pad_left(x, pad_id=0) for x in input_ids])
+    y = torch.stack([pad_left(x, pad_id=-1) for x in labels])
     x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
     return x, y
 

@@ -101,7 +101,7 @@ class CausalSelfAttention(nn.Module):
         # key, query, value projections for all heads, but in a batch
         self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd, bias=False)
 
-        lora_r = 8
+        lora_r = 16
         lora_alpha = 16
         lora_dropout = 0.05
         self.c_attn = lora.MergedLinear(
@@ -110,11 +110,18 @@ class CausalSelfAttention(nn.Module):
             r=lora_r,
             lora_alpha=lora_alpha, 
             lora_dropout=lora_dropout, 
-            enable_lora=[True, False, True], 
+            enable_lora=[True, True, True], 
             bias=False,
         )
         # output projection
-        self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=False)
+        self.c_proj = lora.Linear(
+            config.n_embd, 
+            config.n_embd, 
+            r=lora_r,
+            lora_alpha=lora_alpha, 
+            lora_dropout=lora_dropout, 
+            bias=False
+        )
         # regularization
         self.n_head = config.n_head
         self.n_embd = config.n_embd

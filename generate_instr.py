@@ -9,6 +9,7 @@ import torch
 from lit_llama import LLaMA, Tokenizer, as_8_bit_quantized
 from generate import generate
 from finetune import generate_prompt
+import loralib as lora
 
 
 def main(
@@ -42,8 +43,8 @@ def main(
         tokenizer_path: The tokenizer path to load.
         quantize: Whether to quantize the model using the `LLM.int8()` method
     """
-    if not checkpoint_path:
-        checkpoint_path = Path(f"./checkpoints/lit-llama/{model_size}/state_dict.pth")
+    # if not checkpoint_path:
+    #     checkpoint_path = Path(f"./checkpoints/lit-llama/{model_size}/state_dict.pth")
     if not tokenizer_path:
         tokenizer_path = Path("./checkpoints/lit-llama/tokenizer.model")
     assert checkpoint_path.is_file()
@@ -51,13 +52,18 @@ def main(
 
     fabric = L.Fabric(accelerator=accelerator, devices=1)
 
-    with as_8_bit_quantized(fabric.device, enabled=quantize):
-        print("Loading model ...", file=sys.stderr)
-        t0 = time.time()
-        model = LLaMA.from_name(model_size)
-        checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint["model"], strict=False)
-        print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
+    # with as_8_bit_quantized(fabric.device, enabled=quantize):
+    print("Loading model ...", file=sys.stderr)
+    t0 = time.time()
+    model = LLaMA.from_name(model_size)
+    # lora.mark_only_lora_as_trainable(model)
+
+    # load pretrained weights
+    model.load_state_dict(torch.load(f'./checkpoints/lit-llama/{model_size}/state_dict.pth'), strict=False)
+
+    # load lora weights
+    model.load_state_dict(torch.load(checkpoint_path), strict=False)
+    print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
 
@@ -85,6 +91,8 @@ def main(
             top_k=top_k,
         )[0]  # unpack batch dimension
         print(tokenizer.decode(y))
+
+        
 
     t = time.perf_counter() - t0
     print(f"\n\nTime for inference: {t:.02f} sec total, {num_samples * max_new_tokens / t:.02f} tokens/sec", file=sys.stderr)
