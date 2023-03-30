@@ -16,7 +16,7 @@ from scripts.prepare_alpaca import generate_prompt
 import bitsandbytes as bnb
 import wandb
 
-out_dir = "out/lora-quant-orig-dataset-padding-fixed"
+out_dir = "out/lora-quant-our-dataset"
 eval_interval = 4000
 eval_iters = 100
 log_interval = 1
