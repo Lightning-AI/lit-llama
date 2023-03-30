@@ -53,8 +53,6 @@ def main():
 
     with with_lora(r=lora_r, alpha=lora_alpha, dropout=lora_dropout, enabled=True):
         model = LLaMA(config)
-        print(model.transformer.h[0].attn.c_attn.weight.dtype)
-        print(type(model.transformer.h[0].attn.c_attn))
 
     checkpoint = torch.load("checkpoints/lit-llama/7B/state_dict.pth")
     
