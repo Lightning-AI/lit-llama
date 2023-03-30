@@ -144,8 +144,8 @@ def train(
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:
-            wandb.log({"train_loss": loss.item(), "step": step_count})
-            fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
+            wandb.log({"train_loss": loss.item(), "step": step_count, "epoch_pct": iter_num * micro_batch_size / 5000})
+            fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms, epoch: {iter_num * micro_batch_size / 50000:.2f}")
 
 
 def generate_response(model, instruction):
@@ -223,8 +223,8 @@ def get_batch(fabric: L.Fabric, data: list, pad_id: int = 0):
 
 
 def load_datasets(data_dir: str = "data/alpaca"):
-    train_data = torch.load(os.path.join(data_dir, "train_orig.pt"))
-    val_data = torch.load(os.path.join(data_dir, "test_orig.pt"))
+    train_data = torch.load(os.path.join(data_dir, "train.pt"))
+    val_data = torch.load(os.path.join(data_dir, "test.pt"))
     return train_data, val_data
 
 
