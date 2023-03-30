@@ -28,8 +28,10 @@ batch_size = 128
 micro_batch_size = 4
 gradient_accumulation_steps = batch_size // micro_batch_size
 
+
+max_iters = 100000000
 # TODO: Limit to 3 epochs
-max_iters = 100000000 #  50000 * 3 // 4 // batch_size
+# max_iters = 50000 * 3 // micro_batch_size
 weight_decay = 0.0
 block_size = 256
 
@@ -79,8 +81,9 @@ def main():
     # print(model.transformer.h[0].attn.weight)
 
 
-    optimizer = bnb.optim.AdamW8bit(model.parameters(), lr=learning_rate)
-    # optimizer = bnb.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    # optimizer = bnb.optim.AdamW8bit(model.parameters(), lr=learning_rate)
+    # TODO: use this
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
     model, optimizer = fabric.setup(model, optimizer)
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iters, last_epoch=-1)
@@ -132,6 +135,8 @@ def train(
         loss = torch.nn.functional.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
 
         fabric.backward(loss)
+
+        fabric.clip_gradients(model, optimizer, clip_val=1.0)
 
         if (iter_num + 1) % gradient_accumulation_steps == 0:
             optimizer.step()
