@@ -174,8 +174,8 @@ def get_batch(fabric: L.Fabric, data: list, pad_id: int = 0):
         # TODO: why is it not necessary to shift the labels?
         return x  # x[1:]
 
-    x = torch.stack([pad_left(torch.tensor(data[i]["input_ids"]), pad_id=0) for i in ix]).type(torch.int64)
-    y = torch.stack([pad_left(shift_right(torch.tensor(data[i]["labels"])), pad_id=-1) for i in ix]).type(torch.int64)
+    x = torch.stack([pad_left(data[i]["input_ids"], pad_id=0) for i in ix]).type(torch.int64)
+    y = torch.stack([pad_left(shift_right(data[i]["labels"]), pad_id=-1) for i in ix]).type(torch.int64)
     x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
     return x, y
 
