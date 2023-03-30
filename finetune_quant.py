@@ -17,7 +17,7 @@ from scripts.prepare_alpaca import generate_prompt
 import bitsandbytes as bnb
 import wandb
 
-out_dir = "out/lora-quant-warmup-train-on-inputs"
+out_dir = "out/lora-quant-warmup-train-on-inputs-false"
 eval_interval = 4000
 eval_iters = 100
 log_interval = 1

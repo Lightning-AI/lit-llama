@@ -21,7 +21,7 @@ def prepare(
     test_split_size: int = 2000,
     max_seq_length: int = 256,
     seed: int = 42,
-    mask_inputs: bool = True,
+    mask_inputs: bool = False,  # as in alpaca-lora
 ) -> None:
     """Prepare the Alpaca dataset for instruction tuning.
     
