@@ -9,8 +9,7 @@ trigger:
       - '*'
   branches:
     include:
-      - "master"
-      - "release/*"
+      - "main"
       - "refs/tags/*"
 
 pr:
@@ -47,15 +46,12 @@ jobs:
         whereis nvidia
         nvidia-smi
         which python && which pip
-        python --version
-        pip --version
-        pip list
-        
+        python --version && pip --version && pip list
         python -c "import torch ; mgpu = torch.cuda.device_count() ; assert mgpu == 2, f'GPU: {mgpu}'"
       displayName: 'Image info & NVIDIA'
 
     - script: pip install pytest -r requirements.txt
       displayName: 'Install dependencies'
 
-    - bash: pytest -v --durations=10 --disable-pytest-warnings --strict-markers
+    - bash: pytest -v --durations=10 --disable-pytest-warnings --strict-markers --color=yes
       displayName: 'Testing'
