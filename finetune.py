@@ -176,7 +176,10 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     for k in range(eval_iters):
         input_ids, targets = get_batch(fabric, val_data)
         logits = model(input_ids)
-        loss = torch.nn.functional.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+        # loss = torch.nn.functional.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+        shift_logits = logits[..., :-1, :].contiguous()
+        shift_labels = targets[..., 1:].contiguous()
+        loss = torch.nn.functional.cross_entropy(shift_logits.view(-1, logits.size(-1)), shift_labels.view(-1), ignore_index=-1)
         losses[k] = loss.item()
     out = losses.mean()
 
