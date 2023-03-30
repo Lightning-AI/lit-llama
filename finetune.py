@@ -20,7 +20,8 @@ import wandb
 
 
 out_dir = "out/lora-ms"
-eval_interval = 4000
+eval_interval = 20
+save_interval = 20
 eval_iters = 100
 log_interval = 1
 
@@ -103,18 +104,25 @@ def train(
                 param_group['lr'] = lr
 
         # evaluate the loss on train/val sets and write checkpoints
-        if iter_num % eval_interval == 0:
+        if step_count % eval_interval == 0:
             val_loss = validate(fabric, model, val_data)
-            wandb.log({"val_loss": val_loss})
+            wandb.log({"val_loss": val_loss}, commit=False)
             fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
-            if val_loss < best_val_loss:
-                print(f"Saving checkpoint to {out_dir}")
+            # if val_loss < best_val_loss:
+                # best_val_loss = val_loss
+        
+        fabric.barrier()
 
-                # note the use of lora_state_dict here
-                checkpoint = lora.lora_state_dict(model) # , "iter": iter, "val_loss": val_loss}
-                torch.save(checkpoint, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"))
-                best_val_loss = val_loss
-            fabric.barrier()
+        if step_count % save_interval == 0:
+            print(f"Saving checkpoint to {out_dir}")
+
+            # note the use of lora_state_dict here
+            checkpoint = lora.lora_state_dict(model) # , "iter": iter, "val_loss": val_loss}
+            torch.save(checkpoint, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"))
+            
+
+        fabric.barrier()
+            
 
         t0 = time.time()
 
@@ -131,9 +139,10 @@ def train(
             optimizer.zero_grad()
             step_count += 1
 
+
         dt = time.time() - t0
         if iter_num % log_interval == 0:
-            wandb.log({"train_loss": loss.item()})
+            wandb.log({"train_loss": loss.item(), "step": step_count})
             fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
 
 
