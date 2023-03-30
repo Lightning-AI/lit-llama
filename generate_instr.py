@@ -56,7 +56,7 @@ def main(
         t0 = time.time()
         model = LLaMA.from_name(model_size)
         checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint)
+        model.load_state_dict(checkpoint["model"], strict=False)
         print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()

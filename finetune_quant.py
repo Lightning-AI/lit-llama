@@ -42,13 +42,14 @@ lora_dropout = 0.05
 warmup_steps = 100
 
 
-wandb.init(project="alpaca-lora")
-
 # def convert_weights(state_dict):
 #     return {k: v.half() for k, v in state_dict.items()}
 
 
 def main():
+    wandb.init(project="alpaca-lora")
+
+
     fabric = L.Fabric(accelerator="cuda", devices=1)
     # fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
