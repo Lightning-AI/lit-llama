@@ -10,6 +10,8 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from typing_extensions import Self
+import loralib as lora
+
 
 
 def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, base: int = 10000) -> torch.Tensor:
@@ -98,6 +100,19 @@ class CausalSelfAttention(nn.Module):
 
         # key, query, value projections for all heads, but in a batch
         self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd, bias=False)
+
+        lora_r = 8
+        lora_alpha = 16
+        lora_dropout = 0.05
+        self.c_attn = lora.MergedLinear(
+            config.n_embd,
+            3 * config.n_embd,
+            r=lora_r,
+            lora_alpha=lora_alpha, 
+            lora_dropout=lora_dropout, 
+            enable_lora=[True, False, True], 
+            bias=False,
+        )
         # output projection
         self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=False)
         # regularization

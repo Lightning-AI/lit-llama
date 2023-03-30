@@ -183,7 +183,6 @@ def train(
     torch.save(list(val_data), "data/alpaca/test.pt")
 
 
-
 def generate_prompt(data_point):
     # sorry about the formatting disaster gotta move fast
     if data_point["input"]:

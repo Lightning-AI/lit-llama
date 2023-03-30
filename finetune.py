@@ -9,14 +9,17 @@ import numpy as np
 import torch
 
 from generate import generate
-from lit_llama.lora import mark_only_lora_as_trainable, with_lora
+# from lit_llama.lora import mark_only_lora_as_trainable, with_lora, lora_state_dict
 from lit_llama.model import LLaMA, LLaMAConfig
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
 import bitsandbytes as bnb
+import loralib as lora
+
 import wandb
 
-out_dir = "out/lora-quant-our-dataset"
+
+out_dir = "out/lora-ms"
 eval_interval = 4000
 eval_iters = 100
 log_interval = 1
@@ -44,7 +47,6 @@ warmup_steps = 100
 def main():
     wandb.init(project="alpaca-lora")
 
-
     fabric = L.Fabric(accelerator="cuda", devices=1)
     fabric.seed_everything(1337 + fabric.global_rank)
 
@@ -56,23 +58,26 @@ def main():
     config = LLaMAConfig.from_name("7B")
     config.block_size = block_size
 
-    with with_lora(r=lora_r, alpha=lora_alpha, dropout=lora_dropout, enabled=True):
-        model = LLaMA(config)
-        print(model.transformer.h[0].attn.c_attn.weight.dtype)
-        print(type(model.transformer.h[0].attn.c_attn))
+    # with with_lora(r=lora_r, alpha=lora_alpha, dropout=lora_dropout, enabled=True):
+    model = LLaMA(config)
+    print(model.transformer.h[0].attn.c_attn.weight.dtype)
+    print(type(model.transformer.h[0].attn.c_attn))
 
     checkpoint = torch.load("checkpoints/lit-llama/7B/state_dict.pth")
     
     # strict=False because missing keys due to lora weights not contained in checkpoint state
     model.load_state_dict(checkpoint, strict=False) 
-    mark_only_lora_as_trainable(model)
+    lora.mark_only_lora_as_trainable(model)
 
     # TODO: make bnb work
     # optimizer = bnb.optim.AdamW8bit(model.parameters(), lr=learning_rate)
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
     model, optimizer = fabric.setup(model, optimizer)
+
     train(fabric, model, optimizer, train_data, val_data)
+
+
 
 
 def train(
@@ -104,8 +109,10 @@ def train(
             fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
             if val_loss < best_val_loss:
                 print(f"Saving checkpoint to {out_dir}")
-                checkpoint = {"model": model, "optimizer": optimizer, "iter": iter, "val_loss": val_loss}
-                fabric.save(os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"), checkpoint)
+
+                # note the use of lora_state_dict here
+                checkpoint = lora.lora_state_dict(model) # , "iter": iter, "val_loss": val_loss}
+                torch.save(checkpoint, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"))
                 best_val_loss = val_loss
             fabric.barrier()
 
