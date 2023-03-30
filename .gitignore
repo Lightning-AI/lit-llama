@@ -9,6 +9,7 @@ data
 checkpoints
 out
 !data/shakespeare/prepare.py
+wandbg
 
 # downloaded by our tests
 original_model.py
