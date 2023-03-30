@@ -17,7 +17,7 @@ from scripts.prepare_alpaca import generate_prompt
 import bitsandbytes as bnb
 import wandb
 
-out_dir = "out/lora-quant-orig-dataset"
+out_dir = "out/lora-quant-orig-dataset-padding-fixed"
 eval_interval = 4000
 eval_iters = 100
 log_interval = 1
@@ -130,6 +130,8 @@ def train(
         t0 = time.time()
 
         input_ids, targets = get_batch(fabric, train_data)
+        # print("input_ids", input_ids[0].tolist())
+        # print("labels", targets[0].tolist())
 
         logits = model(input_ids)
         loss = torch.nn.functional.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
@@ -168,6 +170,8 @@ def generate_response(model, instruction):
     return output # output.split("### Response:")[1].strip()
 
 
+example_outputs = []
+
 @torch.no_grad()
 def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> torch.Tensor:
     fabric.print("Validating ...")
@@ -188,8 +192,8 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     fabric.print(output)
 
     columns = ["instruction", "output"]
-    my_data = [[instruction, output]]
-    metrics = {"examples": wandb.Table(columns=columns, data=my_data)}
+    example_outputs.append([instruction, output])
+    metrics = {"examples": wandb.Table(columns=columns, data=example_outputs)}
     wandb.log(metrics)
 
     model.train()
@@ -199,16 +203,17 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
 def get_batch(fabric: L.Fabric, data: list, pad_id: int = 0):
     ix = torch.randint(len(data), (micro_batch_size,))
 
-    def pad(x):
+    def pad_left(x, pad_id):
         # TODO: optimize this to pad to the next multiple of 8 or so?
         n = block_size - len(x)
-        return torch.cat((x, torch.full((n,), pad_id, dtype=x.dtype)))
+        return torch.cat((torch.full((n,), pad_id, dtype=x.dtype), x))
 
     def shift_right(x):
-        return x[1:]
+        return x
+        # return x[1:]
 
-    x = torch.stack([pad(torch.tensor(data[i]["input_ids"])) for i in ix]).type(torch.int64)
-    y = torch.stack([pad(shift_right(torch.tensor(data[i]["labels"]))) for i in ix]).type(torch.int64)
+    x = torch.stack([pad_left(torch.tensor(data[i]["input_ids"]), pad_id=0) for i in ix]).type(torch.int64)
+    y = torch.stack([pad_left(shift_right(torch.tensor(data[i]["labels"])), pad_id=-1) for i in ix]).type(torch.int64)
     x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
     return x, y
 
