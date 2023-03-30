@@ -13,8 +13,10 @@ from lit_llama.lora import mark_only_lora_as_trainable, with_lora
 from lit_llama.model import LLaMA, LLaMAConfig
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
-import bitsandbytes as bnb
-import wandb
+# TODO: bitsandbytes
+# import bitsandbytes as bnb
+
+# import wandb
 
 out_dir = "out/lora-quant-orig-dataset-padding-fixed"
 eval_interval = 4000
@@ -42,7 +44,7 @@ warmup_steps = 100
 
 
 def main():
-    wandb.init(project="alpaca-lora")
+    # wandb.init(project="alpaca-lora")
 
 
     fabric = L.Fabric(accelerator="cuda", devices=1)
@@ -100,7 +102,8 @@ def train(
         # evaluate the loss on train/val sets and write checkpoints
         if iter_num % eval_interval == 0:
             val_loss = validate(fabric, model, val_data)
-            wandb.log({"val_loss": val_loss})
+            # wandb.log({"val_loss": val_loss})
+            
             fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
             if val_loss < best_val_loss:
                 print(f"Saving checkpoint to {out_dir}")
@@ -126,7 +129,7 @@ def train(
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:
-            wandb.log({"train_loss": loss.item()})
+            # wandb.log({"train_loss": loss.item()})
             fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
 
 
@@ -169,10 +172,10 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     fabric.print(instruction)
     fabric.print(output)
 
-    columns = ["instruction", "output"]
-    example_outputs.append([instruction, output])
-    metrics = {"examples": wandb.Table(columns=columns, data=example_outputs)}
-    wandb.log(metrics)
+    # columns = ["instruction", "output"]
+    # example_outputs.append([instruction, output])
+    # metrics = {"examples": wandb.Table(columns=columns, data=example_outputs)}
+    # wandb.log(metrics)
 
     model.train()
     return out.item()
