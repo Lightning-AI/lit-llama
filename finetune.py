@@ -32,9 +32,7 @@ micro_batch_size = 4
 gradient_accumulation_steps = batch_size // micro_batch_size
 
 
-max_iters = 100000000
-# TODO: Limit to 3 epochs
-# max_iters = 50000 * 3 // micro_batch_size
+max_iters = 50000 * 3 // micro_batch_size
 weight_decay = 0.0
 block_size = 512  # previously 256
 
