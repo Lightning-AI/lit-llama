@@ -8,7 +8,7 @@ import torch
 
 from lit_llama import LLaMA, Tokenizer, as_8_bit_quantized
 from generate import generate
-from finetune_quant import generate_prompt
+from finetune import generate_prompt
 
 
 def main(
