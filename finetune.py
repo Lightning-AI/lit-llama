@@ -13,10 +13,6 @@ from lit_llama.lora import mark_only_lora_as_trainable, with_lora
 from lit_llama.model import LLaMA, LLaMAConfig
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
-# TODO: bitsandbytes
-# import bitsandbytes as bnb
-
-# import wandb
 
 out_dir = "out/lora-quant-orig-dataset-padding-fixed"
 eval_interval = 4000
@@ -44,9 +40,6 @@ warmup_steps = 100
 
 
 def main():
-    # wandb.init(project="alpaca-lora")
-
-
     fabric = L.Fabric(accelerator="cuda", devices=1)
     fabric.seed_everything(1337 + fabric.global_rank)
 
@@ -69,10 +62,7 @@ def main():
     model.load_state_dict(checkpoint, strict=False) 
     mark_only_lora_as_trainable(model)
 
-    # TODO: make bnb work
-    # optimizer = bnb.optim.AdamW8bit(model.parameters(), lr=learning_rate)
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
-
     model, optimizer = fabric.setup(model, optimizer)
     train(fabric, model, optimizer, train_data, val_data)
 
@@ -102,7 +92,6 @@ def train(
         # evaluate the loss on train/val sets and write checkpoints
         if iter_num % eval_interval == 0:
             val_loss = validate(fabric, model, val_data)
-            # wandb.log({"val_loss": val_loss})
             
             fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
             if val_loss < best_val_loss:
@@ -129,7 +118,6 @@ def train(
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:
-            # wandb.log({"train_loss": loss.item()})
             fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
 
 
@@ -151,8 +139,6 @@ def generate_response(model, instruction):
     return output # output.split("### Response:")[1].strip()
 
 
-example_outputs = []
-
 @torch.no_grad()
 def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> torch.Tensor:
     fabric.print("Validating ...")
@@ -171,11 +157,6 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     output = generate_response(model, instruction)
     fabric.print(instruction)
     fabric.print(output)
-
-    # columns = ["instruction", "output"]
-    # example_outputs.append([instruction, output])
-    # metrics = {"examples": wandb.Table(columns=columns, data=example_outputs)}
-    # wandb.log(metrics)
 
     model.train()
     return out.item()
