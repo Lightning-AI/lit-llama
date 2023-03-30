@@ -19,7 +19,7 @@ import loralib as lora
 import wandb
 
 
-out_dir = "out/lora-native-new-hparams"
+out_dir = "out/lora-native-shifted"
 eval_interval = 20
 save_interval = 20
 eval_iters = 100
@@ -108,7 +108,12 @@ def train(
 
         input_ids, targets = get_batch(fabric, train_data)
         logits = model(input_ids)
-        loss = torch.nn.functional.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+        # loss = torch.nn.functional.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+
+        shift_logits = logits[..., :-1, :].contiguous()
+        shift_labels = targets[..., 1:].contiguous()
+        loss = torch.nn.functional.cross_entropy(shift_logits.view(-1, logits.size(-1)), shift_labels.view(-1), ignore_index=-1)
+    
 
         fabric.backward(loss)
 
