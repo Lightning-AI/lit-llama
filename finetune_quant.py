@@ -15,8 +15,9 @@ from lit_llama.model import LLaMA, LLaMAConfig
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
 import bitsandbytes as bnb
+import wandb
 
-out_dir = "out/lora-quant-initial"
+out_dir = "out/lora-quant-warmup-train-on-inputs"
 eval_interval = 4000
 eval_iters = 100
 log_interval = 1
@@ -36,9 +37,10 @@ lora_r = 8
 lora_alpha = 16
 lora_dropout = 0.05
 
-# TODO: LR scheduling
 warmup_steps = 100
 
+
+wandb.init(project="alpaca-lora")
 
 # def convert_weights(state_dict):
 #     return {k: v.half() for k, v in state_dict.items()}
@@ -77,12 +79,14 @@ def main():
     # print(model.transformer.h[0].attn.weight)
 
 
-    optimizer = bnb.optim.AdamW8bit(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    optimizer = bnb.optim.AdamW8bit(model.parameters(), lr=learning_rate)
     # optimizer = bnb.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
     model, optimizer = fabric.setup(model, optimizer)
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iters, last_epoch=-1)
 
+
+    print(model.transformer.h[0].attn.c_attn.weight.dtype)
     train(fabric, model, optimizer, train_data, val_data)
 
 
@@ -98,12 +102,20 @@ def train(
     Loosely based on the nanoGPT implementation: https://github.com/karpathy/nanoGPT.
     """
     best_val_loss = 100000.
+    step_count = 0
 
     for iter_num in range(max_iters):
+
+        if step_count <= warmup_steps:
+            # linear warmup
+            lr = learning_rate * step_count / warmup_steps
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = lr
 
         # evaluate the loss on train/val sets and write checkpoints
         if iter_num % eval_interval == 0:
             val_loss = validate(fabric, model, val_data)
+            wandb.log({"val_loss": val_loss})
             fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
             if val_loss < best_val_loss:
                 print(f"Saving checkpoint to {out_dir}")
@@ -125,9 +137,11 @@ def train(
             optimizer.step()
             # scheduler.step()
             optimizer.zero_grad()
+            step_count += 1
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:
+            wandb.log({"train_loss": loss.item()})
             fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
 
 
@@ -163,8 +177,15 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
 
     # produce an example:
     instruction = "Recommend a movie for me to watch during the weekend and explain the reason."
+    
+    output = generate_response(model, instruction)
     fabric.print(instruction)
-    fabric.print(generate_response(model, instruction))
+    fabric.print(output)
+
+    columns = ["instruction", "output"]
+    my_data = [[instruction, output]]
+    metrics = {"examples": wandb.Table(columns=columns, data=my_data)}
+    wandb.log(metrics)
 
     model.train()
     return out.item()
