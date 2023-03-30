@@ -17,7 +17,7 @@ from scripts.prepare_alpaca import generate_prompt
 import bitsandbytes as bnb
 import wandb
 
-out_dir = "out/lora-quant-warmup-train-on-inputs-false"
+out_dir = "out/lora-quant-orig-dataset"
 eval_interval = 4000
 eval_iters = 100
 log_interval = 1
@@ -207,15 +207,15 @@ def get_batch(fabric: L.Fabric, data: list, pad_id: int = 0):
     def shift_right(x):
         return x[1:]
 
-    x = torch.stack([pad(data[i]["input_ids"]) for i in ix]).type(torch.int64)
-    y = torch.stack([pad(shift_right(data[i]["labels"])) for i in ix]).type(torch.int64)
+    x = torch.stack([pad(torch.tensor(data[i]["input_ids"])) for i in ix]).type(torch.int64)
+    y = torch.stack([pad(shift_right(torch.tensor(data[i]["labels"]))) for i in ix]).type(torch.int64)
     x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
     return x, y
 
 
 def load_datasets(data_dir: str = "data/alpaca"):
-    train_data = torch.load(os.path.join(data_dir, "train.pt"))
-    val_data = torch.load(os.path.join(data_dir, "test.pt"))
+    train_data = torch.load(os.path.join(data_dir, "train_orig.pt"))
+    val_data = torch.load(os.path.join(data_dir, "test_orig.pt"))
     return train_data, val_data
 
 
