@@ -148,6 +148,9 @@ def train(
             ] * user_prompt_len + tokenized_full_prompt["labels"][
                 user_prompt_len:
             ]  # could be sped up, probably
+
+        tokenized_full_prompt["input_ids"] = torch.tensor(tokenized_full_prompt["input_ids"])
+        tokenized_full_prompt["labels"] = torch.tensor(tokenized_full_prompt["labels"])
         return tokenized_full_prompt
 
 
@@ -176,8 +179,8 @@ def train(
         train_data = data["train"].shuffle().map(generate_and_tokenize_prompt)
         val_data = None
 
-    torch.save(list(train_data), "data/alpaca/train_orig.pt")
-    torch.save(list(train_data), "data/alpaca/test_orig.pt")
+    torch.save(list(train_data), "data/alpaca/train.pt")
+    torch.save(list(val_data), "data/alpaca/test.pt")
 
 
 
