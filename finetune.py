@@ -19,7 +19,7 @@ import loralib as lora
 import wandb
 
 
-out_dir = "out/lora-native-shifted"
+out_dir = "out/lora-native-shifted-ourdata"
 eval_interval = 20
 save_interval = 20
 eval_iters = 100
