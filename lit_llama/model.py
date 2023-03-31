@@ -13,12 +13,12 @@ from typing_extensions import Self
 
 
 def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, base: int = 10000) -> torch.Tensor:
-    """This is the `build_rope_cache` implementation we initially intended to use, but it is numerically not
-    exactly equivalent to the one in the Meta model. We keep it here for posterity.
+    """Enhanced Transformer with Rotary Position Embedding.
 
-    Derived from:mers/rope/__init__.py
-    https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/license MIT License:
-    """  # noqa: E501
+    Derived from: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/
+    transformers/rope/__init__.py. MIT License:
+    https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/license.
+    """
     # $\Theta = {\theta_i = 10000^{\frac{2(i-1)}{d}}, i \in [1, 2, ..., \frac{d}{2}]}$
     theta = 1.0 / (base ** (torch.arange(0, n_elem, 2, dtype=dtype) / n_elem))
 
@@ -28,73 +28,23 @@ def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, base: int = 
     # Calculate the product of position index and $\theta_i$
     idx_theta = torch.outer(seq_idx, theta)
 
-    # Concatenate so that for row $m$ we have
-    # $[m \theta_0, m \theta_1, ..., m \theta_{\frac{d}{2}}, m \theta_0, m \theta_1, ..., m \theta_{\frac{d}{2}}]$
-    idx_theta2 = torch.cat([idx_theta, idx_theta], dim=1)
-
     # Cache them
-    cos_cache = idx_theta2.cos()[None, None, :, :]
-    sin_cache = idx_theta2.sin()[None, None, :, :]
-
-    return torch.stack((cos_cache, sin_cache), dim=0)
-
-
-def rotate_neg_half(x: torch.Tensor) -> torch.Tensor:
-    # $\frac{d}{2}$
-    d_2 = x.shape[-1] // 2
-    # Calculate $[-x^{(\frac{d}{2} + 1)}, -x^{(\frac{d}{2} + 2)}, ..., -x^{(d)}, x^{(1)}, x^{(2)}, ..., x^{(\frac{d}{2})}]$  # noqa: E501
-    return torch.cat([-x[:, :, :, d_2:], x[:, :, :, :d_2]], dim=-1)
+    cache = torch.polar(torch.ones_like(idx_theta), idx_theta)  # complex64
+    return cache
 
 
 def apply_rope(x: torch.Tensor, rope_cache: torch.Tensor) -> torch.Tensor:
-    """This is the `apply_rope` implementation we initially intended to use, but it is numerically not exactly
-    equivalent to the one in the Meta model.
+    x = x.transpose(1, 2)
 
-    We keep it here for posterity.
-    """
-    neg_half_x = rotate_neg_half(x)
-    cos, sin = rope_cache
     # truncate to support variable sizes
-    T = x.size(2)
-    cos = cos[:, :, :T]
-    sin = sin[:, :, :T]
-    return (x * cos) + (neg_half_x * sin)
+    T = x.size(1)
+    rope_cache = rope_cache[:T]
 
-
-
-# def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, base: int = 10000) -> torch.Tensor:
-#     """Enhanced Transformer with Rotary Position Embedding.
-# 
-#     Derived from: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/
-#     transformers/rope/__init__.py. MIT License:
-#     https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/license.
-#     """
-#     # $\Theta = {\theta_i = 10000^{\frac{2(i-1)}{d}}, i \in [1, 2, ..., \frac{d}{2}]}$
-#     theta = 1.0 / (base ** (torch.arange(0, n_elem, 2, dtype=dtype) / n_elem))
-# 
-#     # Create position indexes `[0, 1, ..., seq_len - 1]`
-#     seq_idx = torch.arange(seq_len, dtype=dtype)
-# 
-#     # Calculate the product of position index and $\theta_i$
-#     idx_theta = torch.outer(seq_idx, theta)
-# 
-#     # Cache them
-#     cache = torch.polar(torch.ones_like(idx_theta), idx_theta)  # complex64
-#     return cache
-# 
-# 
-# def apply_rope(x: torch.Tensor, rope_cache: torch.Tensor) -> torch.Tensor:
-#     x = x.transpose(1, 2)
-# 
-#     # truncate to support variable sizes
-#     T = x.size(1)
-#     rope_cache = rope_cache[:T]
-# 
-#     # cast because `view_as_complex` does not support 16 bit tensors
-#     xc = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
-#     rope_cache = rope_cache.view(1, xc.size(1), 1, xc.size(3))
-#     x_out = torch.view_as_real(xc * rope_cache).flatten(3)
-#     return x_out.transpose(1, 2).type_as(x)
+    # cast because `view_as_complex` does not support 16 bit tensors
+    xc = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
+    rope_cache = rope_cache.view(1, xc.size(1), 1, xc.size(3))
+    x_out = torch.view_as_real(xc * rope_cache).flatten(3)
+    return x_out.transpose(1, 2).type_as(x)
 
 
 class RMSNorm(nn.Module):
