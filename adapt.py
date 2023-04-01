@@ -29,14 +29,11 @@ gradient_accumulation_steps = batch_size // micro_batch_size
 max_iters = 50000 * 5 // micro_batch_size  # 5 epochs
 weight_decay = 0.02
 block_size = 256
-lora_r = 8
-lora_alpha = 16
-lora_dropout = 0.05
 warmup_steps = 50000 * 2 // micro_batch_size  # 2 epochs
 
 
 def main():
-    wandb.init("llama-adapter")
+    wandb.init(project="llama-adapter")
 
     fabric = L.Fabric(accelerator="cuda", devices=1)
     fabric.seed_everything(1337 + fabric.global_rank)
@@ -105,6 +102,7 @@ def train(
                 
             if step_count % eval_interval == 0:
                 val_loss = validate(fabric, model, val_data)
+                wandb.log({"val_loss": val_loss}, commit=False)
                 fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
                 fabric.barrier()
 
@@ -118,6 +116,7 @@ def train(
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:
+            wandb.log({"train_loss": loss.item(), "step": step_count, "epoch_pct": iter_num * micro_batch_size / 5000})
             fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
 
 
@@ -139,6 +138,9 @@ def generate_response(model, instruction):
     return output # output.split("### Response:")[1].strip()
 
 
+example_outputs = []
+
+
 @torch.no_grad()
 def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> torch.Tensor:
     fabric.print("Validating ...")
@@ -157,6 +159,11 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     output = generate_response(model, instruction)
     fabric.print(instruction)
     fabric.print(output)
+
+    columns = ["output"]
+    example_outputs.append([output])
+    metrics = {"examples": wandb.Table(columns=columns, data=example_outputs)}
+    wandb.log(metrics)
 
     model.train()
     return out.item()
