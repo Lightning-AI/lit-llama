@@ -57,9 +57,12 @@ def main():
     for name, param in model.named_parameters():
         param.requires_grad = "adapter_wte" in name or "gating_factor" in name
 
+    num_params = sum([p.numel() for p in model.parameters() if p.requires_grad])
+    print(f"Number of trainable parameters: {num_params}")
+
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     model, optimizer = fabric.setup(model, optimizer)
-    train(fabric, model, optimizer, train_data, val_data)
+    # train(fabric, model, optimizer, train_data, val_data)
 
 
 def train(

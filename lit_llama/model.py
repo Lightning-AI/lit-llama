@@ -79,7 +79,7 @@ class LLaMAConfig:
     n_embd: int = 4096
 
     adapter_prompt_length: int = 10
-    adapter_start_layer: int = -8
+    adapter_start_layer: int = -30
 
     @classmethod
     def from_name(cls, name: str) -> Self:
