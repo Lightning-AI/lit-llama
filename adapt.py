@@ -1,5 +1,5 @@
 """
-Instruction-tuning with LoRA on the Alpaca dataset.
+Instruction-tuning with LLaMA-Adapter on the Alpaca dataset.
 """
 import os
 import time
@@ -15,9 +15,9 @@ from scripts.prepare_alpaca import generate_prompt
 
 import wandb
 
-out_dir = "out/adapter"
-eval_interval = 20
-save_interval = 20
+out_dir = "out/adapter-4gpu-pad-right"
+eval_interval = 40
+save_interval = 200
 eval_iters = 100
 log_interval = 1
 
@@ -26,16 +26,19 @@ learning_rate = 9e-3
 batch_size = 64
 micro_batch_size = 4
 gradient_accumulation_steps = batch_size // micro_batch_size
-max_iters = 50000 * 5 // micro_batch_size  # 5 epochs
+epoch_size = 50000  # train dataset size
+num_epochs = 100
+max_iters = epoch_size * num_epochs // micro_batch_size  # 5 epochs
 weight_decay = 0.02
 block_size = 256
-warmup_steps = 50000 * 2 // micro_batch_size  # 2 epochs
+warmup_steps = epoch_size * 2 // micro_batch_size  # 2 epochs
 
 
 def main():
     wandb.init(project="llama-adapter")
 
-    fabric = L.Fabric(accelerator="cuda", devices=1)
+    fabric = L.Fabric(accelerator="cuda", devices=4, strategy="ddp")
+    fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
     if fabric.global_rank == 0:
@@ -91,7 +94,8 @@ def train(
         input_ids, targets = get_batch(fabric, train_data)
         logits = model(input_ids)
         loss = loss_fn(logits, targets)
-        fabric.backward(loss)
+        with fabric.no_backward_sync(model, enabled=((iter_num + 1) % gradient_accumulation_steps != 0)):
+            fabric.backward(loss)
 
         fabric.clip_gradients(model, optimizer, clip_val=1.0)
 
@@ -109,14 +113,18 @@ def train(
             if step_count % save_interval == 0:
                 pass
                 # print(f"Saving LoRA weights to {out_dir}")
-                # TODO: Only save adapter weights
+                
+                # only save the adapter weights
+                # TODO: make this a function
+                checkpoint = {name: param for name, param in model.named_parameters() if "adapter_wte" in name or "gating_factor" in name}
+
                 # TODO: Provide a function/script to merge the adapter weights with pretrained weights
                 # checkpoint = adapter_state_dict(model)
-                # fabric.save(os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"), checkpoint)
+                fabric.save(os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"), checkpoint)
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:
-            wandb.log({"train_loss": loss.item(), "step": step_count, "epoch_pct": iter_num * micro_batch_size / 5000})
+            wandb.log({"train_loss": loss.item(), "step": step_count, "epoch_pct": iter_num * micro_batch_size / 50000})
             fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
 
 
@@ -184,13 +192,13 @@ def get_batch(fabric: L.Fabric, data: list):
 
     max_len = max(len(s) for s in input_ids)
 
-    def pad_left(x, pad_id):
-        # pad left based on the longest sequence
+    def pad_right(x, pad_id):
+        # pad right based on the longest sequence
         n = max_len - len(x)
-        return torch.cat((torch.full((n,), pad_id, dtype=x.dtype), x))
+        return torch.cat((x, torch.full((n,), pad_id, dtype=x.dtype)))
 
-    x = torch.stack([pad_left(x, pad_id=0) for x in input_ids])
-    y = torch.stack([pad_left(x, pad_id=-1) for x in labels])
+    x = torch.stack([pad_right(x, pad_id=0) for x in input_ids])
+    y = torch.stack([pad_right(x, pad_id=-1) for x in labels])
     x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
     return x, y
 

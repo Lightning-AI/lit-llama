@@ -28,9 +28,7 @@ def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, base: int = 
     # Calculate the product of position index and $\theta_i$
     idx_theta = torch.outer(seq_idx, theta)
 
-    # Cache them
-    cache = torch.polar(torch.ones_like(idx_theta), idx_theta)  # complex64
-    return cache
+    return idx_theta
 
 
 def apply_rope(x: torch.Tensor, rope_cache: torch.Tensor) -> torch.Tensor:
@@ -38,7 +36,11 @@ def apply_rope(x: torch.Tensor, rope_cache: torch.Tensor) -> torch.Tensor:
 
     # truncate to support variable sizes
     T = x.size(1)
-    rope_cache = rope_cache[:T]
+
+    # FIXME remove this comment
+    # Converting to complex here because complex buffers not supported in PyTorch
+    # RuntimeError: Input tensor data type is not supported for NCCL process group: ComplexFloat
+    rope_cache = torch.polar(torch.ones_like(rope_cache[:T]), rope_cache[:T])  # complex64
 
     # cast because `view_as_complex` does not support 16 bit tensors
     xc = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
