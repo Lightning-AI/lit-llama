@@ -12,6 +12,7 @@ from generate import generate
 from lit_llama.model import LLaMA, LLaMAConfig
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
+from lightning.fabric.strategies import DDPStrategy
 
 import wandb
 
@@ -35,11 +36,14 @@ warmup_steps = epoch_size * 2 // micro_batch_size  # 2 epochs
 
 
 def main():
-    wandb.init(project="llama-adapter")
-
-    fabric = L.Fabric(accelerator="cuda", devices=4, strategy="ddp")
+    fabric = L.Fabric(
+        accelerator="cuda", devices=4, strategy="deepspeed_stage_2", precision="bf16"
+    )
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
+
+    if fabric.is_global_zero:
+        wandb.init(project="llama-adapter")
 
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
@@ -49,12 +53,12 @@ def main():
     config = LLaMAConfig.from_name("7B")
     config.block_size = block_size
 
+    checkpoint = torch.load("checkpoints/lit-llama/7B/state_dict.pth")
+
     with fabric.device:
         model = LLaMA(config)
-    
-    checkpoint = torch.load("checkpoints/lit-llama/7B/state_dict.pth")
-    # strict=False because missing keys due to adapter weights not containted in state dict
-    model.load_state_dict(checkpoint, strict=False)
+        # strict=False because missing keys due to adapter weights not containted in state dict
+        model.load_state_dict(checkpoint, strict=False)
 
     # mark only the adapter weights as trainable
     for name, param in model.named_parameters():
@@ -97,7 +101,7 @@ def train(
         with fabric.no_backward_sync(model, enabled=((iter_num + 1) % gradient_accumulation_steps != 0)):
             fabric.backward(loss)
 
-        fabric.clip_gradients(model, optimizer, clip_val=1.0)
+        # fabric.clip_gradients(model, optimizer, clip_val=1.0)
 
         if (iter_num + 1) % gradient_accumulation_steps == 0:
             optimizer.step()
@@ -106,7 +110,8 @@ def train(
                 
             if step_count % eval_interval == 0:
                 val_loss = validate(fabric, model, val_data)
-                wandb.log({"val_loss": val_loss}, commit=False)
+                if fabric.is_global_zero:
+                    wandb.log({"val_loss": val_loss}, commit=False)
                 fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
                 fabric.barrier()
 
@@ -120,11 +125,14 @@ def train(
 
                 # TODO: Provide a function/script to merge the adapter weights with pretrained weights
                 # checkpoint = adapter_state_dict(model)
-                fabric.save(os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"), checkpoint)
+                if fabric.is_global_zero:
+                    torch.save(checkpoint, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"))
+                fabric.barrier()
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:
-            wandb.log({"train_loss": loss.item(), "step": step_count, "epoch_pct": iter_num * micro_batch_size / 50000})
+            if fabric.is_global_zero:
+                wandb.log({"train_loss": loss.item(), "step": step_count, "epoch_pct": iter_num * micro_batch_size / 50000})
             fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
 
 
@@ -168,10 +176,11 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     fabric.print(instruction)
     fabric.print(output)
 
-    columns = ["output"]
-    example_outputs.append([output])
-    metrics = {"examples": wandb.Table(columns=columns, data=example_outputs)}
-    wandb.log(metrics)
+    if fabric.is_global_zero:
+        columns = ["output"]
+        example_outputs.append([output])
+        metrics = {"examples": wandb.Table(columns=columns, data=example_outputs)}
+        wandb.log(metrics)
 
     model.train()
     return out.item()
