@@ -13,6 +13,7 @@ from lit_llama.model import LLaMA, LLaMAConfig
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
 
+import wandb
 
 out_dir = "out/adapter"
 eval_interval = 20
@@ -35,7 +36,9 @@ warmup_steps = 50000 * 2 // micro_batch_size  # 2 epochs
 
 
 def main():
-    fabric = L.Fabric(accelerator="cuda", devices=1)  # , precision="bf16-mixed")
+    wandb.init("llama-adapter")
+
+    fabric = L.Fabric(accelerator="cuda", devices=1)
     fabric.seed_everything(1337 + fabric.global_rank)
 
     if fabric.global_rank == 0:
