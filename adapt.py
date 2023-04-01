@@ -35,7 +35,7 @@ warmup_steps = 50000 * 2 // micro_batch_size  # 2 epochs
 
 
 def main():
-    fabric = L.Fabric(accelerator="cuda", devices=1)
+    fabric = L.Fabric(accelerator="cuda", devices=1)  # , precision="bf16-mixed")
     fabric.seed_everything(1337 + fabric.global_rank)
 
     if fabric.global_rank == 0:
@@ -51,8 +51,8 @@ def main():
     
     checkpoint = torch.load("checkpoints/lit-llama/7B/state_dict.pth")
     # strict=False because missing keys due to adapter weights not containted in state dict
-    model.load_state_dict(checkpoint, strict=False) 
-    
+    model.load_state_dict(checkpoint, strict=False)
+
     # mark only the adapter weights as trainable
     for name, param in model.named_parameters():
         param.requires_grad = "adapter_wte" in name or "gating_factor" in name
@@ -62,7 +62,7 @@ def main():
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     model, optimizer = fabric.setup(model, optimizer)
-    # train(fabric, model, optimizer, train_data, val_data)
+    train(fabric, model, optimizer, train_data, val_data)
 
 
 def train(

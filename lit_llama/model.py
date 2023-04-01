@@ -134,8 +134,8 @@ class CausalSelfAttention(nn.Module):
         if adaption_prompt is not None:
             aT = adaption_prompt.size(1)
             _, ak, av = self.c_attn(adaption_prompt).split(self.n_embd, dim=2)
-            ak = ak.view(1, aT, self.n_head, self.n_head).repeat(B, 1, 1, 1).transpose(1, 2)
-            av = av.view(1, aT, self.n_head, self.n_head).repeat(B, 1, 1, 1).transpose(1, 2)
+            ak = ak.view(1, aT, self.n_head, head_size).repeat(B, 1, 1, 1).transpose(1, 2)
+            av = av.view(1, aT, self.n_head, head_size).repeat(B, 1, 1, 1).transpose(1, 2)
 
         # efficient attention using Flash Attention CUDA kernels
         y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=True)
