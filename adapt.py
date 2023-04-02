@@ -16,7 +16,7 @@ from lightning.fabric.strategies import DDPStrategy
 
 import wandb
 
-out_dir = "out/adapter-4gpu-pad-right"
+out_dir = "out/adapter/grad-accum"
 eval_interval = 40
 save_interval = 200
 eval_iters = 100
@@ -41,7 +41,7 @@ def main():
     fabric.seed_everything(1337 + fabric.global_rank)
 
     if fabric.is_global_zero:
-        wandb.init(project="llama-adapter")
+        wandb.init(project="llama-adapter", notes="with loss / gradient_accumulation_steps")
 
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
@@ -97,7 +97,7 @@ def train(
         logits = model(input_ids)
         loss = loss_fn(logits, targets)
         with fabric.no_backward_sync(model, enabled=((iter_num + 1) % gradient_accumulation_steps != 0)):
-            fabric.backward(loss)
+            fabric.backward(loss / gradient_accumulation_steps)
 
         # fabric.clip_gradients(model, optimizer, clip_val=1.0)
 
