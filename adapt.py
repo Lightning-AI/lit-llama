@@ -41,7 +41,7 @@ def main():
     fabric.seed_everything(1337 + fabric.global_rank)
 
     if fabric.is_global_zero:
-        wandb.init(project="llama-adapter", notes="with loss / gradient_accumulation_steps and their data")
+        wandb.init(project="llama-adapter", notes="")
 
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
