@@ -36,10 +36,8 @@ warmup_steps = epoch_size * 2 // micro_batch_size  # 2 epochs
 
 
 def main():
-    fabric = L.Fabric(
-        accelerator="cuda", devices=4, strategy="deepspeed_stage_2", precision="bf16"
-    )
-    fabric.launch()
+    fabric = L.Fabric(accelerator="cuda", devices=1)
+    # fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
     if fabric.is_global_zero:
