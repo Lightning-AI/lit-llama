@@ -16,7 +16,7 @@ from lightning.fabric.strategies import DDPStrategy
 
 import wandb
 
-out_dir = "out/adapter/grad-accum"
+out_dir = "out/adapter/grad-accum-their-data"
 eval_interval = 40
 save_interval = 200
 eval_iters = 100
@@ -41,7 +41,7 @@ def main():
     fabric.seed_everything(1337 + fabric.global_rank)
 
     if fabric.is_global_zero:
-        wandb.init(project="llama-adapter", notes="with loss / gradient_accumulation_steps")
+        wandb.init(project="llama-adapter", notes="with loss / gradient_accumulation_steps and their data")
 
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
@@ -211,8 +211,8 @@ def get_batch(fabric: L.Fabric, data: list):
 
 
 def load_datasets(data_dir: str = "data/alpaca"):
-    train_data = torch.load(os.path.join(data_dir, "train.pt"))
-    val_data = torch.load(os.path.join(data_dir, "test.pt"))
+    train_data = torch.load(os.path.join(data_dir, "train_orig.pt"))
+    val_data = torch.load(os.path.join(data_dir, "test_orig.pt"))
     return train_data, val_data
 
 
