@@ -100,9 +100,10 @@ class CausalSelfAttention(nn.Module):
         self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd, bias=False)
         # output projection
         self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=False)
-        # regularization
+
         self.n_head = config.n_head
         self.n_embd = config.n_embd
+        self.block_size = config.block_size
         self.rope_cache = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -119,7 +120,7 @@ class CausalSelfAttention(nn.Module):
         if self.rope_cache is None:
             # cache for future forward calls
             self.rope_cache = build_rope_cache(
-                seq_len=self.config.block_size,
+                seq_len=self.block_size,
                 n_elem=self.n_embd // self.n_head, 
                 dtype=self.c_attn.weight.dtype,
                 device=x.device,
