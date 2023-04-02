@@ -28,7 +28,8 @@ def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, base: int = 
     # Calculate the product of position index and $\theta_i$
     idx_theta = torch.outer(seq_idx, theta)
 
-    return idx_theta
+    cache = torch.polar(torch.ones_like(idx_theta), idx_theta)  # complex64
+    return cache
 
 
 def apply_rope(x: torch.Tensor, rope_cache: torch.Tensor) -> torch.Tensor:
@@ -36,7 +37,7 @@ def apply_rope(x: torch.Tensor, rope_cache: torch.Tensor) -> torch.Tensor:
 
     # truncate to support variable sizes
     T = x.size(1)
-    rope_cache = torch.polar(torch.ones_like(rope_cache[:T]), rope_cache[:T])  # complex64
+    rope_cache = rope_cache[:T]
 
     # cast because `view_as_complex` does not support 16 bit tensors
     xc = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
@@ -90,7 +91,7 @@ llama_configs = {
 
 
 class CausalSelfAttention(nn.Module):
-    def __init__(self, config: LLaMAConfig, rope_cache: torch.Tensor) -> None:
+    def __init__(self, config: LLaMAConfig) -> None:
         super().__init__()
         assert config.n_embd % config.n_head == 0
 
@@ -101,7 +102,7 @@ class CausalSelfAttention(nn.Module):
         # regularization
         self.n_head = config.n_head
         self.n_embd = config.n_embd
-        self.register_buffer("rope_cache", rope_cache, persistent=False)
+        self.rope_cache = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, T, C = x.size()  # batch size, sequence length, embedding dimensionality (n_embd)
@@ -113,6 +114,12 @@ class CausalSelfAttention(nn.Module):
         k = k.view(B, T, self.n_head, head_size).transpose(1, 2)  # (B, nh, T, hs)
         q = q.view(B, T, self.n_head, head_size).transpose(1, 2)  # (B, nh, T, hs)
         v = v.view(B, T, self.n_head, head_size).transpose(1, 2)  # (B, nh, T, hs)
+
+        if self.rope_cache is None:
+            # cache for future forward calls
+            self.rope_cache = build_rope_cache(
+                seq_len=self.config.block_size, n_elem=self.n_embd // self.n_head, dtype=self.c_attn.weight.dtype
+            )
 
         q = apply_rope(q, self.rope_cache)
         k = apply_rope(k, self.rope_cache)
@@ -154,10 +161,10 @@ class MLP(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, config: LLaMAConfig, rope_cache: torch.Tensor) -> None:
+    def __init__(self, config: LLaMAConfig) -> None:
         super().__init__()
         self.rms_1 = RMSNorm(config.n_embd)
-        self.attn = CausalSelfAttention(config, rope_cache)
+        self.attn = CausalSelfAttention(config)
         self.rms_2 = RMSNorm(config.n_embd)
         self.mlp = MLP(config)
 
@@ -175,15 +182,10 @@ class LLaMA(nn.Module):
         self.config = config
 
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
-
-        rope_cache = build_rope_cache(
-            seq_len=config.block_size, n_elem=config.n_embd // config.n_head, dtype=self.lm_head.weight.dtype
-        )
-
         self.transformer = nn.ModuleDict(
             dict(
                 wte=nn.Embedding(config.vocab_size, config.n_embd),
-                h=nn.ModuleList([Block(config, rope_cache) for _ in range(config.n_layer)]),
+                h=nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
                 ln_f=RMSNorm(config.n_embd),
             )
         )
