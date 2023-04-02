@@ -12,7 +12,7 @@ from torch.nn import functional as F
 from typing_extensions import Self
 
 
-def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, base: int = 10000) -> torch.Tensor:
+def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, device: torch.device, base: int = 10000) -> torch.Tensor:
     """Enhanced Transformer with Rotary Position Embedding.
 
     Derived from: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/
@@ -20,7 +20,7 @@ def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, base: int = 
     https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/license.
     """
     # $\Theta = {\theta_i = 10000^{\frac{2(i-1)}{d}}, i \in [1, 2, ..., \frac{d}{2}]}$
-    theta = 1.0 / (base ** (torch.arange(0, n_elem, 2, dtype=dtype) / n_elem))
+    theta = 1.0 / (base ** (torch.arange(0, n_elem, 2, dtype=dtype, device=device) / n_elem))
 
     # Create position indexes `[0, 1, ..., seq_len - 1]`
     seq_idx = torch.arange(seq_len, dtype=dtype)
@@ -119,7 +119,10 @@ class CausalSelfAttention(nn.Module):
         if self.rope_cache is None:
             # cache for future forward calls
             self.rope_cache = build_rope_cache(
-                seq_len=self.config.block_size, n_elem=self.n_embd // self.n_head, dtype=self.c_attn.weight.dtype
+                seq_len=self.config.block_size,
+                n_elem=self.n_embd // self.n_head, 
+                dtype=self.c_attn.weight.dtype,
+                device=x.device,
             )
 
         q = apply_rope(q, self.rope_cache)
