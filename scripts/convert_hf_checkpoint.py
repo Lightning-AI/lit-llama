@@ -8,8 +8,9 @@ from lit_llama.model import LLaMA, LLaMAConfig
 
 # Perform the reverse operation of: https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/convert_llama_weights_to_hf.py
 
+
 def convert_hf_checkpoint(
-    model_size: str = "7B", 
+    model_size: str = "7B",
     hf_checkpoint_path: Path = Path("checkpoints/llama-7b-hf"),
     lit_checkpoint: Path = Path("checkpoints/lit-llama.ckpt"),
     verify: bool = False,
@@ -28,7 +29,11 @@ def convert_hf_checkpoint(
 
     def permute(w):
         dim = config.n_embd
-        return w.view(config.n_head, 2, dim // config.n_head // 2, dim).transpose(1, 2).reshape(dim, dim)
+        return (
+            w.view(config.n_head, 2, dim // config.n_head // 2, dim)
+            .transpose(1, 2)
+            .reshape(dim, dim)
+        )
 
     with torch.no_grad():
         sd["transformer.wte.weight"].copy_(sd_hf["model.embed_tokens.weight"])
@@ -36,18 +41,36 @@ def convert_hf_checkpoint(
         sd["lm_head.weight"].copy_(sd_hf["lm_head.weight"])
 
         for i in range(n_blocks):
-            sd[f"transformer.h.{i}.attn.c_proj.weight"].copy_(sd_hf[f"model.layers.{i}.self_attn.o_proj.weight"])
+            sd[f"transformer.h.{i}.attn.c_proj.weight"].copy_(
+                sd_hf[f"model.layers.{i}.self_attn.o_proj.weight"]
+            )
 
-            sd[f"transformer.h.{i}.attn.c_attn.weight"][:qkv_size] = permute(sd_hf[f"model.layers.{i}.self_attn.q_proj.weight"])
-            sd[f"transformer.h.{i}.attn.c_attn.weight"][qkv_size:2*qkv_size] = permute(sd_hf[f"model.layers.{i}.self_attn.k_proj.weight"])
-            sd[f"transformer.h.{i}.attn.c_attn.weight"][-qkv_size:] = sd_hf[f"model.layers.{i}.self_attn.v_proj.weight"]
+            sd[f"transformer.h.{i}.attn.c_attn.weight"][:qkv_size] = permute(
+                sd_hf[f"model.layers.{i}.self_attn.q_proj.weight"]
+            )
+            sd[f"transformer.h.{i}.attn.c_attn.weight"][qkv_size:-qkv_size] = permute(
+                sd_hf[f"model.layers.{i}.self_attn.k_proj.weight"]
+            )
+            sd[f"transformer.h.{i}.attn.c_attn.weight"][-qkv_size:] = sd_hf[
+                f"model.layers.{i}.self_attn.v_proj.weight"
+            ]
 
-            sd[f"transformer.h.{i}.mlp.c_fc1.weight"].copy_(sd_hf[f"model.layers.{i}.mlp.gate_proj.weight"])
-            sd[f"transformer.h.{i}.mlp.c_fc2.weight"].copy_(sd_hf[f"model.layers.{i}.mlp.up_proj.weight"])
-            sd[f"transformer.h.{i}.mlp.c_proj.weight"].copy_(sd_hf[f"model.layers.{i}.mlp.down_proj.weight"])
+            sd[f"transformer.h.{i}.mlp.c_fc1.weight"].copy_(
+                sd_hf[f"model.layers.{i}.mlp.gate_proj.weight"]
+            )
+            sd[f"transformer.h.{i}.mlp.c_fc2.weight"].copy_(
+                sd_hf[f"model.layers.{i}.mlp.up_proj.weight"]
+            )
+            sd[f"transformer.h.{i}.mlp.c_proj.weight"].copy_(
+                sd_hf[f"model.layers.{i}.mlp.down_proj.weight"]
+            )
 
-            sd[f"transformer.h.{i}.rms_1.scale"].copy_(sd_hf[f"model.layers.{i}.input_layernorm.weight"])
-            sd[f"transformer.h.{i}.rms_2.scale"].copy_(sd_hf[f"model.layers.{i}.post_attention_layernorm.weight"])
+            sd[f"transformer.h.{i}.rms_1.scale"].copy_(
+                sd_hf[f"model.layers.{i}.input_layernorm.weight"]
+            )
+            sd[f"transformer.h.{i}.rms_2.scale"].copy_(
+                sd_hf[f"model.layers.{i}.post_attention_layernorm.weight"]
+            )
 
     if verify:
         token_sample = torch.randint(
@@ -60,7 +83,7 @@ def convert_hf_checkpoint(
 
         print(out)
         print(out_hf["logits"])
-        print((out - out_hf["logits"]).sum())
+        print(torch.linalg.norm(out - out_hf["logits"]))
         assert torch.allclose(out, out_hf["logits"])
 
     torch.save(model.state_dict(), lit_checkpoint)
