@@ -6,6 +6,8 @@ import torch
 from lit_llama.model import LLaMA, LLaMAConfig
 
 
+# Perform the reverse operation of: https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/convert_llama_weights_to_hf.py
+
 def convert_hf_checkpoint(
     model_size: str = "7B", 
     hf_checkpoint_path: Path = Path("checkpoints/llama-7b-hf"),
