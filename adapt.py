@@ -9,14 +9,14 @@ import numpy as np
 import torch
 
 from generate import generate
-from lit_llama.model import LLaMA, LLaMAConfig
+from lit_llama.adapter import LLaMA, LLaMAConfig
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
 from lightning.fabric.strategies import DDPStrategy
 
 import wandb
 
-out_dir = "out/adapter/initial"
+out_dir = "out/adapter/alternative"
 eval_interval = 40
 save_interval = 200
 eval_iters = 100
