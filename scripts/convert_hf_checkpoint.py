@@ -29,8 +29,8 @@ def from_pretrained(name, checkpoint_path):
             sd[f"transformer.h.{i}.attn.c_attn.weight"][qkv_size:2*qkv_size] = sd_hf[f"model.layers.{i}.self_attn.k_proj.weight"]
             sd[f"transformer.h.{i}.attn.c_attn.weight"][-qkv_size:] = sd_hf[f"model.layers.{i}.self_attn.v_proj.weight"]
 
-            sd[f"transformer.h.{i}.mlp.c_fc1.weight"].copy_(sd_hf[f"model.layers.{i}.mlp.up_proj.weight"])
-            sd[f"transformer.h.{i}.mlp.c_fc2.weight"].copy_(sd_hf[f"model.layers.{i}.mlp.gate_proj.weight"])
+            sd[f"transformer.h.{i}.mlp.c_fc1.weight"].copy_(sd_hf[f"model.layers.{i}.mlp.gate_proj.weight"])
+            sd[f"transformer.h.{i}.mlp.c_fc2.weight"].copy_(sd_hf[f"model.layers.{i}.mlp.up_proj.weight"])
             sd[f"transformer.h.{i}.mlp.c_proj.weight"].copy_(sd_hf[f"model.layers.{i}.mlp.down_proj.weight"])
 
             sd[f"transformer.h.{i}.rms_1.scale"].copy_(sd_hf[f"model.layers.{i}.input_layernorm.weight"])
