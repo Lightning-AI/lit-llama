@@ -49,6 +49,7 @@ class CausalSelfAttention(nn.Module):
         self.n_embd = config.n_embd
         self.block_size = config.block_size
         self.block_idx = block_idx
+        self.adapter_prompt_length = config.adapter_prompt_length
         self.adapter_start_layer = config.adapter_start_layer
         self.rope_cache = None
 

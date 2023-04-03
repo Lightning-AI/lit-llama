@@ -47,7 +47,7 @@ def main():
 
     train_data, val_data = load_datasets()
 
-    config = LLaMAConfig.from_name("7B")
+    config = LLaMAConfig()
     config.block_size = block_size
 
     checkpoint = torch.load("checkpoints/lit-llama/7B/state_dict.pth")
