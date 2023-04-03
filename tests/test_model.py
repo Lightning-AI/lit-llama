@@ -73,7 +73,7 @@ def test_to_orig_llama(lit_llama, orig_llama) -> None:
     assert torch.allclose(out, expected)
 
 
-@pytest.mark.skipIf(not torch.cuda.is_available(), "Requires CUDA")
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="Requires CUDA")
 @torch.no_grad()
 def test_bfloat16_llama_init(lit_llama, orig_llama) -> None:
     from lit_llama.utils import EmptyInitOnDevice
