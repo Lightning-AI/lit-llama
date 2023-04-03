@@ -18,7 +18,7 @@ import numpy as np
 
 from lit_llama.model import Block, LLaMA, LLaMAConfig
 
-out_dir = "out/fsdp-chkpt"
+out_dir = "out/training"
 eval_interval = 2000
 eval_iters = 200
 log_interval = 1
@@ -55,7 +55,7 @@ def main() -> None:
     config.block_size = block_size
     config.vocab_size = 100  # from prepare_shakespeare.py
 
-    with fabric.device, fabric.sharded_model():
+    with fabric.device:
         model = LLaMA(config)
 
     # if compile:
