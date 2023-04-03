@@ -19,7 +19,7 @@ import numpy as np
 from lit_llama.model import Block, LLaMA, LLaMAConfig
 
 out_dir = "out/fsdp-chkpt"
-eval_interval = 10
+eval_interval = 2000
 eval_iters = 200
 log_interval = 1
 # compilation fails as it does not support torch.complex64 for RoPE
@@ -87,20 +87,20 @@ def train(
         # TODO: add learning rate scheduling
 
         # evaluate the loss on train/val sets and write checkpoints
-        if iter_num % eval_interval == 0:
+        if iter_num > 0 and iter_num % eval_interval == 0:
             val_loss = validate(fabric, model, val_data)
             fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
 
             # TODO: Update this to `fabric.save()` once it supports FSDP checkpointing
             from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
             from torch.distributed.fsdp import StateDictType, FullStateDictConfig
-            
-            save_policy = FullStateDictConfig(offload_to_cpu=True)
-            with FSDP.state_dict_type(model, StateDictType.LOCAL_STATE_DICT, save_policy):
+
+            save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
+            with FSDP.state_dict_type(model, StateDictType.FULL_STATE_DICT, save_policy):
                 state_dict = model._forward_module.state_dict()
             if fabric.global_rank == 0:
                 print(f"Saving checkpoint to {out_dir}")
-                torch.save(state_dict, os.path.join(out_dir, "ckpt.pt"))
+                torch.save(state_dict, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"))
             fabric.barrier()
 
         t0 = time.time()
