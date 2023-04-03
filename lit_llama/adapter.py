@@ -1,6 +1,7 @@
-"""Full definition of a LLaMA Language Model, all of it in this single file.
+"""Implementation of the paper:
 
-Based on the nanoGPT implementation: https://github.com/karpathy/nanoGPT.
+LLaMA-Adapter: Efficient Fine-tuning of Language Models with Zero-init Attention
+https://arxiv.org/abs/2303.16199
 """
 # mypy: ignore-errors
 import math
@@ -9,14 +10,25 @@ from dataclasses import dataclass
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from typing_extensions import Self
-from lit_llama.model import build_rope_cache, apply_rope, LLaMAConfig, RMSNorm, MLP
+from lit_llama.model import build_rope_cache, apply_rope, RMSNorm, MLP
 
-adapter_prompt_length: int = 10
-adapter_start_layer: int = 2
+
+@dataclass
+class LLaMAConfig:
+    # Default configuration is the 7B model
+    block_size: int = 4096
+    vocab_size: int = 32000
+    n_layer: int = 32
+    n_head: int = 32
+    n_embd: int = 4096
+
+    adapter_prompt_length: int = 10
+    adapter_start_layer: int = 2
 
 
 class CausalSelfAttention(nn.Module):
+    """A modification of `lit_llama.model.CausalSelfAttention` that adds the attention
+    over the adaption prompt."""
 
     def __init__(self, config: LLaMAConfig, block_idx: int) -> None:
         super().__init__()
@@ -27,9 +39,9 @@ class CausalSelfAttention(nn.Module):
         # output projection
         self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=False)
         
-        if block_idx >= adapter_start_layer:
+        if block_idx >= config.adapter_start_layer:
             # adapter embedding layer
-            self.adapter_wte = nn.Embedding(adapter_prompt_length, config.n_embd)
+            self.adapter_wte = nn.Embedding(config.adapter_prompt_length, config.n_embd)
             # gate for adaption
             self.gating_factor = torch.nn.Parameter(torch.zeros(1))
 
@@ -37,6 +49,7 @@ class CausalSelfAttention(nn.Module):
         self.n_embd = config.n_embd
         self.block_size = config.block_size
         self.block_idx = block_idx
+        self.adapter_start_layer = config.adapter_start_layer
         self.rope_cache = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -71,8 +84,8 @@ class CausalSelfAttention(nn.Module):
         # efficient attention using Flash Attention CUDA kernels
         y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=True)
 
-        if self.block_idx >= adapter_start_layer:
-            prefix = self.adapter_wte.weight.reshape(1, adapter_prompt_length, self.n_embd)
+        if self.block_idx >= self.adapter_start_layer:
+            prefix = self.adapter_wte.weight.reshape(1, self.adapter_prompt_length, self.n_embd)
 
             # inefficient attention because we need to insert the gate for the adaption in the middle
             aT = prefix.size(1)
@@ -93,6 +106,9 @@ class CausalSelfAttention(nn.Module):
 
 
 class Block(nn.Module):
+    """The implementation is identical to `lit_llama.model.Block` with the exception that
+    we replace the attention layer where adaption is implemented."""
+
     def __init__(self, config: LLaMAConfig, block_idx: int) -> None:
         super().__init__()
         self.rms_1 = RMSNorm(config.n_embd)
@@ -107,6 +123,9 @@ class Block(nn.Module):
 
 
 class LLaMA(nn.Module):
+    """The implementation is identical to `lit_llama.model.LLaMA` with the exception that
+    the `Block` saves the layer index and passes it down to the attention layer."""
+
     def __init__(self, config: LLaMAConfig) -> None:
         super().__init__()
         assert config.vocab_size is not None
@@ -146,6 +165,14 @@ class LLaMA(nn.Module):
 
         return logits
 
-    @classmethod
-    def from_name(cls, name: str) -> Self:
-        return cls(LLaMAConfig.from_name(name))
+
+
+def mark_only_adapter_as_trainable(model: LLaMA) -> None:
+    for name, param in model.named_parameters():
+        param.requires_grad = "adapter_wte" in name or "gating_factor" in name
+
+
+def adapter_state_dict(model: LLaMA) -> dict:
+    return {
+        name: param for name, param in model.named_parameters() if "adapter_wte" in name or "gating_factor" in name
+    }

@@ -9,10 +9,9 @@ import numpy as np
 import torch
 
 from generate import generate
-from lit_llama.adapter import LLaMA, LLaMAConfig
+from lit_llama.adapter import LLaMA, LLaMAConfig, mark_only_adapter_as_trainable, adapter_state_dict
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
-from lightning.fabric.strategies import DDPStrategy
 
 import wandb
 
@@ -57,10 +56,8 @@ def main():
         model = LLaMA(config)
         # strict=False because missing keys due to adapter weights not containted in state dict
         model.load_state_dict(checkpoint, strict=False)
-
-    # mark only the adapter weights as trainable
-    for name, param in model.named_parameters():
-        param.requires_grad = "adapter_wte" in name or "gating_factor" in name
+    
+    mark_only_adapter_as_trainable(model)
 
     num_params = sum([p.numel() for p in model.parameters() if p.requires_grad])
     print(f"Number of trainable parameters: {num_params}")
@@ -115,17 +112,14 @@ def train(
 
             if step_count % save_interval == 0:
                 pass
-                # print(f"Saving LoRA weights to {out_dir}")
+                # print(f"Saving adapter weights to {out_dir}")
                 
                 # only save the adapter weights
-                # TODO: make this a function
-                checkpoint = {name: param for name, param in model.named_parameters() if "adapter_wte" in name or "gating_factor" in name}
-
-                # TODO: Provide a function/script to merge the adapter weights with pretrained weights
                 # checkpoint = adapter_state_dict(model)
-                if fabric.is_global_zero:
-                    torch.save(checkpoint, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"))
-                fabric.barrier()
+                # TODO: Provide a function/script to merge the adapter weights with pretrained weights
+                # if fabric.is_global_zero:
+                #     torch.save(checkpoint, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"))
+                # fabric.barrier()
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:

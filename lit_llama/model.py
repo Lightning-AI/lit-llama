@@ -28,7 +28,9 @@ def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, device: torc
     # Calculate the product of position index and $\theta_i$
     idx_theta = torch.outer(seq_idx, theta)
 
-    return idx_theta
+    # Cache them
+    cache = torch.polar(torch.ones_like(idx_theta), idx_theta)  # complex64
+    return cache
 
 
 def apply_rope(x: torch.Tensor, rope_cache: torch.Tensor) -> torch.Tensor:
@@ -36,11 +38,7 @@ def apply_rope(x: torch.Tensor, rope_cache: torch.Tensor) -> torch.Tensor:
 
     # truncate to support variable sizes
     T = x.size(1)
-
-    # FIXME remove this comment
-    # Converting to complex here because complex buffers not supported in PyTorch
-    # RuntimeError: Input tensor data type is not supported for NCCL process group: ComplexFloat
-    rope_cache = torch.polar(torch.ones_like(rope_cache[:T], dtype=torch.float), rope_cache[:T].float())  # complex64
+    rope_cache = rope_cache[:T]
 
     # cast because `view_as_complex` does not support 16 bit tensors
     xc = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
@@ -80,9 +78,6 @@ class LLaMAConfig:
     n_head: int = 32
     n_embd: int = 4096
 
-    adapter_prompt_length: int = 10
-    adapter_start_layer: int = -30
-
     @classmethod
     def from_name(cls, name: str) -> Self:
         return llama_configs[name]
@@ -105,16 +100,13 @@ class CausalSelfAttention(nn.Module):
         self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd, bias=False)
         # output projection
         self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=False)
-        
-        # gate for adaption
-        self.gating_factor = torch.nn.Parameter(torch.zeros(1))
 
         self.n_head = config.n_head
         self.n_embd = config.n_embd
         self.block_size = config.block_size
         self.rope_cache = None
 
-    def forward(self, x: torch.Tensor, adaption_prompt=None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, T, C = x.size()  # batch size, sequence length, embedding dimensionality (n_embd)
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
@@ -143,20 +135,8 @@ class CausalSelfAttention(nn.Module):
         #  att = F.softmax(att, dim=-1)
         #  y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
 
-        if adaption_prompt is not None:
-            aT = adaption_prompt.size(1)
-            _, ak, av = self.c_attn(adaption_prompt).split(self.n_embd, dim=2)
-            ak = ak.view(1, aT, self.n_head, head_size).repeat(B, 1, 1, 1).transpose(1, 2)
-            av = av.view(1, aT, self.n_head, head_size).repeat(B, 1, 1, 1).transpose(1, 2)
-
         # efficient attention using Flash Attention CUDA kernels
         y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=True)
-
-        # inefficient attention because we need to insert the gate for the adaption in the middle
-        if adaption_prompt is not None:
-            ascores = torch.matmul(q, ak.transpose(2, 3)) / math.sqrt(self.n_embd)
-            ascores = self.gating_factor * F.softmax(ascores.float(), dim=-1).type_as(q)
-            y = y + torch.matmul(ascores, av)
 
         y = y.transpose(1, 2).contiguous().view(B, T, C)  # re-assemble all head outputs side by side
 
@@ -193,8 +173,8 @@ class Block(nn.Module):
         self.rms_2 = RMSNorm(config.n_embd)
         self.mlp = MLP(config)
 
-    def forward(self, x: torch.Tensor, adaption_prompt=None) -> torch.Tensor:
-        x = x + self.attn(self.rms_1(x), adaption_prompt)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x + self.attn(self.rms_1(x))
         x = x + self.mlp(self.rms_2(x))
         return x
 
@@ -215,9 +195,6 @@ class LLaMA(nn.Module):
             )
         )
 
-        # TODO: we could try to split this up into each attention layer to localize the implementation to one module
-        self.adapter_wte = nn.Embedding(config.adapter_prompt_length * -config.adapter_start_layer, config.n_embd)
-
     def _init_weights(self, module: nn.Module) -> None:
         if isinstance(module, nn.Linear):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02 / math.sqrt(2 * self.config.n_layer))
@@ -233,12 +210,8 @@ class LLaMA(nn.Module):
         # forward the LLaMA model itself
         x = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
 
-        adaption_prompts = self.adapter_wte.weight.reshape(-self.config.adapter_start_layer, 1, self.config.adapter_prompt_length, self.config.n_embd)
-        for block in self.transformer.h[:self.config.adapter_start_layer]:
+        for block in self.transformer.h:
             x = block(x)
-        for block_idx, block in enumerate(self.transformer.h[self.config.adapter_start_layer:]):
-            x = block(x, adaption_prompts[block_idx])
-
         x = self.transformer.ln_f(x)
 
         logits = self.lm_head(x)  # (b, t, vocab_size)
