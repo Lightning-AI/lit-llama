@@ -16,7 +16,7 @@ from lightning.fabric.strategies import DDPStrategy
 
 import wandb
 
-out_dir = "out/adapter/grad-accum-their-data"
+out_dir = "out/adapter/initial"
 eval_interval = 40
 save_interval = 200
 eval_iters = 100
@@ -211,8 +211,8 @@ def get_batch(fabric: L.Fabric, data: list):
 
 
 def load_datasets(data_dir: str = "data/alpaca"):
-    train_data = torch.load(os.path.join(data_dir, "train_orig.pt"))
-    val_data = torch.load(os.path.join(data_dir, "test_orig.pt"))
+    train_data = torch.load(os.path.join(data_dir, "train.pt"))
+    val_data = torch.load(os.path.join(data_dir, "test.pt"))
     return train_data, val_data
 
 
