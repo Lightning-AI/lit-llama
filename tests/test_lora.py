@@ -1,8 +1,9 @@
-from lit_llama.lora import lora, CausalSelfAttention as LoRACausalSelfAttention
-from lit_llama.model import LLaMA, LLaMAConfig
 
 
-def test_lora_layer_replacement():
+def test_lora_layer_replacement(lit_llama):
+    from lit_llama.lora import lora, CausalSelfAttention as LoRACausalSelfAttention
+    from lit_llama.model import LLaMA, LLaMAConfig
+    
     config = LLaMAConfig()
     config.n_layer = 2
     config.n_head = 4
