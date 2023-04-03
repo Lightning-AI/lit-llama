@@ -1,4 +1,4 @@
-from lit_llama.lora import lora, CausalSelfAttention
+from lit_llama.lora import lora, CausalSelfAttention as LoRACausalSelfAttention
 from lit_llama.model import LLaMA, LLaMAConfig
 
 
@@ -13,6 +13,5 @@ def test_lora_layer_replacement():
     with lora(r=8, alpha=8, dropout=0.1):
         model = LLaMA(config)
 
-    # CausalSelfAttention got replaced with its LoRA version
-    assert isinstance(model.transformer.h[0].attn, CausalSelfAttention)
-    assert isinstance(model.transformer.h[1].attn, CausalSelfAttention)
+    assert isinstance(model.transformer.h[0].attn, LoRACausalSelfAttention)
+    assert isinstance(model.transformer.h[1].attn, LoRACausalSelfAttention)
