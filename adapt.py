@@ -36,7 +36,7 @@ warmup_steps = epoch_size * 2 // micro_batch_size  # 2 epochs
 
 def main():
     fabric = L.Fabric(accelerator="cuda", devices=1)
-    # fabric.launch()
+    fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
     if fabric.is_global_zero:
@@ -124,7 +124,7 @@ def train(
         dt = time.time() - t0
         if iter_num % log_interval == 0:
             if fabric.is_global_zero:
-                wandb.log({"train_loss": loss.item(), "step": step_count, "epoch_pct": iter_num * micro_batch_size / 50000})
+                wandb.log({"train_loss": loss.item(), "train_loss_n": loss.item() / gradient_accumulation_steps, "step": step_count, "epoch_pct": iter_num * micro_batch_size / 50000})
             fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
 
 
