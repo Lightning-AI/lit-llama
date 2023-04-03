@@ -228,8 +228,7 @@ class LLaMA(nn.Module):
         # forward the LLaMA model itself
         x = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
 
-        # TODO: combine reshape and unsqueeze?
-        adaption_prompts = self.adapter_wte.weight.reshape(-self.config.adapter_start_layer, self.config.adapter_prompt_length, self.config.n_embd).unsqueeze(1)
+        adaption_prompts = self.adapter_wte.weight.reshape(-self.config.adapter_start_layer, 1, self.config.adapter_prompt_length, self.config.n_embd)
         for block in self.transformer.h[:self.config.adapter_start_layer]:
             x = block(x)
         for block_idx, block in enumerate(self.transformer.h[self.config.adapter_start_layer:]):
