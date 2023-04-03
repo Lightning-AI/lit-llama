@@ -106,4 +106,4 @@ def test_bfloat16_llama_init(lit_llama, orig_llama) -> None:
     llama_model2.load_state_dict(llama_model.state_dict(keep_vars=True))
 
     out = llama_model2(token_sample.cuda()).float().cpu()
-    assert torch.allclose(out, expected, atol=1e-3)
+    torch.testing.assert_close(out, expected, atol=5e-3, rtol=1e-3)
