@@ -17,6 +17,8 @@ from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 import numpy as np
 
 from lit_llama.model import Block, LLaMA, LLaMAConfig
+from lit_llama.utils import save_model_checkpoint
+
 
 out_dir = "out/training"
 eval_interval = 2000
@@ -90,18 +92,8 @@ def train(
         if iter_num > 0 and iter_num % eval_interval == 0:
             val_loss = validate(fabric, model, val_data)
             fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
-
-            # TODO: Update this to `fabric.save()` once it supports FSDP checkpointing
-            from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-            from torch.distributed.fsdp import StateDictType, FullStateDictConfig
-
-            save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
-            with FSDP.state_dict_type(model, StateDictType.FULL_STATE_DICT, save_policy):
-                state_dict = model._forward_module.state_dict()
-            if fabric.global_rank == 0:
-                print(f"Saving checkpoint to {out_dir}")
-                torch.save(state_dict, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"))
-            fabric.barrier()
+            fabric.print(f"Saving checkpoint to {out_dir}")
+            save_model_checkpoint(fabric, model, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"))
 
         t0 = time.time()
 
