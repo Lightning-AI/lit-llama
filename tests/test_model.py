@@ -71,3 +71,37 @@ def test_to_orig_llama(lit_llama, orig_llama) -> None:
     expected = orig_llama_model(token_sample, 0)
     out = llama_model(token_sample)
     assert torch.allclose(out, expected)
+
+
+@torch.no_grad()
+def test_bfloat16_llama_init(lit_llama, orig_llama) -> None:
+    block_size = 64
+    vocab_size = 32000
+    n_layer = 16
+    n_head = 16
+    n_embd = 32
+
+    llama_config = lit_llama.LLaMAConfig(
+        block_size=block_size,
+        vocab_size=vocab_size,
+        n_layer=n_layer,
+        n_head=n_head,
+        n_embd=n_embd,
+    )
+    llama_model = lit_llama.LLaMA(llama_config)
+    llama_model.apply(llama_model._init_weights)
+
+    batch_size = 3
+
+    token_sample = torch.randint(
+        0, vocab_size, size=(batch_size, block_size), dtype=torch.int64
+    )
+
+    expected = llama_model(token_sample)
+
+    torch.set_default_dtype(torch.bfloat16)
+    llama_model2 = lit_llama.LLaMA(llama_config)
+    llama_model2.load_state_dict(llama_model.state_dict(keep_vars=True))
+
+    out = llama_model(token_sample)
+    assert torch.allclose(out, expected, atol=1e-3)

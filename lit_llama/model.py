@@ -28,8 +28,19 @@ def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, base: int = 
     # Calculate the product of position index and $\theta_i$
     idx_theta = torch.outer(seq_idx, theta)
 
-    # Cache them
-    cache = torch.polar(torch.ones_like(idx_theta), idx_theta)  # complex64
+    # Compute cache. Because polar only takes float32 or float64, we need to cast
+    # when working with 16 bit floats (float16 or bfloat16)
+    working_dtype = (
+        torch.float32 if (dtype == torch.float16 or dtype == torch.bfloat16) else dtype
+    )
+    complex_dtype = (
+        torch.complex32
+        if (dtype == torch.float16 or dtype == torch.bfloat16)
+        else torch.complex64
+    )
+    cache = torch.polar(
+        torch.ones_like(idx_theta).to(working_dtype), idx_theta.to(working_dtype)
+    ).to(complex_dtype)
     return cache
 
 
