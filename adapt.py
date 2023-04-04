@@ -173,8 +173,8 @@ def loss_fn(logits, targets):
 def get_batch(fabric: L.Fabric, data: list):
     ix = torch.randint(len(data), (micro_batch_size,))
 
-    input_ids = [torch.tensor(data[i]["input_ids"], dtype=torch.int64) for i in ix]
-    labels = [torch.tensor(data[i]["labels"], dtype=torch.int64) for i in ix]
+    input_ids = [data[i]["input_ids"].type(torch.int64) for i in ix]
+    labels = [data[i]["labels"].type(torch.int64) for i in ix]
 
     max_len = max(len(s) for s in input_ids)
 
