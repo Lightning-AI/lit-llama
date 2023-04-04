@@ -110,7 +110,7 @@ def train(
             if step_count % save_interval == 0:
                 print(f"Saving adapter weights to {out_dir}")
                 
-                # only save the adapter weights
+                # only save the adapter weights for smaller checkpoint files
                 checkpoint = adapter_state_dict(model)
                 # TODO: Provide a function/script to merge the adapter weights with pretrained weights
                 if fabric.is_global_zero:
