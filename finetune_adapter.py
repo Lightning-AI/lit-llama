@@ -15,7 +15,7 @@ from generate import generate
 from lit_llama.adapter import LLaMA, LLaMAConfig, mark_only_adapter_as_trainable, adapter_state_dict
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
-
+import wandb
 
 out_dir = "out/adapter/full-training"
 eval_interval = 40
@@ -40,6 +40,9 @@ def main():
     fabric = L.Fabric(accelerator="cuda", devices=1)
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
+
+    if fabric.is_global_zero:
+        wandb.init(project="llama-adapter", notes="")
 
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
@@ -104,6 +107,8 @@ def train(
                 
             if step_count % eval_interval == 0:
                 val_loss = validate(fabric, model, val_data)
+                if fabric.is_global_zero:
+                    wandb.log({"val_loss": val_loss}, commit=False)
                 fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
                 fabric.barrier()
 
@@ -119,7 +124,11 @@ def train(
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:
+            if fabric.is_global_zero:
+                wandb.log({"train_loss": loss.item(), "train_loss_n": loss.item() / gradient_accumulation_steps, "step": step_count, "epoch_pct": iter_num * micro_batch_size / 50000})
             fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
+
+example_outputs = []
 
 
 def generate_response(model, instruction):
@@ -158,6 +167,12 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     output = generate_response(model, instruction)
     fabric.print(instruction)
     fabric.print(output)
+    
+    if fabric.is_global_zero:
+        columns = ["output"]
+        example_outputs.append([output])
+        metrics = {"examples": wandb.Table(columns=columns, data=example_outputs)}
+        wandb.log(metrics)
 
     model.train()
     return out.item()
