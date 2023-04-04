@@ -7,7 +7,10 @@ from torch.distributed.fsdp import StateDictType, FullStateDictConfig
 
 
 def save_model_checkpoint(fabric, model, file_path):
-    """Handles boilerplate logic for retrieving and saving the state_dict."""
+    """Handles boilerplate logic for retrieving and saving the state_dict.
+    
+    This will be upstreamed to Fabric soon.
+    """
 
     if isinstance(fabric.strategy, FSDPStrategy):
         save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
