@@ -1,5 +1,8 @@
 """
-Instruction-tuning with LLaMA-Adapter on the Alpaca dataset.
+Instruction-tuning with LLaMA-Adapter on the Alpaca dataset following the paper
+
+LLaMA-Adapter: Efficient Fine-tuning of Language Models with Zero-init Attention
+https://arxiv.org/abs/2303.16199
 """
 import os
 import time
@@ -13,9 +16,8 @@ from lit_llama.adapter import LLaMA, LLaMAConfig, mark_only_adapter_as_trainable
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
 
-import wandb
 
-out_dir = "out/adapter/alternative"
+out_dir = "out/adapter/"
 eval_interval = 40
 save_interval = 200
 eval_iters = 100
@@ -38,9 +40,6 @@ def main():
     fabric = L.Fabric(accelerator="cuda", devices=1)
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
-
-    if fabric.is_global_zero:
-        wandb.init(project="llama-adapter", notes="")
 
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
@@ -105,26 +104,21 @@ def train(
                 
             if step_count % eval_interval == 0:
                 val_loss = validate(fabric, model, val_data)
-                if fabric.is_global_zero:
-                    wandb.log({"val_loss": val_loss}, commit=False)
                 fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
                 fabric.barrier()
 
             if step_count % save_interval == 0:
-                pass
-                # print(f"Saving adapter weights to {out_dir}")
+                print(f"Saving adapter weights to {out_dir}")
                 
                 # only save the adapter weights
-                # checkpoint = adapter_state_dict(model)
+                checkpoint = adapter_state_dict(model)
                 # TODO: Provide a function/script to merge the adapter weights with pretrained weights
-                # if fabric.is_global_zero:
-                #     torch.save(checkpoint, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"))
-                # fabric.barrier()
+                if fabric.is_global_zero:
+                    torch.save(checkpoint, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"))
+                fabric.barrier()
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:
-            if fabric.is_global_zero:
-                wandb.log({"train_loss": loss.item(), "train_loss_n": loss.item() / gradient_accumulation_steps, "step": step_count, "epoch_pct": iter_num * micro_batch_size / 50000})
             fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
 
 
@@ -146,9 +140,6 @@ def generate_response(model, instruction):
     return output # output.split("### Response:")[1].strip()
 
 
-example_outputs = []
-
-
 @torch.no_grad()
 def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> torch.Tensor:
     fabric.print("Validating ...")
@@ -167,12 +158,6 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     output = generate_response(model, instruction)
     fabric.print(instruction)
     fabric.print(output)
-
-    if fabric.is_global_zero:
-        columns = ["output"]
-        example_outputs.append([output])
-        metrics = {"examples": wandb.Table(columns=columns, data=example_outputs)}
-        wandb.log(metrics)
 
     model.train()
     return out.item()

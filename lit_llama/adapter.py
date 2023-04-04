@@ -169,11 +169,13 @@ class LLaMA(nn.Module):
 
 
 def mark_only_adapter_as_trainable(model: LLaMA) -> None:
+    """Sets `requires_grad=False` for all non-adapter weights."""
     for name, param in model.named_parameters():
         param.requires_grad = "adapter_wte" in name or "gating_factor" in name
 
 
 def adapter_state_dict(model: LLaMA) -> dict:
+    """Retrieve the model state dict with only the adapter weights for saving."""
     return {
         name: param for name, param in model.named_parameters() if "adapter_wte" in name or "gating_factor" in name
     }
