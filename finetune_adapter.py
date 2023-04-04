@@ -17,7 +17,7 @@ from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
 
 
-out_dir = "out/adapter/"
+out_dir = "out/adapter/full-training"
 eval_interval = 40
 save_interval = 200
 eval_iters = 100
