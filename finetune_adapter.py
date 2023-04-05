@@ -3,6 +3,9 @@ Instruction-tuning with LLaMA-Adapter on the Alpaca dataset following the paper
 
 LLaMA-Adapter: Efficient Fine-tuning of Language Models with Zero-init Attention
 https://arxiv.org/abs/2303.16199
+
+Note: If you run into a CUDA error "Expected is_sm80 to be true, but got false", install
+the PyTorch nightly version for a fix (see https://github.com/Lightning-AI/lit-llama/issues/101).
 """
 import os
 import time

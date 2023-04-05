@@ -1,5 +1,8 @@
 """
 Instruction-tuning with LoRA on the Alpaca dataset.
+
+Note: If you run into a CUDA error "Expected is_sm80 to be true, but got false", install
+the PyTorch nightly version for a fix (see https://github.com/Lightning-AI/lit-llama/issues/101).
 """
 import os
 import time
