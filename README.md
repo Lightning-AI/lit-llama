@@ -28,7 +28,7 @@ We believe that AI should be fully open source and part of the collective knowle
 
 The original [LLaMA code](https://github.com/facebookresearch/llama) is [GPL licensed](https://github.com/facebookresearch/llama/blob/main/LICENSE) which means any project using it must also be released under GPL.
 
-This "taints" any other code and prevents meaningful academic and commercial use.
+This "taints" any other code and prevents integration with the rest of the ecosystem.
 
 **Lit-LLaMA solves that for good.**
 
@@ -104,7 +104,7 @@ This will run the 7B model and require ~26 GB of GPU memory (A100 GPU).
 
 ### Run Lit-LLaMA on consumer devices
 
-For GPUs with less memory, enable quantization (`--quantize true`). This will take longer to load but require ~8GB of memory.
+For GPUs with less memory, enable quantization (`--quantize true`) or use bfloat16 (`--dtype bfloat16`). Quantization will take longer to load but require ~8GB of memory. bfloat16 is closer to the "full deal" and runs on ~10GB of GPU memory.
 This can run on any consumer GPU.
 
 ```bash
@@ -117,17 +117,22 @@ See `python generate.py --help` for more options.
 
 ## Finetune the model
 
-We provide a simple training script in `finetune_lora.py` that instruction-tunes a pretrained model on the [Alpaca](https://github.com/tatsu-lab/stanford_alpaca) dataset and also integrates [LoRA](https://arxiv.org/abs/2106.09685).
+We provide a simple training scripts in `finetune_lora.py` and `finetune_adapter.py` that instruction-tunes a pretrained model on the [Alpaca](https://github.com/tatsu-lab/stanford_alpaca) dataset using the techniques of [LoRA](https://arxiv.org/abs/2106.09685) and [Adapter](https://arxiv.org/abs/2303.16199).
 
 1. Download the data and generate a instruction tuning dataset:
 
    ```bash
    python scripts/prepare_alpaca.py
    ```
+
 2. Run the finetuning script
 
    ```bash
    python finetune_lora.py
+   ```
+   or 
+   ```bash
+   python finetune_adapter.py
    ```
 
 It is expected that you have downloaded the pretrained weights as described above.
