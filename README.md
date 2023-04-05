@@ -136,7 +136,7 @@ We provide a simple training scripts in `finetune_lora.py` and `finetune_adapter
    ```
 
 It is expected that you have downloaded the pretrained weights as described above.
-The finetuning requires a GPU with 40 GB memory (A100).
+The finetuning requires a GPU with ~24 GB memory (GTX 2090).
 Coming soon: LoRA + quantization for training on a consumer-grade GPU!
 
 
