@@ -177,7 +177,7 @@ def main(
         not output_path.exists() or output_path.is_file()
     )
 
-    fabric = L.Fabric(accelerator=accelerator, devices=1)
+    device = "cuda"
 
     if dtype is not None:
         dt = getattr(torch, dtype, None)
@@ -193,7 +193,7 @@ def main(
         raise RuntimeError(f"unknown/unsupported quantization mode {quantize}")
 
     with EmptyInitOnDevice(
-        device=fabric.device,
+        device=device,
         dtype=dtype,
     ):
         print("Loading model ...", file=sys.stderr)
@@ -210,22 +210,21 @@ def main(
 
     total_toks = 0
 
-    # careful, this messes with replacing modules in quantization
-    # model = fabric.setup_module(model)
-
     tokenizer = Tokenizer(tokenizer_path)
 
     test_string = get_sample_data()
     encoded_text = tokenizer.encode(
-        test_string, bos=True, eos=False, device=fabric.device
+        test_string,
+        bos=True,
+        eos=False,
     )
     block_size = 2048  # this is for compat with gptq, and indeed we get much worse beyond this (https://github.com/facebookresearch/llama/blob/57b0eb62de0636e75af471e49e2f1862d908d9d8/llama/model.py#L30)
     encoded_text = encoded_text[: n_samples * block_size].reshape(n_samples, block_size)
     t0 = time.perf_counter()
 
-    llama_blockwise_quantization(model, encoded_text, fabric.device, bits=bits)
+    llama_blockwise_quantization(model, encoded_text, device, bits=bits)
 
-    save_model_checkpoint(fabric, model, output_path)
+    torch.save(model.state_dict(), output_path)
 
     t = time.perf_counter() - t0
     print(
