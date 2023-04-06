@@ -52,6 +52,9 @@ class EmptyInitOnDevice(torch.overrides.TorchFunctionMode):
         elif self.quantization_mode == 'gptq.int4':
             from .quantization import ColBlockQuantizedLinear
             self.quantized_linear_cls = functools.partial(ColBlockQuantizedLinear, bits=4, tile_cols=-1)
+        elif self.quantization_mode == 'gptq.int8':
+            from .quantization import ColBlockQuantizedLinear
+            self.quantized_linear_cls = functools.partial(ColBlockQuantizedLinear, bits=8, tile_cols=-1)
         elif self.quantization_mode is not None:
             raise RuntimeError(f"unknown quantization mode {self.quantization_mode}")
         self.device = device

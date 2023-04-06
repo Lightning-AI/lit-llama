@@ -135,7 +135,6 @@ def llama_blockwise_quantization(
     handle.remove()
     q_module, error = gptq.quantize()
     model.lm_head = q_module
-    model._original_module.lm_head = q_module  # bleh.
     model.lm_head.to("cpu")
 
 
@@ -188,6 +187,8 @@ def main(
 
     if quantize == "gptq.int4":
         bits = 4
+    elif quantize == "gptq.int8":
+        bits = 8
     else:
         raise RuntimeError(f"unknown/unsupported quantization mode {quantize}")
 
@@ -208,7 +209,9 @@ def main(
     #     model = torch.compile(model)
 
     total_toks = 0
-    model = fabric.setup_module(model)
+
+    # careful, this messes with replacing modules in quantization
+    # model = fabric.setup_module(model)
 
     tokenizer = Tokenizer(tokenizer_path)
 
