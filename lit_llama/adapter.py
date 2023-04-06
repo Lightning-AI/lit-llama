@@ -21,6 +21,7 @@ class LLaMAConfig:
     n_layer: int = 32
     n_head: int = 32
     n_embd: int = 4096
+    complex_rope: bool = True
 
     adapter_prompt_length: int = 10
     adapter_start_layer: int = 2
@@ -51,6 +52,7 @@ class CausalSelfAttention(nn.Module):
         self.block_idx = block_idx
         self.adapter_prompt_length = config.adapter_prompt_length
         self.adapter_start_layer = config.adapter_start_layer
+        self.complex_rope = config.complex_rope
         self.rope_cache = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -71,6 +73,7 @@ class CausalSelfAttention(nn.Module):
                 n_elem=self.n_embd // self.n_head, 
                 dtype=self.c_attn.weight.dtype,
                 device=x.device,
+                complex=self.complex_rope,
             )
 
         q = apply_rope(q, self.rope_cache)

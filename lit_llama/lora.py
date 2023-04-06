@@ -211,6 +211,7 @@ class CausalSelfAttention(llama.CausalSelfAttention):
         self.n_head = config.n_head
         self.n_embd = config.n_embd
         self.block_size = config.block_size
+        self.complex_rope = config.complex_rope
         self.rope_cache = None
 
 

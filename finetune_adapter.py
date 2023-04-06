@@ -46,8 +46,7 @@ def main():
 
     train_data, val_data = load_datasets()
 
-    config = LLaMAConfig()
-    config.block_size = block_size
+    config = LLaMAConfig(block_size=block_size, complex_rope=False)
 
     checkpoint = torch.load("checkpoints/lit-llama/7B/state_dict.pth")
 
@@ -60,6 +59,8 @@ def main():
 
     num_params = sum([p.numel() for p in model.parameters() if p.requires_grad])
     print(f"Number of trainable parameters: {num_params}")
+
+    model = torch.compile(model)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     model, optimizer = fabric.setup(model, optimizer)

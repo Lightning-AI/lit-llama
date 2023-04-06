@@ -107,3 +107,21 @@ def test_bfloat16_llama_init(lit_llama, orig_llama) -> None:
 
     out = llama_model2(token_sample.cuda()).float().cpu()
     torch.testing.assert_close(out, expected, atol=5e-3, rtol=1e-3)
+
+
+def test_model_compile(lit_llama):
+    llama_config = lit_llama.LLaMAConfig(
+        block_size=8,
+        vocab_size=8,
+        n_layer=2,
+        n_head=2,
+        n_embd=4,
+        complex_rope=False,
+    )
+    model = lit_llama.LLaMA(llama_config)
+    model.apply(model._init_weights)
+
+    model = torch.compile(model)
+
+    sample = torch.ones(4, model.config.block_size, dtype=torch.int64)
+    _ = model(sample)

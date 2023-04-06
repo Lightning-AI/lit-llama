@@ -46,6 +46,7 @@ def main():
     train_data, val_data = load_datasets()
 
     config = LLaMAConfig.from_name("7B")
+    config.complex_rope = False  # enable torch.compile
     config.block_size = block_size
 
     with lora(r=lora_r, alpha=lora_alpha, dropout=lora_dropout, enabled=True):
@@ -56,6 +57,8 @@ def main():
     # strict=False because missing keys due to LoRA weights not contained in checkpoint state
     model.load_state_dict(checkpoint, strict=False) 
     mark_only_lora_as_trainable(model)
+
+    model = torch.compile(model)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
     model, optimizer = fabric.setup(model, optimizer)
