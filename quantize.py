@@ -13,7 +13,7 @@ import torch
 import tqdm
 
 from lit_llama import LLaMA, Tokenizer
-from lit_llama.utils import EmptyInitOnDevice, save_model_checkpoint
+from lit_llama.utils import EmptyInitOnDevice
 from lit_llama.quantization import GPTQQuantizer
 
 from datasets import load_dataset
