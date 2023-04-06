@@ -203,8 +203,6 @@ def main(
 
     model.eval()
 
-    # if compile:
-    #     model = torch.compile(model)
 
     total_toks = 0
 
