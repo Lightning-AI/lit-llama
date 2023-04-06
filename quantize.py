@@ -141,8 +141,6 @@ def llama_blockwise_quantization(
 def main(
     datasets: str = "wikitext,ptb,c4",
     *,
-    # compilation fails as it does not support torch.complex64 for RoPE
-    # compile: bool = False,
     accelerator: str = "auto",
     checkpoint_path: Optional[Path] = None,
     output_path: Optional[Path] = None,
