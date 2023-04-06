@@ -129,10 +129,10 @@ def copy_adapter_weights(llama_model, orig_llama_model) -> None:
 
 
 @torch.no_grad()
-def test_adapter_parity():
+def test_adapter_parity(orig_llama_adapter):
     """Test parity between our implementation of LLaMA-Adapter and the reference code."""
     import lit_llama.adapter as lit_llama
-    import original_adapter as orig_llama
+    orig_llama = orig_llama_adapter
     
     block_size = 32
     vocab_size = 100
