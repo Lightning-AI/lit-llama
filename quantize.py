@@ -154,8 +154,6 @@ def main(
     Args:
         datasets: The datasets to use as a comma separated string
         # compile: Whether to compile the model.
-        accelerator: The hardware to run on. Possible choices are:
-            ``"cpu"``, ``"cuda"``, ``"mps"``, ``"gpu"``, ``"tpu"``, ``"auto"``.
         checkpoint_path: The checkpoint path to load.
         output_path: Path to write the quantized model's state dict to.
         tokenizer_path: The tokenizer path to load.
