@@ -141,7 +141,6 @@ def llama_blockwise_quantization(
 def main(
     datasets: str = "wikitext,ptb,c4",
     *,
-    accelerator: str = "auto",
     checkpoint_path: Optional[Path] = None,
     output_path: Optional[Path] = None,
     tokenizer_path: Optional[Path] = None,
