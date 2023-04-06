@@ -1,4 +1,6 @@
-# mypy: ignore-errors
+# From https://github.com/ZrrSkywalker/LLaMA-Adapter/blob/main/llama/model.py
+# Used only for parity testing.
+
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # This software may be used and distributed according to the terms of the GNU General Public License version 3.
 
@@ -22,6 +24,9 @@ class ModelArgs:
 
     max_batch_size: int = 32
     max_seq_len: int = 2048
+
+    adapter_len: int=10
+    adapter_layer: int=8
 
 
 class RMSNorm(torch.nn.Module):
@@ -49,7 +54,7 @@ def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
 def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
     ndim = x.ndim
     assert 0 <= 1 < ndim
-    assert freqs_cis.shape == (x.shape[1], x.shape[-1]), f"{freqs_cis.shape} {x.shape}"
+    assert freqs_cis.shape == (x.shape[1], x.shape[-1])
     shape = [d if i == 1 or i == ndim - 1 else 1 for i, d in enumerate(x.shape)]
     return freqs_cis.view(*shape)
 
@@ -101,8 +106,9 @@ class Attention(nn.Module):
         self.cache_v = torch.zeros(
             (args.max_batch_size, args.max_seq_len, self.n_local_heads, self.head_dim)
         )
+        self.gate = torch.nn.Parameter(torch.zeros(1))
 
-    def forward(self, x: torch.Tensor, start_pos: int, freqs_cis: torch.Tensor, mask: Optional[torch.Tensor]):
+    def forward(self, x: torch.Tensor, start_pos: int, freqs_cis: torch.Tensor, mask: Optional[torch.Tensor], adapter=None):
         bsz, seqlen, _ = x.shape
         xq, xk, xv = self.wq(x), self.wk(x), self.wv(x)
 
@@ -121,6 +127,12 @@ class Attention(nn.Module):
         keys = self.cache_k[:bsz, : start_pos + seqlen]
         values = self.cache_v[:bsz, : start_pos + seqlen]
 
+        if adapter is not None:
+           adapter_len = adapter.shape[1]
+           adapter_k = self.wk(adapter).view(1, adapter_len, self.n_local_heads, self.head_dim).repeat(bsz, 1, 1, 1)
+           adapter_v = self.wv(adapter).view(1, adapter_len, self.n_local_heads, self.head_dim).repeat(bsz, 1, 1, 1)
+           adapter_k = adapter_k.transpose(1, 2)
+           adapter_v = adapter_v.transpose(1, 2)
         xq = xq.transpose(1, 2)
         keys = keys.transpose(1, 2)
         values = values.transpose(1, 2)
@@ -129,6 +141,10 @@ class Attention(nn.Module):
             scores = scores + mask  # (bs, n_local_heads, slen, cache_len + slen)
         scores = F.softmax(scores.float(), dim=-1).type_as(xq)
         output = torch.matmul(scores, values)  # (bs, n_local_heads, slen, head_dim)
+        if adapter is not None:
+            adapter_scores = torch.matmul(xq, adapter_k.transpose(2, 3)) / math.sqrt(self.head_dim)
+            adapter_scores = self.gate * F.softmax(adapter_scores.float(), dim=-1).type_as(xq)
+            output = output + torch.matmul(adapter_scores, adapter_v)
         output = output.transpose(
             1, 2
         ).contiguous().view(bsz, seqlen, -1)
@@ -175,8 +191,8 @@ class TransformerBlock(nn.Module):
         self.attention_norm = RMSNorm(args.dim, eps=args.norm_eps)
         self.ffn_norm = RMSNorm(args.dim, eps=args.norm_eps)
 
-    def forward(self, x: torch.Tensor, start_pos: int, freqs_cis: torch.Tensor, mask: Optional[torch.Tensor]):
-        h = x + self.attention.forward(self.attention_norm(x), start_pos, freqs_cis, mask)
+    def forward(self, x: torch.Tensor, start_pos: int, freqs_cis: torch.Tensor, mask: Optional[torch.Tensor], adapter=None):
+        h = x + self.attention.forward(self.attention_norm(x), start_pos, freqs_cis, mask, adapter)
         out = h + self.feed_forward.forward(self.ffn_norm(h))
         return out
 
@@ -204,20 +220,27 @@ class Transformer(nn.Module):
         self.freqs_cis = precompute_freqs_cis(
             self.params.dim // self.params.n_heads, self.params.max_seq_len * 2
         )
+        self.adapter_query = nn.Embedding(params.adapter_len * params.adapter_layer, params.dim)
+        self.adapter_len = params.adapter_len
+        self.adapter_layer = params.adapter_layer
 
-    def forward(self, tokens: torch.Tensor, start_pos: int=0):
+    def forward(self, tokens: torch.Tensor, start_pos: int):
         _bsz, seqlen = tokens.shape
         h = self.tok_embeddings(tokens)
         self.freqs_cis = self.freqs_cis.to(h.device)
         freqs_cis = self.freqs_cis[start_pos : start_pos + seqlen]
-
+        prompt = self.adapter_query.weight.reshape(self.params.adapter_layer, self.params.adapter_len, self.params.dim).unsqueeze(1)
         mask = None
         if seqlen > 1:
             mask = torch.full((1, 1, seqlen, seqlen), float("-inf"), device=tokens.device)
             mask = torch.triu(mask, diagonal=start_pos + 1).type_as(h)
 
-        for layer in self.layers:
+        for layer in self.layers[: -1 * self.params.adapter_layer]:
             h = layer(h, start_pos, freqs_cis, mask)
+        layer_index = 0
+        for layer in self.layers[-1 * self.params.adapter_layer:]:
+            h = layer(h, start_pos, freqs_cis, mask, prompt[layer_index])
+            layer_index = layer_index + 1
         h = self.norm(h)
         output = self.output(h)
         return output.float()
