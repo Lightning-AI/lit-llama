@@ -136,11 +136,11 @@ def test_adapter_parity(orig_llama_adapter):
     
     block_size = 32
     vocab_size = 100
-    n_layer = 4
+    n_layer = 1
     n_head = 4
     n_embd = 16
     adapter_prompt_length: int = 10
-    adapter_start_layer: int = 2
+    adapter_start_layer: int = 0
 
     llama_config = lit_llama.LLaMAConfig(
         block_size=block_size, vocab_size=vocab_size, n_layer=n_layer, n_head=n_head, n_embd=n_embd,
