@@ -82,6 +82,8 @@ def meta_weights_for_nano_model(
         dtype = torch.float32
     elif precision == 16:
         dtype = torch.bfloat16
+    else:
+        raise ValueError(f"Unsupported precision {precision}. Possible values: 16, 32.")
 
     # the tokenizer is the same for all model sizes, so we store it in the parent dir
     if "tokenizer.model" not in os.listdir(output_dir.parent):
