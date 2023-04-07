@@ -10,8 +10,7 @@ from dataclasses import dataclass
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from lit_llama.model import RMSNorm, MLP
-from lit_llama.model import build_rope_cache, apply_rope
+from lit_llama.model import build_rope_cache, apply_rope, RMSNorm, MLP
 
 
 @dataclass
