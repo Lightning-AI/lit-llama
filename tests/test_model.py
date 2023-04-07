@@ -127,20 +127,11 @@ def copy_adapter_weights(llama_model, orig_llama_model) -> None:
             llama_block.attn.adapter_wte.weight.copy_(orig_adapter_wte[index])
             index += 1
 
+
 def enable_gate(model):
     for name, param in model.named_parameters():
         if "gating_factor" in name or "gate" in name:
             param.fill_(1)
-
-
-    # for llama_block in llama_model.transformer.h:
-    #     if hasattr(llama_block.attn, "gating_factor"):
-    #         llama_block.attn.gating_factor.fill_(1)
-    
-    # for orig_llama_block in orig_llama_model.layers:
-    #     if hasattr(llama_block.attn, "gating_factor"):
-    #         llama_block.attn.gating_factor.fill_(1)
-
 
 
 @torch.no_grad()
@@ -185,6 +176,4 @@ def test_adapter_parity(orig_llama_adapter):
 
     expected = orig_llama_model(token_sample, 0)
     out = llama_model(token_sample)
-    # assert torch.equal(llama_model.transformer.h[0].attn.att_out, orig_llama_model.layers[0].attention.att_out)
-
     assert torch.allclose(out, expected)
