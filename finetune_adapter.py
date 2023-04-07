@@ -13,12 +13,16 @@ import time
 import lightning as L
 import numpy as np
 import torch
+from functools import partial
 
 from generate import generate
-from lit_llama.adapter import LLaMA, LLaMAConfig, mark_only_adapter_as_trainable, adapter_state_dict
+from lit_llama.adapter import LLaMA, LLaMAConfig, mark_only_adapter_as_trainable, adapter_state_dict, Block
 from lit_llama.tokenizer import Tokenizer
 from lit_llama.utils import EmptyInitOnDevice
 from scripts.prepare_alpaca import generate_prompt
+from lightning.fabric.strategies import FSDPStrategy
+from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
+
 import wandb
 
 out_dir = "out/adapter/full-training"
@@ -29,24 +33,27 @@ log_interval = 1
 
 # Hyperparameters
 learning_rate = 9e-3
-batch_size = 64
-micro_batch_size = 4
-gradient_accumulation_steps = batch_size // micro_batch_size
+# batch_size = 64 / 8
+micro_batch_size = 8
+gradient_accumulation_steps = 1  # batch_size // micro_batch_size
 epoch_size = 50000  # train dataset size
 num_epochs = 100
-max_iters = epoch_size * num_epochs // micro_batch_size  # 5 epochs
+max_iters = 1000000  # 5 epochs
 weight_decay = 0.02
 block_size = 256
-warmup_steps = epoch_size * 2 // micro_batch_size  # 2 epochs
+warmup_steps = epoch_size * 2 // micro_batch_size // 8  # 2 epochs
 
 
 def main():
-    fabric = L.Fabric(accelerator="cuda", devices=1, precision="bf16-mixed")
+    auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
+    strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy)
+
+    fabric = L.Fabric(accelerator="cuda", devices=8, precision="bf16-mixed", strategy=strategy)
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
     if fabric.is_global_zero:
-        wandb.init(project="llama-adapter", notes="")
+        wandb.init(project="llama-adapter", notes="FSDP")
 
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
@@ -68,8 +75,11 @@ def main():
     num_params = sum([p.numel() for p in model.parameters() if p.requires_grad])
     print(f"Number of trainable parameters: {num_params}")
 
+    # model, optimizer = fabric.setup(model, optimizer)
+
+    model = fabric.setup_module(model)
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    model, optimizer = fabric.setup(model, optimizer)
+    optimizer = fabric.setup_optimizers(optimizer)
     train(fabric, model, optimizer, train_data, val_data)
 
 
@@ -117,14 +127,15 @@ def train(
                 fabric.barrier()
 
             if step_count % save_interval == 0:
+                pass
                 print(f"Saving adapter weights to {out_dir}")
                 
                 # only save the adapter weights for smaller checkpoint files
-                checkpoint = adapter_state_dict(model)
+                # checkpoint = adapter_state_dict(model)
                 # TODO: Provide a function/script to merge the adapter weights with pretrained weights
-                if fabric.is_global_zero:
-                    torch.save(checkpoint, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"))
-                fabric.barrier()
+                # if fabric.is_global_zero:
+                    # torch.save(checkpoint, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"))
+                # fabric.barrier()
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:
