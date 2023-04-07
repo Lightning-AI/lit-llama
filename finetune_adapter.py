@@ -26,29 +26,29 @@ from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 import wandb
 
 out_dir = "out/adapter/full-training"
-eval_interval = 50000
-save_interval = 50000
+eval_interval = 200
+save_interval = 200
 eval_iters = 100
 log_interval = 1
 
 # Hyperparameters
 learning_rate = 9e-3
-# batch_size = 64 / 8
-micro_batch_size = 8
-gradient_accumulation_steps = 1  # batch_size // micro_batch_size
+batch_size = 64
+micro_batch_size = 4
+gradient_accumulation_steps = batch_size // micro_batch_size
 epoch_size = 50000  # train dataset size
 num_epochs = 100
-max_iters = 1000000  # 5 epochs
+max_iters = epoch_size * 5 // micro_batch_size  # 5 epochs
 weight_decay = 0.02
 block_size = 256
-warmup_steps = epoch_size * 2 // micro_batch_size // 8  # 2 epochs
+warmup_steps = 100
 
 
 def main():
     # auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
     # strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, use_orig_params=True)
 
-    fabric = L.Fabric(accelerator="cuda", devices=8, precision="bf16-mixed", strategy="deepspeed_stage_2")
+    fabric = L.Fabric(accelerator="cuda", devices=1, precision="bf16-mixed")
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
@@ -160,6 +160,8 @@ def generate_response(model, instruction):
         idx=encoded,
         max_seq_length=block_size,
         max_new_tokens=100,
+        temperature=0.1,
+        top_k=100,
     )
     output = tokenizer.decode(output[0].cpu())
     return output # output.split("### Response:")[1].strip()
