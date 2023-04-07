@@ -44,7 +44,7 @@ class CausalSelfAttention(nn.Module):
             # adapter embedding layer
             self.adapter_wte = nn.Embedding(config.adapter_prompt_length, config.n_embd)
             # gate for adaption
-            self.gating_factor = torch.nn.Parameter(torch.ones(1))
+            self.gating_factor = torch.nn.Parameter(torch.zeros(1))
 
         self.n_head = config.n_head
         self.n_embd = config.n_embd
@@ -94,10 +94,10 @@ class CausalSelfAttention(nn.Module):
             _, ak, av = self.c_attn(prefix).split(self.n_embd, dim=2)
             ak = ak.view(1, aT, self.n_head, head_size).repeat(B, 1, 1, 1).transpose(1, 2)
             av = av.view(1, aT, self.n_head, head_size).repeat(B, 1, 1, 1).transpose(1, 2)
+            
             ascores = torch.matmul(q, ak.transpose(2, 3)) / math.sqrt(head_size)
             ascores = self.gating_factor * F.softmax(ascores.float(), dim=-1).type_as(q)
             y = y + torch.matmul(ascores, av)
-           
 
         y = y.transpose(1, 2).contiguous().view(B, T, C)  # re-assemble all head outputs side by side
 
