@@ -26,8 +26,8 @@ from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 import wandb
 
 out_dir = "out/adapter/full-training"
-eval_interval = 40
-save_interval = 200
+eval_interval = 50000
+save_interval = 50000
 eval_iters = 100
 log_interval = 1
 
@@ -45,10 +45,10 @@ warmup_steps = epoch_size * 2 // micro_batch_size // 8  # 2 epochs
 
 
 def main():
-    auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
-    strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy)
+    # auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
+    # strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, use_orig_params=True)
 
-    fabric = L.Fabric(accelerator="cuda", devices=8, precision="bf16-mixed", strategy=strategy)
+    fabric = L.Fabric(accelerator="cuda", devices=8, precision="bf16-mixed", strategy="deepspeed_stage_2")
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
@@ -75,11 +75,12 @@ def main():
     num_params = sum([p.numel() for p in model.parameters() if p.requires_grad])
     print(f"Number of trainable parameters: {num_params}")
 
-    # model, optimizer = fabric.setup(model, optimizer)
-
-    model = fabric.setup_module(model)
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    optimizer = fabric.setup_optimizers(optimizer)
+    model, optimizer = fabric.setup(model, optimizer)
+
+    # model = fabric.setup_module(model)
+    
+    # optimizer = fabric.setup_optimizers(optimizer)
     train(fabric, model, optimizer, train_data, val_data)
 
 
