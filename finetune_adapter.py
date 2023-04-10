@@ -20,22 +20,22 @@ from lit_llama.adapter import LLaMA, LLaMAConfig, mark_only_adapter_as_trainable
 from lit_llama.tokenizer import Tokenizer
 from lit_llama.utils import EmptyInitOnDevice
 from scripts.prepare_alpaca import generate_prompt
-from lightning.fabric.strategies import FSDPStrategy
+from lightning.fabric.strategies import FSDPStrategy, DeepSpeedStrategy
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 
 import wandb
 
 out_dir = "out/adapter/full-training"
-eval_interval = 50000
-save_interval = 50000
+eval_interval = 1000
+save_interval = 1000
 eval_iters = 100
 log_interval = 1
 
 # Hyperparameters
 learning_rate = 9e-3
-# batch_size = 64 / 8
-micro_batch_size = 8
-gradient_accumulation_steps = 1  # batch_size // micro_batch_size
+batch_size = 64 / 8
+micro_batch_size = 2
+gradient_accumulation_steps = batch_size // micro_batch_size
 epoch_size = 50000  # train dataset size
 num_epochs = 100
 max_iters = 1000000  # 5 epochs
@@ -43,17 +43,20 @@ weight_decay = 0.02
 block_size = 256
 warmup_steps = epoch_size * 2 // micro_batch_size // 8  # 2 epochs
 
+ds_config = {
+    "train_micro_batch_size_per_gpu": micro_batch_size,
+    "gradient_accumulation_steps": gradient_accumulation_steps,
+    "zero_optimization": {"stage": 2},
+}
+
 
 def main():
-    # auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
-    # strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, use_orig_params=True)
-
-    fabric = L.Fabric(accelerator="cuda", devices=8, precision="bf16-mixed", strategy="deepspeed_stage_2")
+    fabric = L.Fabric(accelerator="cuda", devices=8, strategy=DeepSpeedStrategy(config=ds_config), precision="bf16")
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
     if fabric.is_global_zero:
-        wandb.init(project="llama-adapter", notes="FSDP")
+        wandb.init(project="llama-adapter", notes="deepspeed with bfloat16")
 
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
@@ -65,8 +68,10 @@ def main():
 
     checkpoint = torch.load("checkpoints/lit-llama/7B/state_dict.pth")
 
-    with EmptyInitOnDevice(device=fabric.device, dtype=torch.bfloat16):
-        model = LLaMA(config)
+    with fabric.device:
+    # with fabric.sharded_model():
+    # with EmptyInitOnDevice(device=fabric.device, dtype=torch.bfloat16):
+        model = LLaMA(config).bfloat16()
         # strict=False because missing keys due to adapter weights not containted in state dict
         model.load_state_dict(checkpoint, strict=False)
     
@@ -160,6 +165,7 @@ def generate_response(model, instruction):
         idx=encoded,
         max_seq_length=block_size,
         max_new_tokens=100,
+        temperature=0.1,
     )
     output = tokenizer.decode(output[0].cpu())
     return output # output.split("### Response:")[1].strip()
