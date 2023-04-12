@@ -13,35 +13,33 @@ import time
 import lightning as L
 import numpy as np
 import torch
-from functools import partial
 
 from generate import generate
 from lit_llama.adapter import LLaMA, LLaMAConfig, mark_only_adapter_as_trainable, adapter_state_dict, Block
 from lit_llama.tokenizer import Tokenizer
-from lit_llama.utils import EmptyInitOnDevice
 from scripts.prepare_alpaca import generate_prompt
-from lightning.fabric.strategies import FSDPStrategy, DeepSpeedStrategy
-from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
+from lightning.fabric.strategies import DeepSpeedStrategy
 
 import wandb
 
-out_dir = "out/adapter/full-training"
-eval_interval = 1000
+out_dir = "out/adapter/full-training-ds"
+eval_interval = 600
 save_interval = 1000
 eval_iters = 100
 log_interval = 1
+devices = 8
 
 # Hyperparameters
 learning_rate = 9e-3
-batch_size = 128 / 8
-micro_batch_size = 2
+batch_size = 64 / devices
+micro_batch_size = 8
 gradient_accumulation_steps = batch_size // micro_batch_size
 epoch_size = 50000  # train dataset size
-num_epochs = 100
-max_iters = 1000000  # 5 epochs
+num_epochs = 5
+max_iters = num_epochs * epoch_size // devices  # 5 epochs
 weight_decay = 0.02
 block_size = 512
-warmup_steps = epoch_size * 2 // micro_batch_size // 8  # 2 epochs
+warmup_steps = epoch_size * 2 // micro_batch_size // devices  # 2 epochs
 
 ds_config = {
     "train_micro_batch_size_per_gpu": micro_batch_size,
@@ -51,7 +49,7 @@ ds_config = {
 
 
 def main():
-    fabric = L.Fabric(accelerator="cuda", devices=8, strategy=DeepSpeedStrategy(config=ds_config), precision="bf16")
+    fabric = L.Fabric(accelerator="cuda", devices=devices, strategy=DeepSpeedStrategy(config=ds_config), precision="bf16")
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
@@ -69,8 +67,6 @@ def main():
     checkpoint = torch.load("checkpoints/lit-llama/7B/state_dict.pth")
 
     with fabric.device:
-    # with fabric.sharded_model():
-    # with EmptyInitOnDevice(device=fabric.device, dtype=torch.bfloat16):
         model = LLaMA(config).bfloat16()
         # strict=False because missing keys due to adapter weights not containted in state dict
         model.load_state_dict(checkpoint, strict=False)
@@ -82,11 +78,11 @@ def main():
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     model, optimizer = fabric.setup(model, optimizer)
-
-    # model = fabric.setup_module(model)
-    
-    # optimizer = fabric.setup_optimizers(optimizer)
     train(fabric, model, optimizer, train_data, val_data)
+
+    # save at end of training
+    checkpoint = {"model": model, "optimizer": optimizer}
+    fabric.save(os.path.join(out_dir, f"alpaca-adapter-finetuned.pt"), checkpoint)
 
 
 def train(
@@ -104,8 +100,10 @@ def train(
 
     # initial validation
     val_loss = validate(fabric, model, val_data)
-    if fabric.is_global_zero:
-        wandb.log({"val_loss": val_loss})
+
+    # sanity check that saving works
+    checkpoint = {"model": model, "optimizer": optimizer}
+    fabric.save(os.path.join(out_dir, f"sanity.pt"), checkpoint)
 
     # training
     for iter_num in range(max_iters):
@@ -133,14 +131,13 @@ def train(
                 
             if step_count % eval_interval == 0:
                 val_loss = validate(fabric, model, val_data)
-                if fabric.is_global_zero:
-                    wandb.log({"val_loss": val_loss}, commit=False)
                 fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
                 fabric.barrier()
 
-            if step_count % save_interval == 0:
-                pass
-                print(f"Saving adapter weights to {out_dir}")
+            # if step_count % save_interval == 0:
+            #     pass
+            #     print(f"Saving adapter weights to {out_dir}")
+                
                 
                 # only save the adapter weights for smaller checkpoint files
                 # checkpoint = adapter_state_dict(model)
@@ -155,10 +152,10 @@ def train(
                 wandb.log({
                     "train_loss": loss.item(), 
                     "train_loss_n": loss.item() / gradient_accumulation_steps,
-                    "perplexity": torch.exp(loss).item(),
-                    "perplexity_n": torch.exp(loss / gradient_accumulation_steps).item(),
+                    "train_ppl": torch.exp(loss).item(),
+                    "train_ppl_n": torch.exp(loss / gradient_accumulation_steps).item(),
                     "step": step_count, 
-                    "epoch_pct": iter_num * micro_batch_size / 50000
+                    # "epoch_pct": iter_num * micro_batch_size / 50000
                 })
             fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
 
@@ -191,7 +188,7 @@ def generate_response_batch(model, input_ids):
         idx=input_ids,
         max_seq_length=block_size,
         max_new_tokens=100,
-        temperature=0.1,
+        temperature=0.8,
     )
     output = [tokenizer.decode(output[k].cpu()) for k in range(len(output))]
     # targets = [tokenizer.decode(targets[k].cpu()) for k in range(len(targets))]
@@ -208,7 +205,7 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
         logits = model(input_ids)
         loss = loss_fn(logits, targets)
         losses[k] = loss.item()
-    out = losses.mean()
+    val_loss = losses.mean()
 
     # get an additional batch for logging responses
     input_ids, targets = get_batch(fabric, val_data)
@@ -223,12 +220,16 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     
     if fabric.is_global_zero:
         columns = ["output"]
-        example_outputs.append([text_output])
+        example_outputs.extend([[txt] for txt in text_output])
         metrics = {"examples": wandb.Table(columns=columns, data=example_outputs)}
-        wandb.log(metrics)
+        wandb.log(metrics, commit=False)
+
+    val_ppl = torch.exp(val_loss)
+    if fabric.is_global_zero:
+        wandb.log({"val_loss": val_loss, "val_ppl": val_ppl}, commit=False)
 
     model.train()
-    return out.item()
+    return val_loss.item()
 
 def loss_fn(logits, targets):
     # shift the targets such that output n predicts token n+1
