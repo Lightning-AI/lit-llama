@@ -19,19 +19,19 @@ from scripts.prepare_alpaca import generate_prompt
 
 
 out_dir = "out/alpaca-lora-long-right-pad"
-eval_interval = 20
-save_interval = 20
+eval_interval = 100
+save_interval = 100
 eval_iters = 100
 log_interval = 1
 
 # Hyperparameters
 learning_rate = 3e-4
 batch_size = 128
-micro_batch_size = 8
+micro_batch_size = 4
 gradient_accumulation_steps = batch_size // micro_batch_size
 max_iters = 50000 * 3 // micro_batch_size
 weight_decay = 0.0
-block_size = 512
+block_size = 256
 lora_r = 8
 lora_alpha = 16
 lora_dropout = 0.05
