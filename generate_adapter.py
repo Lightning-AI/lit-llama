@@ -15,10 +15,9 @@ from scripts.prepare_alpaca import generate_prompt
 
 
 def main(
-    prompt: str,
-    adapter_path: Path,
-    *,
+    prompt: str = "What food do lamas eat?",
     input: str = "",
+    adapter_path: Optional[Path] = None,
     pretrained_path: Optional[Path] = None,
     tokenizer_path: Optional[Path] = None,
     quantize: Optional[str] = None,
@@ -49,12 +48,15 @@ def main(
         accelerator: The hardware to run on. Possible choices are:
             ``"cpu"``, ``"cuda"``, ``"mps"``, ``"gpu"``, ``"tpu"``, ``"auto"``.
     """
+    if not adapter_path:
+        adapter_path = Path("out/adapter/alpaca/alpaca-adapter-finetuned.pt")
     if not pretrained_path:
         pretrained_path = Path(f"./checkpoints/lit-llama/7B/state_dict.pth")
     if not tokenizer_path:
         tokenizer_path = Path("./checkpoints/lit-llama/tokenizer.model")
-    assert pretrained_path.is_file()
+    
     assert adapter_path.is_file()
+    assert pretrained_path.is_file()
     assert tokenizer_path.is_file()
 
     fabric = L.Fabric(accelerator=accelerator, devices=1)
