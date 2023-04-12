@@ -1,20 +1,21 @@
 import sys
 import time
+import warnings
 from pathlib import Path
 from typing import Optional
 
 import lightning as L
 import torch
 
+from generate import generate
 from lit_llama import Tokenizer
 from lit_llama.adapter import LLaMA, LLaMAConfig
 from lit_llama.utils import EmptyInitOnDevice
-from generate import generate
 from scripts.prepare_alpaca import generate_prompt
 
 
 def main(
-    prompt: str = "Hello, my name is",
+    prompt: str = "What food do lamas eat?",
     *,
     input: str = "",
     max_new_tokens: int = 100,
@@ -42,7 +43,8 @@ def main(
         accelerator: The hardware to run on. Possible choices are:
             ``"cpu"``, ``"cuda"``, ``"mps"``, ``"gpu"``, ``"tpu"``, ``"auto"``.
         pretrained_path: The path to the checkpoint with pretrained LLaMA weights.
-        adapter_path: Path to the checkpoint with trained adapter weights.
+        adapter_path: Path to the checkpoint with trained adapter weights, which are the output of
+            `finetune_adapter.py`.
         tokenizer_path: The tokenizer path to load.
         quantize: Whether to quantize the model and using which method:
             ``"llm.int8"``: LLM.int8() mode,
@@ -113,7 +115,7 @@ def main(
 
 def truncate_output_to_eos(output, eos_id):
     # The end of the response is where the model generates the EOS token
-    # TODO: Make ths more efficient, terminate generation early
+    # TODO: Make this more efficient, terminate generation early
     try:
         eos_pos = output.tolist().index(eos_id)
     except ValueError:
@@ -127,4 +129,8 @@ if __name__ == "__main__":
     from jsonargparse import CLI
 
     torch.set_float32_matmul_precision("high")
+    warnings.filterwarnings(
+        "ignore", 
+        message="ComplexHalf support is experimental and many operators don't support it yet"
+    )
     CLI(main)
