@@ -6,10 +6,8 @@ from typing import Optional
 import lightning as L
 import torch
 
-from lit_llama import Tokenizer
-from lit_llama.adapter import LLaMA, LLaMAConfig
+from lit_llama import LLaMA, Tokenizer
 from lit_llama.utils import EmptyInitOnDevice
-from scripts.prepare_alpaca import generate_prompt
 
 
 @torch.no_grad()
@@ -63,26 +61,6 @@ def generate(
         idx[:, t:] = idx_next
 
     return idx
-
-
-def generate_response(model, instruction, input="", max_new_tokens=50):
-    tokenizer = Tokenizer("checkpoints/lit-llama/tokenizer.model")
-    sample = {"instruction": instruction, "input": input}
-    prompt = generate_prompt(sample)
-    encoded = tokenizer.encode(prompt, bos=True, eos=False)
-    encoded = encoded[None, :]  # add batch dimension
-    encoded = encoded.to(model.device)
-
-    output = generate(
-        model,
-        idx=encoded,
-        max_seq_length=max_new_tokens,
-        max_new_tokens=100,
-        temperature=0.1,
-    )
-    output = tokenizer.decode(output[0].cpu())
-    return output.split("### Response:")[1].strip()
-
 
 
 def main(
@@ -139,11 +117,9 @@ def main(
     ):
         print("Loading model ...", file=sys.stderr)
         t0 = time.time()
-        model = LLaMA(LLaMAConfig())
-        pretrained_checkpoint = torch.load(f"./checkpoints/lit-llama/{model_size}/state_dict.pth")
-        model.load_state_dict(pretrained_checkpoint, strict=False)
+        model = LLaMA.from_name(model_size)
         checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint, strict=False)
+        model.load_state_dict(checkpoint)
         print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
@@ -161,17 +137,15 @@ def main(
     t0 = time.perf_counter()
 
     for _ in range(num_samples):
-        print(prompt)
-        print(generate_response(model, instruction=prompt, max_new_tokens=max_new_tokens))
-        # y = generate(
-        #     model,
-        #     encoded_prompt,
-        #     max_new_tokens,
-        #     model.config.block_size,  # type: ignore[union-attr,arg-type]
-        #     temperature=temperature,
-        #     top_k=top_k,
-        # )[0]  # unpack batch dimension
-        # print(tokenizer.decode(y))
+        y = generate(
+            model,
+            encoded_prompt,
+            max_new_tokens,
+            model.config.block_size,  # type: ignore[union-attr,arg-type]
+            temperature=temperature,
+            top_k=top_k,
+        )[0]  # unpack batch dimension
+        print(tokenizer.decode(y))
 
     t = time.perf_counter() - t0
     print(f"\n\nTime for inference: {t:.02f} sec total, {num_samples * max_new_tokens / t:.02f} tokens/sec", file=sys.stderr)
