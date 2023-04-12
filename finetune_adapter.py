@@ -27,7 +27,7 @@ eval_interval = 600
 save_interval = 1000
 eval_iters = 100
 log_interval = 1
-devices = 8
+devices = 6
 
 # Hyperparameters
 learning_rate = 9e-3
@@ -183,16 +183,16 @@ def generate_response(model, instruction, input=""):
 def generate_response_batch(model, input_ids):
     tokenizer = Tokenizer("checkpoints/lit-llama/tokenizer.model")
 
-    output = generate(
+    output = [generate(
         model,
-        idx=input_ids,
+        idx=idx[None, :],
         max_seq_length=block_size,
         max_new_tokens=100,
         temperature=0.8,
-    )
-    output = [tokenizer.decode(output[k].cpu()) for k in range(len(output))]
-    # targets = [tokenizer.decode(targets[k].cpu()) for k in range(len(targets))]
-    return output # output.split("### Response:")[1].strip()
+    ) for idx in input_ids]
+    output = [tokenizer.decode(output[k][0].cpu()) for k in range(len(output))]
+    input = [tokenizer.decode(input_ids[k].cpu()) for k in range(len(input_ids))]
+    return input, output # output.split("### Response:")[1].strip()
 
 
 @torch.no_grad()
@@ -208,8 +208,8 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     val_loss = losses.mean()
 
     # get an additional batch for logging responses
-    input_ids, targets = get_batch(fabric, val_data)
-    text_output = generate_response_batch(model, input_ids)
+    input_ids = get_test_samples(fabric, val_data)
+    text_input, text_output = generate_response_batch(model, input_ids)
 
     # # produce an example:
     # instruction = "Recommend a movie for me to watch during the weekend and explain the reason."
@@ -219,8 +219,8 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     # fabric.print(output)
     
     if fabric.is_global_zero:
-        columns = ["output"]
-        example_outputs.extend([[txt] for txt in text_output])
+        columns = ["input", "output"]
+        example_outputs.extend([[txt, txt_out] for txt, txt_out in zip(text_input, text_output)])
         metrics = {"examples": wandb.Table(columns=columns, data=example_outputs)}
         wandb.log(metrics, commit=False)
 
@@ -256,6 +256,13 @@ def get_batch(fabric: L.Fabric, data: list):
     y = torch.stack([pad_right(x, pad_id=-1) for x in labels])
     x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
     return x, y
+
+
+def get_test_samples(fabric: L.Fabric, data: list):
+    ix = torch.randint(len(data), (micro_batch_size,))
+    input_ids = [data[i]["input_ids_no_response"].type(torch.int64) for i in ix]
+    input_ids = fabric.to_device(input_ids)
+    return input_ids
 
 
 def load_datasets(data_dir: str = "data/alpaca"):
