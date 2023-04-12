@@ -22,7 +22,7 @@ from lightning.fabric.strategies import DeepSpeedStrategy
 
 import wandb
 
-out_dir = "out/adapter/full-training-ds"
+out_dir = "out/adapter/full-training-good"
 eval_interval = 600
 save_interval = 1000
 eval_iters = 100
@@ -102,7 +102,7 @@ def train(
     val_loss = validate(fabric, model, val_data)
 
     # sanity check that saving works
-    checkpoint = {"model": model, "optimizer": optimizer}
+    checkpoint = {"model": model}  # , "optimizer": optimizer}
     fabric.save(os.path.join(out_dir, f"sanity.pt"), checkpoint)
 
     # training
@@ -145,6 +145,10 @@ def train(
                 # if fabric.is_global_zero:
                     # torch.save(checkpoint, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"))
                 # fabric.barrier()
+
+        if iter_num in (1000, 2000):
+            checkpoint = {"model": model}
+            fabric.save(os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"), checkpoint)
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:
