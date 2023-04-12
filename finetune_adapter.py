@@ -25,6 +25,7 @@ from scripts.prepare_alpaca import generate_prompt
 from lightning.fabric.strategies import DeepSpeedStrategy
 
 
+pretrained_path = "checkpoints/lit-llama/7B/state_dict.pth"
 out_dir = "out/adapter/alpaca"
 eval_interval = 600
 save_interval = 1000
@@ -71,7 +72,7 @@ def main():
 
     # If you get an error here, check that you have downloaded the weights by following the
     # instructions in the README.
-    checkpoint = torch.load("checkpoints/lit-llama/7B/state_dict.pth")
+    checkpoint = torch.load(pretrained_path)
 
     with fabric.device:
         torch.set_default_tensor_type(torch.HalfTensor)
