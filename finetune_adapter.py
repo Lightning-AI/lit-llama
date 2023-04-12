@@ -6,6 +6,10 @@ https://arxiv.org/abs/2303.16199
 
 Note: If you run into a CUDA error "Expected is_sm80 to be true, but got false", install
 the PyTorch nightly version for a fix (see https://github.com/Lightning-AI/lit-llama/issues/101).
+
+This script uses DeepSpeed Zero-2 to train efficiently on 8 A100 GPUs within 1 hour as done in the original paper.
+If you have fewer GPUs, you can remove the `DeepSpeedStrategy` from Fabric and set `devices = 1`.
+Additionally, you can adjust the `micro_batch_size` to fit your GPU memory. 
 """
 import os
 import time
@@ -15,19 +19,18 @@ import numpy as np
 import torch
 
 from generate import generate
-from lit_llama.adapter import LLaMA, LLaMAConfig, mark_only_adapter_as_trainable, adapter_state_dict, Block
+from lit_llama.adapter import LLaMA, LLaMAConfig, mark_only_adapter_as_trainable
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
 from lightning.fabric.strategies import DeepSpeedStrategy
 
-import wandb
 
-out_dir = "out/adapter/full-training-good"
+out_dir = "out/adapter/alpaca"
 eval_interval = 600
 save_interval = 1000
 eval_iters = 100
 log_interval = 1
-devices = 6
+devices = 8
 
 # Hyperparameters
 learning_rate = 9e-3
@@ -49,12 +52,14 @@ ds_config = {
 
 
 def main():
-    fabric = L.Fabric(accelerator="cuda", devices=devices, strategy=DeepSpeedStrategy(config=ds_config), precision="bf16")
+    fabric = L.Fabric(
+        accelerator="cuda", 
+        devices=devices, 
+        strategy=DeepSpeedStrategy(config=ds_config), 
+        precision="bf16"
+    )
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
-
-    if fabric.is_global_zero:
-        wandb.init(project="llama-adapter", notes="deepspeed with bfloat16 new logging and hparams")
 
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
@@ -64,6 +69,8 @@ def main():
     config = LLaMAConfig()
     config.block_size = block_size
 
+    # If you get an error here, check that you have downloaded the weights by following the
+    # instructions in the README.
     checkpoint = torch.load("checkpoints/lit-llama/7B/state_dict.pth")
 
     with fabric.device:
@@ -80,8 +87,8 @@ def main():
     model, optimizer = fabric.setup(model, optimizer)
     train(fabric, model, optimizer, train_data, val_data)
 
-    # save at end of training
-    checkpoint = {"model": model, "optimizer": optimizer}
+    # Save the final checkpoint at the end of training
+    checkpoint = {"model": model}
     fabric.save(os.path.join(out_dir, f"alpaca-adapter-finetuned.pt"), checkpoint)
 
 
@@ -98,14 +105,6 @@ def train(
     """
     step_count = 0
 
-    # initial validation
-    val_loss = validate(fabric, model, val_data)
-
-    # sanity check that saving works
-    checkpoint = {"model": model}  # , "optimizer": optimizer}
-    fabric.save(os.path.join(out_dir, f"sanity.pt"), checkpoint)
-
-    # training
     for iter_num in range(max_iters):
 
         if step_count <= warmup_steps:
@@ -122,8 +121,6 @@ def train(
         with fabric.no_backward_sync(model, enabled=((iter_num + 1) % gradient_accumulation_steps != 0)):
             fabric.backward(loss / gradient_accumulation_steps)
 
-        # fabric.clip_gradients(model, optimizer, clip_val=1.0)
-
         if (iter_num + 1) % gradient_accumulation_steps == 0:
             optimizer.step()
             optimizer.zero_grad()
@@ -134,36 +131,16 @@ def train(
                 fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
                 fabric.barrier()
 
-            # if step_count % save_interval == 0:
-            #     pass
-            #     print(f"Saving adapter weights to {out_dir}")
-                
-                
-                # only save the adapter weights for smaller checkpoint files
-                # checkpoint = adapter_state_dict(model)
+            if step_count % save_interval == 0:
+                print(f"Saving adapter weights to {out_dir}")
                 # TODO: Provide a function/script to merge the adapter weights with pretrained weights
-                # if fabric.is_global_zero:
-                    # torch.save(checkpoint, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"))
-                # fabric.barrier()
-
-        if iter_num in (1000, 2000):
-            checkpoint = {"model": model}
-            fabric.save(os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"), checkpoint)
+                checkpoint = {"model": model}
+                fabric.save(os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"), checkpoint)
+                fabric.barrier()
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:
-            if fabric.is_global_zero:
-                wandb.log({
-                    "train_loss": loss.item(), 
-                    "train_loss_n": loss.item() / gradient_accumulation_steps,
-                    "train_ppl": torch.exp(loss).item(),
-                    "train_ppl_n": torch.exp(loss / gradient_accumulation_steps).item(),
-                    "step": step_count, 
-                    # "epoch_pct": iter_num * micro_batch_size / 50000
-                })
             fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
-
-example_outputs = []
 
 
 def generate_response(model, instruction, input=""):
@@ -179,7 +156,7 @@ def generate_response(model, instruction, input=""):
         idx=encoded,
         max_seq_length=block_size,
         max_new_tokens=100,
-        temperature=0.1,
+        temperature=0.8,
     )
     output = tokenizer.decode(output[0].cpu())
     return output # output.split("### Response:")[1].strip()
@@ -211,26 +188,11 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
         losses[k] = loss.item()
     val_loss = losses.mean()
 
-    # get an additional batch for logging responses
-    input_ids = get_test_samples(fabric, val_data)
-    text_input, text_output = generate_response_batch(model, input_ids)
-
-    # # produce an example:
-    # instruction = "Recommend a movie for me to watch during the weekend and explain the reason."
-    
-    # output = generate_response(model, instruction)
-    # fabric.print(instruction)
-    # fabric.print(output)
-    
-    if fabric.is_global_zero:
-        columns = ["input", "output"]
-        example_outputs.extend([[txt, txt_out] for txt, txt_out in zip(text_input, text_output)])
-        metrics = {"examples": wandb.Table(columns=columns, data=example_outputs)}
-        wandb.log(metrics, commit=False)
-
-    val_ppl = torch.exp(val_loss)
-    if fabric.is_global_zero:
-        wandb.log({"val_loss": val_loss, "val_ppl": val_ppl}, commit=False)
+    # produce an example:
+    instruction = "Recommend a movie for me to watch during the weekend and explain the reason."
+    output = generate_response(model, instruction)
+    fabric.print(instruction)
+    fabric.print(output)
 
     model.train()
     return val_loss.item()
@@ -260,13 +222,6 @@ def get_batch(fabric: L.Fabric, data: list):
     y = torch.stack([pad_right(x, pad_id=-1) for x in labels])
     x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
     return x, y
-
-
-def get_test_samples(fabric: L.Fabric, data: list):
-    ix = torch.randint(len(data), (micro_batch_size,))
-    input_ids = [data[i]["input_ids_no_response"].type(torch.int64) for i in ix]
-    input_ids = fabric.to_device(input_ids)
-    return input_ids
 
 
 def load_datasets(data_dir: str = "data/alpaca"):
