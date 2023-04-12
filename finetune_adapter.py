@@ -33,14 +33,14 @@ log_interval = 1
 
 # Hyperparameters
 learning_rate = 9e-3
-batch_size = 64 / 8
+batch_size = 128 / 8
 micro_batch_size = 2
 gradient_accumulation_steps = batch_size // micro_batch_size
 epoch_size = 50000  # train dataset size
 num_epochs = 100
 max_iters = 1000000  # 5 epochs
 weight_decay = 0.02
-block_size = 256
+block_size = 512
 warmup_steps = epoch_size * 2 // micro_batch_size // 8  # 2 epochs
 
 ds_config = {
@@ -56,7 +56,7 @@ def main():
     fabric.seed_everything(1337 + fabric.global_rank)
 
     if fabric.is_global_zero:
-        wandb.init(project="llama-adapter", notes="deepspeed with bfloat16")
+        wandb.init(project="llama-adapter", notes="deepspeed with bfloat16 new logging and hparams")
 
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
@@ -102,6 +102,12 @@ def train(
     """
     step_count = 0
 
+    # initial validation
+    val_loss = validate(fabric, model, val_data)
+    if fabric.is_global_zero:
+        wandb.log({"val_loss": val_loss})
+
+    # training
     for iter_num in range(max_iters):
 
         if step_count <= warmup_steps:
@@ -146,15 +152,22 @@ def train(
         dt = time.time() - t0
         if iter_num % log_interval == 0:
             if fabric.is_global_zero:
-                wandb.log({"train_loss": loss.item(), "train_loss_n": loss.item() / gradient_accumulation_steps, "step": step_count, "epoch_pct": iter_num * micro_batch_size / 50000})
+                wandb.log({
+                    "train_loss": loss.item(), 
+                    "train_loss_n": loss.item() / gradient_accumulation_steps,
+                    "perplexity": torch.exp(loss).item(),
+                    "perplexity_n": torch.exp(loss / gradient_accumulation_steps).item(),
+                    "step": step_count, 
+                    "epoch_pct": iter_num * micro_batch_size / 50000
+                })
             fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
 
 example_outputs = []
 
 
-def generate_response(model, instruction):
+def generate_response(model, instruction, input=""):
     tokenizer = Tokenizer("checkpoints/lit-llama/tokenizer.model")
-    sample = {"instruction": instruction, "input": ""}
+    sample = {"instruction": instruction, "input": input}
     prompt = generate_prompt(sample)
     encoded = tokenizer.encode(prompt, bos=True, eos=True)
     encoded = encoded[None, :]  # add batch dimension
@@ -170,6 +183,20 @@ def generate_response(model, instruction):
     output = tokenizer.decode(output[0].cpu())
     return output # output.split("### Response:")[1].strip()
 
+def generate_response_batch(model, input_ids):
+    tokenizer = Tokenizer("checkpoints/lit-llama/tokenizer.model")
+
+    output = generate(
+        model,
+        idx=input_ids,
+        max_seq_length=block_size,
+        max_new_tokens=100,
+        temperature=0.1,
+    )
+    output = [tokenizer.decode(output[k].cpu()) for k in range(len(output))]
+    # targets = [tokenizer.decode(targets[k].cpu()) for k in range(len(targets))]
+    return output # output.split("### Response:")[1].strip()
+
 
 @torch.no_grad()
 def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> torch.Tensor:
@@ -183,16 +210,20 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
         losses[k] = loss.item()
     out = losses.mean()
 
-    # produce an example:
-    instruction = "Recommend a movie for me to watch during the weekend and explain the reason."
+    # get an additional batch for logging responses
+    input_ids, targets = get_batch(fabric, val_data)
+    text_output = generate_response_batch(model, input_ids)
+
+    # # produce an example:
+    # instruction = "Recommend a movie for me to watch during the weekend and explain the reason."
     
-    output = generate_response(model, instruction)
-    fabric.print(instruction)
-    fabric.print(output)
+    # output = generate_response(model, instruction)
+    # fabric.print(instruction)
+    # fabric.print(output)
     
     if fabric.is_global_zero:
         columns = ["output"]
-        example_outputs.append([output])
+        example_outputs.append([text_output])
         metrics = {"examples": wandb.Table(columns=columns, data=example_outputs)}
         wandb.log(metrics)
 
