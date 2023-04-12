@@ -19,8 +19,7 @@ def save_model_checkpoint(fabric, model, file_path):
     file_path = Path(file_path)
 
     if isinstance(fabric.strategy, DeepSpeedStrategy):
-        from deepspeed.utils.zero_to_fp32 import \
-            convert_zero_checkpoint_to_fp32_state_dict
+        from deepspeed.utils.zero_to_fp32 import convert_zero_checkpoint_to_fp32_state_dict
 
         fabric.save(file_path, {"model": model})
         fabric.barrier()

@@ -57,7 +57,7 @@ def main():
     fabric = L.Fabric(
         accelerator="cuda", 
         devices=devices, 
-        strategy=(DeepSpeedStrategy(config=ds_config) if devices > 1 else None), 
+        strategy=(DeepSpeedStrategy(config=ds_config) if devices > 1 else "auto"), 
         precision="bf16-mixed",
     )
     fabric.launch()
@@ -95,7 +95,7 @@ def main():
     train(fabric, model, optimizer, train_data, val_data)
 
     # Save the final checkpoint at the end of training
-    save_model_checkpoint(fabric, model, os.path.join(out_dir, "alpaca-adapter-finetuned"))
+    save_model_checkpoint(fabric, model, os.path.join(out_dir, "alpaca-adapter-finetuned.ckpt"))
 
 
 def train(
@@ -140,7 +140,7 @@ def train(
             if step_count % save_interval == 0:
                 print(f"Saving adapter weights to {out_dir}")
                 # TODO: Provide a function/script to merge the adapter weights with pretrained weights
-                save_model_checkpoint(fabric, model, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt"))
+                save_model_checkpoint(fabric, model, os.path.join(out_dir, f"iter-{iter_num:06d}.ckpt"))
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:
