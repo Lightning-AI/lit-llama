@@ -161,20 +161,6 @@ def generate_response(model, instruction, input=""):
     output = tokenizer.decode(output[0].cpu())
     return output # output.split("### Response:")[1].strip()
 
-def generate_response_batch(model, input_ids):
-    tokenizer = Tokenizer("checkpoints/lit-llama/tokenizer.model")
-
-    output = [generate(
-        model,
-        idx=idx[None, :],
-        max_seq_length=block_size,
-        max_new_tokens=100,
-        temperature=0.8,
-    ) for idx in input_ids]
-    output = [tokenizer.decode(output[k][0].cpu()) for k in range(len(output))]
-    input = [tokenizer.decode(input_ids[k].cpu()) for k in range(len(input_ids))]
-    return input, output # output.split("### Response:")[1].strip()
-
 
 @torch.no_grad()
 def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> torch.Tensor:
