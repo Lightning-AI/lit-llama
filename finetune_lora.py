@@ -14,12 +14,11 @@ import torch
 from generate import generate
 from lit_llama.lora import mark_only_lora_as_trainable, lora, lora_state_dict
 from lit_llama.model import LLaMA, LLaMAConfig
-from lit_llama.utils import EmptyInitOnDevice
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
 
 
-out_dir = "out/alpaca-lora"
+out_dir = "out/alpaca-lora-long-right-pad"
 eval_interval = 20
 save_interval = 20
 eval_iters = 100
@@ -28,11 +27,11 @@ log_interval = 1
 # Hyperparameters
 learning_rate = 3e-4
 batch_size = 128
-micro_batch_size = 4
+micro_batch_size = 8
 gradient_accumulation_steps = batch_size // micro_batch_size
 max_iters = 50000 * 3 // micro_batch_size
 weight_decay = 0.0
-block_size = 256
+block_size = 512
 lora_r = 8
 lora_alpha = 16
 lora_dropout = 0.05
@@ -96,7 +95,7 @@ def train(
         loss = loss_fn(logits, targets)
         fabric.backward(loss)
 
-        fabric.clip_gradients(model, optimizer, clip_val=1.0)
+        # fabric.clip_gradients(model, optimizer, clip_val=1.0)
 
         if (iter_num + 1) % gradient_accumulation_steps == 0:
             optimizer.step()
@@ -171,18 +170,18 @@ def loss_fn(logits, targets):
 def get_batch(fabric: L.Fabric, data: list):
     ix = torch.randint(len(data), (micro_batch_size,))
 
-    input_ids = [torch.tensor(data[i]["input_ids"], dtype=torch.int64) for i in ix]
-    labels = [torch.tensor(data[i]["labels"], dtype=torch.int64) for i in ix]
+    input_ids = [data[i]["input_ids"].type(torch.int64) for i in ix]
+    labels = [data[i]["labels"].type(torch.int64) for i in ix]
 
     max_len = max(len(s) for s in input_ids)
 
-    def pad_left(x, pad_id):
-        # pad left based on the longest sequence
+    def pad_right(x, pad_id):
+        # pad right based on the longest sequence
         n = max_len - len(x)
-        return torch.cat((torch.full((n,), pad_id, dtype=x.dtype), x))
+        return torch.cat((x, torch.full((n,), pad_id, dtype=x.dtype)))
 
-    x = torch.stack([pad_left(x, pad_id=0) for x in input_ids])
-    y = torch.stack([pad_left(x, pad_id=-1) for x in labels])
+    x = torch.stack([pad_right(x, pad_id=0) for x in input_ids])
+    y = torch.stack([pad_right(x, pad_id=-1) for x in labels])
     x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
     return x, y
 
