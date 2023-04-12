@@ -5,8 +5,8 @@ LLaMA-Adapter: Efficient Fine-tuning of Language Models with Zero-init Attention
 https://arxiv.org/abs/2303.16199
 
 This script uses DeepSpeed Zero-2 to train efficiently on 8 A100 GPUs within 1 hour as done in the original paper.
-If you have fewer GPUs, you can remove the `DeepSpeedStrategy` from Fabric and set `devices = 1`.
-Additionally, you can adjust the `micro_batch_size` to fit your GPU memory. 
+If you have fewer GPUs, you can adjust the devices variable to e.g. `devices = 1` and tune the 
+`micro_batch_size` to fit your GPU memory.
 
 Note: If you run into a CUDA error "Expected is_sm80 to be true, but got false", install
 the PyTorch nightly version for a fix (see https://github.com/Lightning-AI/lit-llama/issues/101).
@@ -57,7 +57,7 @@ def main():
         accelerator="cuda", 
         devices=devices, 
         strategy=(DeepSpeedStrategy(config=ds_config) if devices > 1 else None), 
-        precision="bf16"
+        precision="bf16-mixed",
     )
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
