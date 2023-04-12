@@ -70,8 +70,11 @@ def main():
     config = LLaMAConfig()
     config.block_size = block_size
 
-    # If you get an error here, check that you have downloaded the weights by following the
-    # instructions in the README.
+    if not os.path.isfile(pretrained_path):
+        raise FileNotFoundError(
+            f"Can't find the pretrained weights at {pretrained_path}."
+            " Please follow the instructions in the README to download them."
+        )
     checkpoint = torch.load(pretrained_path)
 
     with fabric.device:
