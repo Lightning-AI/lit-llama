@@ -18,7 +18,7 @@ from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
 
 
-out_dir = "out/alpaca-lora-long-right-pad"
+out_dir = "out/lora/alpaca"
 eval_interval = 100
 save_interval = 100
 eval_iters = 100
@@ -94,8 +94,6 @@ def train(
         logits = model(input_ids)
         loss = loss_fn(logits, targets)
         fabric.backward(loss)
-
-        # fabric.clip_gradients(model, optimizer, clip_val=1.0)
 
         if (iter_num + 1) % gradient_accumulation_steps == 0:
             optimizer.step()
