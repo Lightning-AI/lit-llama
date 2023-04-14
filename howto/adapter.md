@@ -33,7 +33,14 @@ This script will save checkpoints periodically to the folder `out/`.
 You can test the finetuned model with your own instructions by running:
 
 ```bash
-python 
+python generate_adapter.py \
+    --prompt "Recommend a movie to watch on the weekend." \
+    --dtype bfloat16 \
+    --quantize llm.int8
+```
+Output:
+```
+A good movie to watch on the weekend would be The Lion King, since it's a classic family film that everyone can enjoy...
 ```
 
 
