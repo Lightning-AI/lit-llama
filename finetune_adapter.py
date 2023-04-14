@@ -8,8 +8,8 @@ This script uses DeepSpeed Zero-2 to train efficiently on 8 A100 GPUs within 1 h
 If you have fewer GPUs, you can adjust the devices variable to e.g. `devices = 1` and tune the 
 `micro_batch_size` to fit your GPU memory.
 
-Note: If you run into a CUDA error "Expected is_sm80 to be true, but got false", install
-the PyTorch nightly version for a fix (see https://github.com/Lightning-AI/lit-llama/issues/101).
+Note: If you run into a CUDA error "Expected is_sm80 to be true, but got false", uncomment the line
+`torch.backends.cuda.enable_flash_sdp(False)` in the script below (see https://github.com/Lightning-AI/lit-llama/issues/101).
 """
 import os
 import time
@@ -32,12 +32,12 @@ eval_interval = 600
 save_interval = 1000
 eval_iters = 100
 log_interval = 1
-devices = 8
+devices = 1
 
 # Hyperparameters
 learning_rate = 9e-3
 batch_size = 64 / devices
-micro_batch_size = 8
+micro_batch_size = 2
 gradient_accumulation_steps = batch_size // micro_batch_size
 epoch_size = 50000  # train dataset size
 num_epochs = 5
@@ -221,5 +221,7 @@ def load_datasets(data_dir: str = "data/alpaca"):
 
 
 if __name__ == "__main__":
+    # Uncomment this line if you see an error: "Expected is_sm80 to be true, but got false"
+    # torch.backends.cuda.enable_flash_sdp(False)
     torch.set_float32_matmul_precision("high")
     main()
