@@ -41,10 +41,10 @@ block_size = 1024
 
 
 def main() -> None:
-    auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
-    strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block)
+    # auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
+    # strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block)
 
-    fabric = L.Fabric(accelerator="cuda", devices=4, precision="bf16-mixed", strategy=strategy)
+    fabric = L.Fabric(accelerator="cuda", devices=2, precision="bf16-mixed", strategy="auto")
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
@@ -53,7 +53,7 @@ def main() -> None:
 
     train_data, val_data = load_datasets()
 
-    config = LLaMAConfig.from_name("7B")
+    config = LLaMAConfig(n_layer=4, n_embd=64, n_head=8, complex_rope=False)
     config.block_size = block_size
     config.vocab_size = 100  # from prepare_shakespeare.py
 
@@ -61,7 +61,7 @@ def main() -> None:
         model = LLaMA(config)
 
     # if compile:
-    #     model = torch.compile(model)
+    # model = torch.compile(model)
 
     model = fabric.setup_module(model)
 
