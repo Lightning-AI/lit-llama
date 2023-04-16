@@ -18,20 +18,17 @@ def convert_hf_checkpoint(
     model_size: str = "7B",
     hf_checkpoint_path: Path = Path("checkpoints/llama-7b-hf"),
     lit_checkpoint: Path = Path("checkpoints/lit-llama.ckpt"),
-    dtype: Optional[str] = None,
+    dtype: str = "float32",
     verify: bool = False,
 ) -> None:
     """
     Perform the reverse operation of: https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/convert_llama_weights_to_hf.py
     """
 
-    if dtype is not None:
-        dt = getattr(torch, dtype, None)
-        if not isinstance(dt, torch.dtype):
-            raise ValueError(f"{dtype} is not a valid dtype.")
-        dtype = dt
-    else:
-        dtype = torch.float32
+    dt = getattr(torch, dtype, None)
+    if not isinstance(dt, torch.dtype):
+        raise ValueError(f"{dtype} is not a valid dtype.")
+    dtype = dt
 
     print("Initializing lit-llama")
     config = LLaMAConfig.from_name(model_size)
