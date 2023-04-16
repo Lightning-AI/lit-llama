@@ -18,7 +18,7 @@ from lit_llama.utils import EmptyInitOnDevice
 def convert_hf_checkpoint(
     model_size: str = "7B",
     hf_checkpoint_path: Path = Path("checkpoints/llama-7b-hf"),
-    lit_checkpoint: Path = Path("checkpoints/lit-llama.ckpt"),
+    lit_checkpoint: Path = Path("checkpoints/lit-llama.pth"),
     dtype: str = "float32",
     verify: bool = False,
 ) -> None:
