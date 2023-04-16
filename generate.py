@@ -111,6 +111,8 @@ def main(
         if not isinstance(dt, torch.dtype):
             raise ValueError(f"{dtype} is not a valid dtype.")
         dtype = dt
+    else:
+        dtype = torch.float32
 
     with EmptyInitOnDevice(
         device=fabric.device, dtype=dtype, quantization_mode=quantize

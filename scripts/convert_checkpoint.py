@@ -83,6 +83,8 @@ def meta_weights_for_nano_model(
         if not isinstance(dt, torch.dtype):
             raise ValueError(f"{dtype} is not a valid dtype.")
         dtype = dt
+    else:
+        dtype = torch.float32
 
     # the tokenizer is the same for all model sizes, so we store it in the parent dir
     if "tokenizer.model" not in os.listdir(output_dir.parent):
