@@ -14,6 +14,7 @@ from lit_llama.model import LLaMA, LLaMAConfig
 from lit_llama.utils import EmptyInitOnDevice
 
 
+@torch.no_grad()
 def convert_hf_checkpoint(
     model_size: str = "7B",
     hf_checkpoint_path: Path = Path("checkpoints/llama-7b-hf"),
@@ -77,26 +78,25 @@ def convert_hf_checkpoint(
 
         hf_weights = torch.load(os.path.join(hf_checkpoint_path, bin_file), map_location="cpu")
 
-        with torch.no_grad():
-            for name, param in hf_weights.items():
-                param = param.to(dtype=dtype)
-                if "rotary_emb.inv_freq" in name:
-                    continue
-                if "model.layers" in name:
-                    block_id = int(name.split(".")[2])
-                    from_name = ".".join(name.split(".")[3:])
-                    to_name = weight_map[from_name]
+        for name, param in hf_weights.items():
+            param = param.to(dtype=dtype)
+            if "rotary_emb.inv_freq" in name:
+                continue
+            if "model.layers" in name:
+                block_id = int(name.split(".")[2])
+                from_name = ".".join(name.split(".")[3:])
+                to_name = weight_map[from_name]
 
-                    if "q_proj" in name:
-                        sd[f"transformer.h.{block_id}.{to_name}"][:qkv_size] = permute(param)
-                    elif "k_proj" in name:
-                        sd[f"transformer.h.{block_id}.{to_name}"][qkv_size:-qkv_size] = permute(param)
-                    elif "v_proj" in name:
-                        sd[f"transformer.h.{block_id}.{to_name}"][-qkv_size:] = param
-                    else:
-                        sd[f"transformer.h.{block_id}.{to_name}"].copy_(param)
+                if "q_proj" in name:
+                    sd[f"transformer.h.{block_id}.{to_name}"][:qkv_size] = permute(param)
+                elif "k_proj" in name:
+                    sd[f"transformer.h.{block_id}.{to_name}"][qkv_size:-qkv_size] = permute(param)
+                elif "v_proj" in name:
+                    sd[f"transformer.h.{block_id}.{to_name}"][-qkv_size:] = param
                 else:
-                    sd[weight_map[name]].copy_(param)
+                    sd[f"transformer.h.{block_id}.{to_name}"].copy_(param)
+            else:
+                sd[weight_map[name]].copy_(param)
 
         del hf_weights
         gc.collect()
@@ -111,8 +111,7 @@ def convert_hf_checkpoint(
             0, config.vocab_size, size=(1, config.block_size), dtype=torch.int64
         )
 
-        with torch.no_grad():
-            out = model(token_sample)
+        out = model(token_sample)
 
         del model
         gc.collect()
