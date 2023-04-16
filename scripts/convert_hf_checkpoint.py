@@ -3,19 +3,22 @@ import os
 import json
 from pathlib import Path
 import sys
+from typing import Optional
+
 # support running without installing as a package
 wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 
 import torch
 from lit_llama.model import LLaMA, LLaMAConfig
+from lit_llama.utils import EmptyInitOnDevice
 
 
 def convert_hf_checkpoint(
     model_size: str = "7B",
     hf_checkpoint_path: Path = Path("checkpoints/llama-7b-hf"),
     lit_checkpoint: Path = Path("checkpoints/lit-llama.ckpt"),
-    dtype: str = None,
+    dtype: Optional[str] = None,
     verify: bool = False,
 ) -> None:
     """
@@ -73,13 +76,15 @@ def convert_hf_checkpoint(
     }
 
     for bin_file in bin_files:
-        print("Processing", hf_checkpoint_path)
+        print("Processing", bin_file)
 
         hf_weights = torch.load(os.path.join(hf_checkpoint_path, bin_file), map_location="cpu")
 
         with torch.no_grad():
             for name, param in hf_weights.items():
                 param = param.to(dtype=dtype)
+                if "rotary_emb.inv_freq" in name:
+                    continue
                 if "model.layers" in name:
                     block_id = int(name.split(".")[2])
                     from_name = ".".join(name.split(".")[3:])
