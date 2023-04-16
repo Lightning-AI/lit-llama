@@ -1,8 +1,8 @@
 """
 Instruction-tuning with LoRA on the Alpaca dataset.
 
-Note: If you run into a CUDA error "Expected is_sm80 to be true, but got false", install
-the PyTorch nightly version for a fix (see https://github.com/Lightning-AI/lit-llama/issues/101).
+Note: If you run into a CUDA error "Expected is_sm80 to be true, but got false", uncomment the line
+`torch.backends.cuda.enable_flash_sdp(False)` in the script below (see https://github.com/Lightning-AI/lit-llama/issues/101).
 """
 import os
 import time
@@ -14,14 +14,13 @@ import torch
 from generate import generate
 from lit_llama.lora import mark_only_lora_as_trainable, lora, lora_state_dict
 from lit_llama.model import LLaMA, LLaMAConfig
-from lit_llama.utils import EmptyInitOnDevice
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
 
 
-out_dir = "out/alpaca-lora"
-eval_interval = 20
-save_interval = 20
+out_dir = "out/lora/alpaca"
+eval_interval = 100
+save_interval = 100
 eval_iters = 100
 log_interval = 1
 
@@ -96,8 +95,6 @@ def train(
         loss = loss_fn(logits, targets)
         fabric.backward(loss)
 
-        fabric.clip_gradients(model, optimizer, clip_val=1.0)
-
         if (iter_num + 1) % gradient_accumulation_steps == 0:
             optimizer.step()
             optimizer.zero_grad()
@@ -124,7 +121,7 @@ def generate_response(model, instruction):
     tokenizer = Tokenizer("checkpoints/lit-llama/tokenizer.model")
     sample = {"instruction": instruction, "input": ""}
     prompt = generate_prompt(sample)
-    encoded = tokenizer.encode(prompt, bos=True, eos=True)
+    encoded = tokenizer.encode(prompt, bos=True, eos=False)
     encoded = encoded[None, :]  # add batch dimension
     encoded = encoded.to(model.device)
 
@@ -171,18 +168,18 @@ def loss_fn(logits, targets):
 def get_batch(fabric: L.Fabric, data: list):
     ix = torch.randint(len(data), (micro_batch_size,))
 
-    input_ids = [torch.tensor(data[i]["input_ids"], dtype=torch.int64) for i in ix]
-    labels = [torch.tensor(data[i]["labels"], dtype=torch.int64) for i in ix]
+    input_ids = [data[i]["input_ids"].type(torch.int64) for i in ix]
+    labels = [data[i]["labels"].type(torch.int64) for i in ix]
 
     max_len = max(len(s) for s in input_ids)
 
-    def pad_left(x, pad_id):
-        # pad left based on the longest sequence
+    def pad_right(x, pad_id):
+        # pad right based on the longest sequence
         n = max_len - len(x)
-        return torch.cat((torch.full((n,), pad_id, dtype=x.dtype), x))
+        return torch.cat((x, torch.full((n,), pad_id, dtype=x.dtype)))
 
-    x = torch.stack([pad_left(x, pad_id=0) for x in input_ids])
-    y = torch.stack([pad_left(x, pad_id=-1) for x in labels])
+    x = torch.stack([pad_right(x, pad_id=0) for x in input_ids])
+    y = torch.stack([pad_right(x, pad_id=-1) for x in labels])
     x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
     return x, y
 
@@ -194,5 +191,7 @@ def load_datasets(data_dir: str = "data/alpaca"):
 
 
 if __name__ == "__main__":
+    # Uncomment this line if you see an error: "Expected is_sm80 to be true, but got false"
+    # torch.backends.cuda.enable_flash_sdp(False)
     torch.set_float32_matmul_precision("high")
     main()
