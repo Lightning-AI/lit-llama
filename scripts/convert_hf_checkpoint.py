@@ -47,6 +47,8 @@ def convert_hf_checkpoint(
     with open(pytorch_bin_map_json_path) as json_map:
         bin_index = json.load(json_map)
 
+    bin_files = set(el for el in bin_index["weight_map"].values())
+
     def permute(w):
         dim = config.n_embd
         return (
@@ -54,8 +56,6 @@ def convert_hf_checkpoint(
             .transpose(1, 2)
             .reshape(dim, dim)
         )
-
-    bin_files = set(el for el in bin_index["weight_map"].values())
 
     weight_map = {
         "self_attn.o_proj.weight": "attn.c_proj.weight",
