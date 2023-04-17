@@ -84,8 +84,8 @@ def main(
         model.load_state_dict(pretrained_checkpoint, strict=False)
 
         # 2. Load the fine-tuned adapter weights
-        adapter_checkpoint = torch.load(lora_path)
-        model.load_state_dict(adapter_checkpoint, strict=False)
+        lora_checkpoint = torch.load(lora_path)
+        model.load_state_dict(lora_checkpoint, strict=False)
 
         print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
