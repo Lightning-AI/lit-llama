@@ -4,9 +4,9 @@ Instruction-tuning with LLaMA-Adapter on the Alpaca dataset following the paper
 LLaMA-Adapter: Efficient Fine-tuning of Language Models with Zero-init Attention
 https://arxiv.org/abs/2303.16199
 
-This script uses DeepSpeed Zero-2 to train efficiently on 8 A100 GPUs within 1 hour as done in the original paper.
-If you have fewer GPUs, you can adjust the devices variable to e.g. `devices = 1` and tune the 
-`micro_batch_size` to fit your GPU memory.
+This script runs on a single GPU by default. You can adjust the `micro_batch_size` to fit your GPU memory.
+You can finetune within 1 hour as done in the original paper using DeepSpeed Zero-2 on 8 A100 GPUs by setting the
+devices variable to `devices = 8` and `micro_batch_size = 8` (or higher).
 
 Note: If you run into a CUDA error "Expected is_sm80 to be true, but got false", uncomment the line
 `torch.backends.cuda.enable_flash_sdp(False)` in the script below (see https://github.com/Lightning-AI/lit-llama/issues/101).
