@@ -108,19 +108,14 @@ def main(
 
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
 
-    print(f"1: {torch.cuda.max_memory_reserved() / 1e9:.02f} GB")
-
     with EmptyInitOnDevice(
         device=fabric.device, dtype=dtype, quantization_mode=quantize
     ):
         print("Loading model ...", file=sys.stderr)
         t0 = time.time()
         model = LLaMA.from_name(model_size)
-        print(f"2: {torch.cuda.max_memory_reserved() / 1e9:.02f} GB")
         checkpoint = torch.load(checkpoint_path)
-        print(f"3: {torch.cuda.max_memory_reserved() / 1e9:.02f} GB")
         model.load_state_dict(checkpoint)
-        print(f"4: {torch.cuda.max_memory_reserved() / 1e9:.02f} GB")
         print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
