@@ -35,9 +35,12 @@ if bnb is not None:
             # memory with float32 weights which could lead to OOM.
             self._quantize_weight(self.weight.data)
 
-        def _load_from_state_dict(self, local_state_dict, *args, **kwargs):
+        def _load_from_state_dict(self, local_state_dict, prefix, local_metadata, strict, *args, **kwargs):
+            keys = [name for name in local_state_dict.keys() if name.endswith("weight")]
+            if not keys:
+                return
             # There is only one key that ends with `*.weight`, the other one is the bias
-            weight_key = next(name for name in local_state_dict.keys() if name.endswith("weight"))
+            weight_key = keys[0]
 
             # Load the weight from the state dict and re-quantize it
             weight = local_state_dict.pop(weight_key)
