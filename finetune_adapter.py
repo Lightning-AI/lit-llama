@@ -24,20 +24,21 @@ from lit_llama.tokenizer import Tokenizer
 from lit_llama.utils import save_model_checkpoint
 from scripts.prepare_alpaca import generate_prompt
 from lightning.fabric.strategies import DeepSpeedStrategy
+import bitsandbytes as bnb
 
 
-pretrained_path = "checkpoints/lit-llama/7B/lit-llama.pth"
+pretrained_path = "checkpoints/lit-llama/7B/state_dict.pth"
 out_dir = "out/adapter/alpaca"
 eval_interval = 600
 save_interval = 1000
 eval_iters = 100
 log_interval = 1
-devices = 8
+devices = 1
 
 # Hyperparameters
 learning_rate = 9e-3
 batch_size = 64 / devices
-micro_batch_size = 8
+micro_batch_size = 4
 gradient_accumulation_steps = batch_size // micro_batch_size
 epoch_size = 50000  # train dataset size
 num_epochs = 5
@@ -58,7 +59,7 @@ def main():
         accelerator="cuda", 
         devices=devices, 
         strategy=(DeepSpeedStrategy(config=ds_config) if devices > 1 else "auto"), 
-        precision="bf16-mixed",
+        # precision="bf16-mixed",
     )
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
@@ -80,17 +81,24 @@ def main():
 
     with fabric.device:
         torch.set_default_tensor_type(torch.HalfTensor)
-        model = LLaMA(config).bfloat16()
+        from lit_llama.quantization import Linear8bitLt
+        torch.nn.Linear = Linear8bitLt
+        # torch.nn.Embedding = bnb.nn.StableEmbedding
+        model = LLaMA(config)
         torch.set_default_tensor_type(torch.FloatTensor)
         # strict=False because missing keys due to adapter weights not containted in state dict
         model.load_state_dict(checkpoint, strict=False)
     
     mark_only_adapter_as_trainable(model)
 
+    params = [param for param in model.parameters() if param.requires_grad]
+
+
     num_params = sum([p.numel() for p in model.parameters() if p.requires_grad])
     print(f"Number of trainable parameters: {num_params}")
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    # optimizer = torch.optim.AdamW(params, lr=learning_rate, weight_decay=weight_decay)
+    optimizer = bnb.optim.AdamW8bit(params, lr=learning_rate, weight_decay=weight_decay)
     model, optimizer = fabric.setup(model, optimizer)
     train(fabric, model, optimizer, train_data, val_data)
 

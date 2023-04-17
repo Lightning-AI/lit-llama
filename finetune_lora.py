@@ -58,7 +58,7 @@ def main():
         model = LLaMA(config).bfloat16()
         torch.set_default_tensor_type(torch.FloatTensor)
         # strict=False because missing keys due to LoRA weights not contained in checkpoint state
-        model.load_state_dict(checkpoint, strict=False) 
+        model.load_state_dict(checkpoint, strict=False)
     
     mark_only_lora_as_trainable(model)
 
