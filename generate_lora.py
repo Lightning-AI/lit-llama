@@ -86,7 +86,7 @@ def main(
         pretrained_checkpoint = torch.load(pretrained_path)
         model.load_state_dict(pretrained_checkpoint, strict=False)
 
-        # 2. Load the fine-tuned adapter weights
+        # 2. Load the fine-tuned LoRA weights
         lora_checkpoint = torch.load(lora_path)
         model.load_state_dict(lora_checkpoint, strict=False)
 
