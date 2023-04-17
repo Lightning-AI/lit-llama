@@ -40,11 +40,10 @@ if bnb is not None:
             self._quantize_weight(self.weight.data)
 
         def _load_from_state_dict(self, local_state_dict, *args, **kwargs):
-            keys = [name for name in local_state_dict.keys() if name.endswith("weight")]
-            if not keys:
-                return
             # There is only one key that ends with `*.weight`, the other one is the bias
-            weight_key = keys[0]
+            weight_key = next((name for name in local_state_dict.keys() if name.endswith("weight")), None)
+            if weight_key is None:
+                return
 
             # Load the weight from the state dict and re-quantize it
             weight = local_state_dict.pop(weight_key)
