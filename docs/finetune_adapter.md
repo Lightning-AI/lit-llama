@@ -9,9 +9,9 @@ We are able to demonstrate instruction-finetuning Lit-LLaMA 7B on the [Alpaca](h
 The steps here only need to be done once:
 
 1. Follow the instructions in the [README](README.md) to install the dependencies.
-2. Download and convert the weights and save them in the `./checkpoints` folder as described [here] (#downloading-pretrained-weights).
+2. Download and convert the weights and save them in the `./checkpoints` folder as described [here](download_weights.md).
 3. If you want to utilize more than one GPU, you should `pip install deepspeed`.
-4. Download the data and generate a instruction tuning dataset:
+4. Download the data and generate the instruction tuning dataset:
 
    ```bash
    python scripts/prepare_alpaca.py
