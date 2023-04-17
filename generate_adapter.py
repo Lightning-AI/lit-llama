@@ -50,7 +50,7 @@ def main(
             ``"cpu"``, ``"cuda"``, ``"mps"``, ``"gpu"``, ``"tpu"``, ``"auto"``.
     """
     if not adapter_path:
-        adapter_path = Path("out/adapter/alpaca/alpaca-adapter-finetuned-2.pth")
+        adapter_path = Path("out/adapter/alpaca/alpaca-adapter-finetuned.pth")
     if not pretrained_path:
         pretrained_path = Path(f"./checkpoints/lit-llama/7B/lit-llama.pth")
     if not tokenizer_path:
