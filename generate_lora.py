@@ -9,30 +9,36 @@ import torch
 
 from generate import generate
 from lit_llama import Tokenizer
-from lit_llama.adapter import LLaMA, LLaMAConfig
+from lit_llama.lora import lora, LLaMA, LLaMAConfig
 from lit_llama.utils import EmptyInitOnDevice
 from scripts.prepare_alpaca import generate_prompt
+
+lora_r = 8
+lora_alpha = 16
+lora_dropout = 0.05
 
 
 def main(
     prompt: str = "What food do lamas eat?",
     input: str = "",
-    adapter_path: Optional[Path] = None,
+    lora_path: Optional[Path] = None,
     pretrained_path: Optional[Path] = None,
     tokenizer_path: Optional[Path] = None,
     quantize: Optional[str] = None,
+    dtype: str = "float32",
     max_new_tokens: int = 100,
     top_k: int = 200,
     temperature: float = 0.8,
+    accelerator: str = "auto",
 ) -> None:
     """Generates a response based on a given instruction and an optional input.
-    This script will only work with checkpoints from the instruction-tuned LLaMA-Adapter model.
-    See `finetune_adapter.py`.
+    This script will only work with checkpoints from the instruction-tuned LoRA model.
+    See `finetune_lora.py`.
 
     Args:
         prompt: The prompt/instruction (Alpaca style).
-        adapter_path: Path to the checkpoint with trained adapter weights, which are the output of
-            `finetune_adapter.py`.
+        lora_path: Path to the checkpoint with trained LoRA weights, which are the output of
+            `finetune_lora.py`.
         input: Optional input (Alpaca style).
         pretrained_path: The path to the checkpoint with pretrained LLaMA weights.
         tokenizer_path: The tokenizer path to load.
@@ -44,25 +50,33 @@ def main(
         top_k: The number of top most probable tokens to consider in the sampling process.
         temperature: A value controlling the randomness of the sampling process. Higher values result in more random
             samples.
+        accelerator: The hardware to run on. Possible choices are:
+            ``"cpu"``, ``"cuda"``, ``"mps"``, ``"gpu"``, ``"tpu"``, ``"auto"``.
     """
-    if not adapter_path:
-        adapter_path = Path("out/adapter/alpaca/lit-llama-adapter-finetuned.pth")
+    if not lora_path:
+        lora_path = Path("out/lora/alpaca/lit-llama-lora-finetuned.pth")
     if not pretrained_path:
         pretrained_path = Path(f"./checkpoints/lit-llama/7B/lit-llama.pth")
     if not tokenizer_path:
         tokenizer_path = Path("./checkpoints/lit-llama/tokenizer.model")
     
-    assert adapter_path.is_file()
+    assert lora_path.is_file()
     assert pretrained_path.is_file()
     assert tokenizer_path.is_file()
 
-    fabric = L.Fabric(accelerator="cuda", devices=1)
+    if quantize is not None:
+        raise NotImplementedError("Quantization in LoRA is not supported yet")
 
-    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
+    fabric = L.Fabric(accelerator=accelerator, devices=1)
+
+    dt = getattr(torch, dtype, None)
+    if not isinstance(dt, torch.dtype):
+        raise ValueError(f"{dtype} is not a valid dtype.")
+    dtype = dt
 
     with EmptyInitOnDevice(
         device=fabric.device, dtype=dtype, quantization_mode=quantize
-    ):
+    ), lora(r=lora_r, alpha=lora_alpha, dropout=lora_dropout, enabled=True):
         print("Loading model ...", file=sys.stderr)
         t0 = time.time()
         model = LLaMA(LLaMAConfig())  # TODO: Support different model sizes
@@ -70,10 +84,11 @@ def main(
         # 1. Load the pretrained weights
         pretrained_checkpoint = torch.load(pretrained_path)
         model.load_state_dict(pretrained_checkpoint, strict=False)
-        # 2. Load the fine-tuned adapter weights
-        adapter_checkpoint = torch.load(adapter_path, map_location=torch.device("cpu"))
 
-        model.load_state_dict(adapter_checkpoint, strict=False)
+        # 2. Load the fine-tuned LoRA weights
+        lora_checkpoint = torch.load(lora_path)
+        model.load_state_dict(lora_checkpoint, strict=False)
+
         print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
