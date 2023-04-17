@@ -13,6 +13,10 @@ warnings.filterwarnings(
 )
 warnings.filterwarnings(
     "ignore", 
+    message="MatMul8bitLt: inputs will be cast from torch.bfloat16 to float16 during quantization"
+)
+warnings.filterwarnings(
+    "ignore", 
     message="The installed version of bitsandbytes was compiled without GPU support. 8-bit optimizers and GPU quantization are unavailable."
 )
 
