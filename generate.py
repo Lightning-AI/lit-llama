@@ -77,6 +77,7 @@ def main(
     checkpoint_path: Optional[Path] = None,
     tokenizer_path: Optional[Path] = None,
     model_size: str = "7B",
+    dtype: str = "float32",
     quantize: Optional[str] = None,
 ) -> None:
     """Generates text samples based on a pre-trained LLaMA model and tokenizer.
@@ -93,12 +94,13 @@ def main(
             ``"cpu"``, ``"cuda"``, ``"mps"``, ``"gpu"``, ``"tpu"``, ``"auto"``.
         checkpoint_path: The checkpoint path to load.
         tokenizer_path: The tokenizer path to load.
+        dtype: The dtype to use during generation.
         quantize: Whether to quantize the model and using which method:
             ``"llm.int8"``: LLM.int8() mode,
             ``"gptq.int4"``: GPTQ 4-bit mode.
     """
     if not checkpoint_path:
-        checkpoint_path = Path(f"./checkpoints/lit-llama/{model_size}/state_dict.pth")
+        checkpoint_path = Path(f"./checkpoints/lit-llama/{model_size}/lit-llama.pth")
     if not tokenizer_path:
         tokenizer_path = Path("./checkpoints/lit-llama/tokenizer.model")
     assert checkpoint_path.is_file()
@@ -106,7 +108,10 @@ def main(
 
     fabric = L.Fabric(accelerator=accelerator, devices=1)
 
-    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
+    dt = getattr(torch, dtype, None)
+    if not isinstance(dt, torch.dtype):
+        raise ValueError(f"{dtype} is not a valid dtype.")
+    dtype = dt
 
     with EmptyInitOnDevice(
         device=fabric.device, dtype=dtype, quantization_mode=quantize
