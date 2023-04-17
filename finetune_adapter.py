@@ -139,6 +139,7 @@ def train(
 
             if step_count % save_interval == 0:
                 print(f"Saving adapter weights to {out_dir}")
+                # TODO: Provide a function/script to merge the adapter weights with pretrained weights
                 save_model_checkpoint(fabric, model, os.path.join(out_dir, f"iter-{iter_num:06d}.pth"))
 
         dt = time.time() - t0
