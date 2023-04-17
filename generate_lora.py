@@ -65,6 +65,9 @@ def main(
     assert pretrained_path.is_file()
     assert tokenizer_path.is_file()
 
+    if quantize is not None:
+        raise NotImplemented("Quantization in LoRA is not supported yet")
+
     fabric = L.Fabric(accelerator=accelerator, devices=1)
 
     dt = getattr(torch, dtype, None)
