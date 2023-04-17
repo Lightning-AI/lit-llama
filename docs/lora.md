@@ -24,6 +24,11 @@ python finetune_lora.py
 The finetuning requires at least one GPU with ~24 GB memory (GTX 3090).
 This script will save checkpoints periodically to the folder `out/`.
 
+## Testing the model
+
+Coming soon.
+
+
 ## Troubleshooting
 
 If you run into a CUDA error "Expected is_sm80 to be true, but got false", uncomment the line
