@@ -38,7 +38,7 @@ def main(
 
     Args:
         prompt: The prompt/instruction (Alpaca style).
-        lota_path: Path to the checkpoint with trained LoRA weights, which are the output of
+        lora_path: Path to the checkpoint with trained LoRA weights, which are the output of
             `finetune_lora.py`.
         input: Optional input (Alpaca style).
         pretrained_path: The path to the checkpoint with pretrained LLaMA weights.
