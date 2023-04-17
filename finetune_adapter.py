@@ -14,6 +14,7 @@ Note: If you run into a CUDA error "Expected is_sm80 to be true, but got false",
 import os
 import time
 from pathlib import Path
+import shutil
 
 import lightning as L
 import numpy as np
@@ -32,12 +33,12 @@ eval_interval = 600
 save_interval = 1000
 eval_iters = 100
 log_interval = 1
-devices = 8
+devices = 1
 
 # Hyperparameters
 learning_rate = 9e-3
 batch_size = 64 / devices
-micro_batch_size = 8
+micro_batch_size = 4
 gradient_accumulation_steps = batch_size // micro_batch_size
 epoch_size = 50000  # train dataset size
 num_epochs = 5
@@ -226,14 +227,16 @@ def save_model_checkpoint(fabric, model, file_path):
     if isinstance(fabric.strategy, DeepSpeedStrategy):
         from deepspeed.utils.zero_to_fp32 import get_fp32_state_dict_from_zero_checkpoint
 
-        fabric.save(file_path, {"model": model})
+        tmp_path = file_path.with_suffix(".tmp")
+        fabric.save(tmp_path, {"model": model})
         fabric.barrier()
         if fabric.global_rank == 0:
             # Create a consolidated checkpoint with the same name next to the deepspeed checkpoint
             # and only keep the adapter weights
-            state_dict = get_fp32_state_dict_from_zero_checkpoint(file_path)
+            state_dict = get_fp32_state_dict_from_zero_checkpoint(tmp_path)
             state_dict = adapter_state_from_state_dict(state_dict)
-            torch.save(state_dict, file_path.with_suffix(".pth"))
+            torch.save(state_dict, file_path)
+            shutil.rmtree(tmp_path)
     else:
         state_dict = adapter_state_from_state_dict(model.state_dict())
         if fabric.global_rank == 0:
