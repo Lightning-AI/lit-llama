@@ -50,7 +50,7 @@ def main(
             ``"cpu"``, ``"cuda"``, ``"mps"``, ``"gpu"``, ``"tpu"``, ``"auto"``.
     """
     if not adapter_path:
-        adapter_path = Path("out/adapter/alpaca/alpaca-adapter-finetuned.pth")
+        adapter_path = Path("out/adapter/alpaca/alpaca-adapter-finetuned-2.pth")
     if not pretrained_path:
         pretrained_path = Path(f"./checkpoints/lit-llama/7B/lit-llama.pth")
     if not tokenizer_path:
@@ -73,11 +73,13 @@ def main(
         print("Loading model ...", file=sys.stderr)
         t0 = time.time()
         model = LLaMA(LLaMAConfig())  # TODO: Support different model sizes
+
         # 1. Load the pretrained weights
         pretrained_checkpoint = torch.load(pretrained_path)
         model.load_state_dict(pretrained_checkpoint, strict=False)
         # 2. Load the fine-tuned adapter weights
-        adapter_checkpoint = torch.load(adapter_path)
+        adapter_checkpoint = torch.load(adapter_path, map_location=torch.device("cpu"))
+
         model.load_state_dict(adapter_checkpoint, strict=False)
         print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
