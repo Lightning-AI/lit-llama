@@ -22,14 +22,12 @@ With the default settings, this will run the 7B model and require ~26 GB of GPU 
 
 ## Run Lit-LLaMA on consumer devices
 
-For GPUs with less memory, enable quantization (`--quantize llm.int8`) or use bfloat16 (`--dtype bfloat16`). Quantization will take longer to load but require ~8GB of memory. bfloat16 is closer to the "full deal" and runs on ~10GB of GPU memory.
-This can run on any consumer GPU.
+For GPUs with less memory, enable quantization (`--quantize llm.int8`):
 
 ```bash
 python generate.py --quantize llm.int8 --prompt "Hello, my name is"
 ```
-
-See `python generate.py --help` for more options.
+This will consume about ~10 GB of GPU memory. If your GPU supports the `bfloat16` precision type, the memory consumption will be ~8 GB. See `python generate.py --help` for more options.
 
 You can also use GPTQ-style int4 quantization, but this needs conversions of the weights first:
 

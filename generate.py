@@ -77,7 +77,6 @@ def main(
     checkpoint_path: Optional[Path] = None,
     tokenizer_path: Optional[Path] = None,
     model_size: str = "7B",
-    dtype: Optional[str] = None,
     quantize: Optional[str] = None,
 ) -> None:
     """Generates text samples based on a pre-trained LLaMA model and tokenizer.
@@ -107,11 +106,9 @@ def main(
 
     fabric = L.Fabric(accelerator=accelerator, devices=1)
 
-    if dtype is not None:
-        dt = getattr(torch, dtype, None)
-        if not isinstance(dt, torch.dtype):
-            raise ValueError(f"{dtype} is not a valid dtype.")
-        dtype = dt
+    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
+
+    print(f"1: {torch.cuda.max_memory_reserved() / 1e9:.02f} GB")
 
     with EmptyInitOnDevice(
         device=fabric.device, dtype=dtype, quantization_mode=quantize
@@ -119,8 +116,11 @@ def main(
         print("Loading model ...", file=sys.stderr)
         t0 = time.time()
         model = LLaMA.from_name(model_size)
+        print(f"2: {torch.cuda.max_memory_reserved() / 1e9:.02f} GB")
         checkpoint = torch.load(checkpoint_path)
+        print(f"3: {torch.cuda.max_memory_reserved() / 1e9:.02f} GB")
         model.load_state_dict(checkpoint)
+        print(f"4: {torch.cuda.max_memory_reserved() / 1e9:.02f} GB")
         print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
