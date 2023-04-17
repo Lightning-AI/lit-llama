@@ -28,7 +28,7 @@ You can speed up training by setting the `devices` variable in the script to uti
 Depending on the available GPU memory, you can also tune the `micro_batch_size` parameter to utilize the GPU efficiently.
 
 For example, the follwing settings will let you finetune the model in under 1 hour using DeepSpeed Zero-2:
-```
+```python
 devices = 8
 micro_batch_size = 8
 ```
