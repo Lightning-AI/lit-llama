@@ -9,8 +9,7 @@ import torch
 
 from generate import generate
 from lit_llama import Tokenizer
-from lit_llama.adapter import LLaMA, LLaMAConfig
-from lit_llama.lora import lora, lora_state_dict
+from lit_llama.lora import lora, LLaMA, LLaMAConfig
 from lit_llama.utils import EmptyInitOnDevice
 from scripts.prepare_alpaca import generate_prompt
 
