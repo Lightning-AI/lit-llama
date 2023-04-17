@@ -55,7 +55,7 @@ def main(
             ``"cpu"``, ``"cuda"``, ``"mps"``, ``"gpu"``, ``"tpu"``, ``"auto"``.
     """
     if not lora_path:
-        lora_path = Path("out/adapter/alpaca/lit-llama-lora-finetuned.pth")
+        lora_path = Path("out/lora/alpaca/lit-llama-lora-finetuned.pth")
     if not pretrained_path:
         pretrained_path = Path(f"./checkpoints/lit-llama/7B/lit-llama.pth")
     if not tokenizer_path:
