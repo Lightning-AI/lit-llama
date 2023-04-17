@@ -66,7 +66,7 @@ def main(
     assert tokenizer_path.is_file()
 
     if quantize is not None:
-        raise NotImplemented("Quantization in LoRA is not supported yet")
+        raise NotImplementedError("Quantization in LoRA is not supported yet")
 
     fabric = L.Fabric(accelerator=accelerator, devices=1)
 
