@@ -92,7 +92,7 @@ def main(
             ``"gptq.int4"``: GPTQ 4-bit mode.
     """
     if not checkpoint_path:
-        checkpoint_path = Path(f"./checkpoints/lit-llama/{model_size}/lit-llama.pth")
+        checkpoint_path = Path(f"./checkpoints/lit-llama/{model_size}/state_dict.pth")
     if not tokenizer_path:
         tokenizer_path = Path("./checkpoints/lit-llama/tokenizer.model")
     assert checkpoint_path.is_file()
@@ -145,5 +145,10 @@ if __name__ == "__main__":
         # Triggered internally at ../aten/src/ATen/EmptyTensor.cpp:31
         "ignore", 
         message="ComplexHalf support is experimental and many operators don't support it yet"
+    )
+    warnings.filterwarnings(
+        # Triggered in bitsandbytes/autograd/_functions.py:298
+        "ignore", 
+        message="MatMul8bitLt: inputs will be cast from torch.bfloat16 to float16 during quantization",
     )
     CLI(main)
