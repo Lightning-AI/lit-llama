@@ -18,7 +18,6 @@ def main(
     prompt: str = "What food do lamas eat?",
     input: str = "",
     adapter_path: Optional[Path] = None,
-    pretrained_path: Optional[Path] = None,
     tokenizer_path: Optional[Path] = None,
     quantize: Optional[str] = None,
     dtype: str = "float32",
@@ -36,7 +35,6 @@ def main(
         adapter_path: Path to the checkpoint with trained adapter weights, which are the output of
             `finetune_adapter.py`.
         input: Optional input (Alpaca style).
-        pretrained_path: The path to the checkpoint with pretrained LLaMA weights.
         tokenizer_path: The tokenizer path to load.
         quantize: Whether to quantize the model and using which method:
             ``"llm.int8"``: LLM.int8() mode,
@@ -51,13 +49,10 @@ def main(
     """
     if not adapter_path:
         adapter_path = Path("out/adapter/alpaca/alpaca-adapter-finetuned.pth")
-    if not pretrained_path:
-        pretrained_path = Path(f"./checkpoints/lit-llama/7B/lit-llama.pth")
     if not tokenizer_path:
         tokenizer_path = Path("./checkpoints/lit-llama/tokenizer.model")
     
     assert adapter_path.is_file()
-    assert pretrained_path.is_file()
     assert tokenizer_path.is_file()
 
     fabric = L.Fabric(accelerator=accelerator, devices=1)
@@ -74,12 +69,8 @@ def main(
         t0 = time.time()
         model = LLaMA(LLaMAConfig())  # TODO: Support different model sizes
 
-        # 1. Load the pretrained weights
-        pretrained_checkpoint = torch.load(pretrained_path)
-        model.load_state_dict(pretrained_checkpoint, strict=False)
-        # 2. Load the fine-tuned adapter weights
+        # Load the pretrained checkpoint + fine-tuned adapter weights
         adapter_checkpoint = torch.load(adapter_path, map_location=torch.device("cpu"))
-
         model.load_state_dict(adapter_checkpoint, strict=False)
         print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
