@@ -158,7 +158,7 @@ def create_dataloader(data_dir: str = "data/red_pajama", shuffle=False) -> DataL
 
     concat_dataset = ConcatDataset(datasets)
 
-    dataloader = DataLoader(concat_dataset, batch_size=batch_size, shuffle=shuffle)
+    return DataLoader(concat_dataset, batch_size=batch_size, shuffle=shuffle)
 
 
 def create_dataloaders(train_data_dir: str = "data/red_pajama", val_data_dir: str = "data/red_pajama_val") -> Tuple[DataLoader, DataLoader]:    
