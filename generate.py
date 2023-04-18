@@ -32,6 +32,7 @@ def generate(
         max_seq_length: The maximum sequence length allowed.
         temperature: Scales the predicted logits by 1 / temperature
         top_k: If specified, only sample among the tokens with the k highest probabilities
+        eos_id: If specified, stop generating any more token once the <eos> token is triggered
     """
     # create an empty tensor of the expected final shape and fill in the current tokens
     B, T = idx.shape
