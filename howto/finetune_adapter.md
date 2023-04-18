@@ -11,11 +11,13 @@ The steps here only need to be done once:
 1. Follow the instructions in the [README](README.md) to install the dependencies.
 2. Download and convert the weights and save them in the `./checkpoints` folder as described [here](download_weights.md).
 3. If you want to utilize more than one GPU, you should `pip install deepspeed`.
-4. Download the data and generate the instruction tuning dataset:
+4. Download the data and generate the Alpaca instruction tuning dataset:
 
    ```bash
    python scripts/prepare_alpaca.py
    ```
+
+   or [prepare your own dataset](#tune-on-your-own-dataset).
 
 ## Running the finetuning
 
@@ -48,6 +50,40 @@ Output:
 ```
 A good movie to watch on the weekend would be The Lion King, since it's a classic family film that everyone can enjoy...
 ```
+
+## Tune on your own dataset
+
+With only a few modifications, you can prepare and train on your own instruction dataset.
+
+1. Create a json file in which each row holds one instruction-response pair. 
+   A row has an entry for 'instruction', 'input', and 'output', where 'input' is optional an can be 
+   the empty string if the instruction doesn't require a context. Below is an example json file:
+
+    ```
+    [
+        {
+            "instruction": "Arrange the given numbers in ascending order.",
+            "input": "2, 4, 0, 8, 3",
+            "output": "0, 2, 3, 4, 8"
+        },
+        ...
+    ]
+    ```
+
+2. Make a copy of `scripts/prepare_alpaca.py` and name it what you want:
+
+    ```bash
+    cp scripts/prepare_alpaca.py scripts/prepare_mydata.py
+    ```
+
+3. Modify `scripts/prepare_mydata.py` to read the json data file.
+4. Run the script to generate the preprocessed, tokenized train-val split:
+
+    ```bash
+    python scripts/prepare_mydata.py --destination_path data/mydata/
+    ```
+
+5. In `finetune_adapter.py`, set the `data_dir="data/mydata"` so the finetuning script can load your dataset.
 
 
 ## Troubleshooting
