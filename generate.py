@@ -19,6 +19,7 @@ def generate(
     max_seq_length: int,
     temperature: float = 1.0,
     top_k: Optional[int] = None,
+    eos_id: Optional[int] = None,
 ) -> torch.Tensor:
     """Takes a conditioning sequence (prompt) as input and continues to generate as many tokens as requested.
 
@@ -57,9 +58,13 @@ def generate(
 
         probs = torch.nn.functional.softmax(logits, dim=-1)
         idx_next = torch.multinomial(probs, num_samples=1)
-
+        
+        # if <eos> token is triggered, return the output (stop generation)
+        if idx_next==eos_id:
+            return idx[:,:t]
+        
         # concatenate the new column
-        idx[:, t:] = idx_next
+        idx[:, t] = idx_next
 
     return idx
 
