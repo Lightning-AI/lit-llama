@@ -50,6 +50,7 @@ Output:
 ```
 A good movie to watch on the weekend would be The Lion King, since it's a classic family film that everyone can enjoy...
 ```
+If your GPU supports `bfloat16`, the script will automatically use it. Together with `--quantize llm.int8`, this brings the memory consumption down to ~8 GB.
 
 ## Tune on your dataset
 
