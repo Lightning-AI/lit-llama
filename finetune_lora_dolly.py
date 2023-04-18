@@ -1,5 +1,5 @@
 """
-Instruction-tuning with LoRA on the Alpaca dataset.
+Instruction-tuning with LoRA on the Dolly dataset.
 
 Note: If you run into a CUDA error "Expected is_sm80 to be true, but got false", uncomment the line
 `torch.backends.cuda.enable_flash_sdp(False)` in the script below (see https://github.com/Lightning-AI/lit-llama/issues/101).
