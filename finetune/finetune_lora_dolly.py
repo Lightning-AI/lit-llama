@@ -15,7 +15,6 @@ from generate import generate
 from lit_llama.lora import mark_only_lora_as_trainable, lora, lora_state_dict
 from lit_llama.model import LLaMA, LLaMAConfig
 from lit_llama.tokenizer import Tokenizer
-from lit_llama.utils import save_model_checkpoint
 from scripts.prepare_dolly import generate_prompt
 
 
@@ -200,6 +199,6 @@ def load_datasets(data_dir: str = "data/dolly"):
 
 if __name__ == "__main__":
     # Uncomment this line if you see an error: "Expected is_sm80 to be true, but got false"
-    torch.backends.cuda.enable_flash_sdp(False)
+    # torch.backends.cuda.enable_flash_sdp(False)
     torch.set_float32_matmul_precision("high")
     main()
