@@ -37,8 +37,8 @@ Run this script to convert the weights for loading into Lit-LLaMA:
 ```bash
 python scripts/convert_hf_checkpoint.py \
     --hf_checkpoint_path path/to/hf/checkpoint/folder \
-    --lit_checkpoint checkpoints/lit-llama.ckpt
+    --lit_checkpoint checkpoints/lit-llama.pth
     --model_size 7B
 ```
 
-You can now run [`generate.py` to test the imported weights](download_weights.md).
+You can now run [`generate.py` to test the imported weights](inference.md).
