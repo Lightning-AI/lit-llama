@@ -1,5 +1,6 @@
 import json
 import glob
+from multiprocessing import Pool
 import os
 from pathlib import Path
 import sys
@@ -40,18 +41,26 @@ filename_sets = {
 }
 
 
-def prepare_sample(source_path: Path, tokenizer_path: Path, destination_path: Path = Path("data/red_pajama_sample")) -> None:
-    """Prepare the "Red Pajama" dataset. We assume tokenizer has been trained (i.e. we reuse LLaMA's tokenizer model).
-    """
+def prepare_sample(
+    source_path: Path,
+    tokenizer_path: Path,
+    destination_path: Path = Path("data/red_pajama_sample"),
+    match = ""
+) -> None:
+    """Prepare the "Red Pajama" dataset. We assume tokenizer has been trained (i.e. we reuse LLaMA's tokenizer model)."""
     destination_path.mkdir(parents=True, exist_ok=True)
 
     tokenizer = Tokenizer(tokenizer_path)
 
     for name in filenames_sample:
+        if match and match not in name:
+            continue
+
         filepath = source_path / name
 
         if not filepath.is_file():
-            raise RuntimeError(f"Input file not found at {filepath}. \n"
+            raise RuntimeError(
+                f"Input file not found at {filepath}. \n"
                 "Make sure you download the data, e.g. wget -i https://data.together.xyz/redpajama-data-1T/v1.0.0/urls.txt or through \n"
                 "https://huggingface.co/datasets/togethercomputer/RedPajama-Data-1T \n"
                 "https://huggingface.co/datasets/togethercomputer/RedPajama-Data-1T-Sample \n"
@@ -81,9 +90,13 @@ def prepare_sample(source_path: Path, tokenizer_path: Path, destination_path: Pa
         builder.finalize(destination_path / index_name)
 
 
-def prepare_full(source_path: Path, tokenizer_path: Path, destination_path: Path = Path("data/red_pajama_sample")) -> None:
-    """Prepare the "Red Pajama" dataset. We assume tokenizer has been trained (i.e. we reuse LLaMA's tokenizer model).
-    """
+def prepare_full(
+    source_path: Path,
+    tokenizer_path: Path,
+    destination_path: Path = Path("data/red_pajama_sample"),
+    match: str = ""
+) -> None:
+    """Prepare the "Red Pajama" dataset. We assume tokenizer has been trained (i.e. we reuse LLaMA's tokenizer model)."""
     import zstandard as zstd
 
     destination_path.mkdir(parents=True, exist_ok=True)
@@ -91,6 +104,9 @@ def prepare_full(source_path: Path, tokenizer_path: Path, destination_path: Path
     tokenizer = Tokenizer(tokenizer_path)
 
     for set_name, pattern in filename_sets.items():
+        if match and match not in set_name:
+            continue
+
         bin_name = f"{set_name}.bin"
         index_name = f"{set_name}.index"
 
@@ -108,7 +124,8 @@ def prepare_full(source_path: Path, tokenizer_path: Path, destination_path: Path
             filepath = source_path / name
 
             if not filepath.is_file():
-                raise RuntimeError(f"Input file not found at {filepath}. \n"
+                raise RuntimeError(
+                    f"Input file not found at {filepath}. \n"
                     "Make sure you download the data, e.g. wget -i https://data.together.xyz/redpajama-data-1T/v1.0.0/urls.txt or through \n"
                     "https://huggingface.co/datasets/togethercomputer/RedPajama-Data-1T \n"
                     "https://huggingface.co/datasets/togethercomputer/RedPajama-Data-1T-Sample \n"
@@ -136,11 +153,27 @@ def prepare_full(source_path: Path, tokenizer_path: Path, destination_path: Path
         builder.finalize(destination_path / index_name)
 
 
-def prepare(source_path: Path, tokenizer_path: Path, destination_path: Path = Path("data/red_pajama_sample"), sample: bool = False) -> None:
+def prepare(
+    source_path: Path,
+    tokenizer_path: Path,
+    destination_path: Path = Path("data/red_pajama_sample"),
+    sample: bool = False,
+    match: str = "",
+) -> None:
     if sample:
-        prepare_sample(source_path=source_path, tokenizer_path=tokenizer_path, destination_path=destination_path)
+        prepare_sample(
+            source_path=source_path,
+            tokenizer_path=tokenizer_path,
+            destination_path=destination_path,
+            match=match,
+        )
     else:
-        prepare_full(source_path=source_path, tokenizer_path=tokenizer_path, destination_path=destination_path)
+        prepare_full(
+            source_path=source_path,
+            tokenizer_path=tokenizer_path,
+            destination_path=destination_path,
+            match=match,
+        )
 
 
 if __name__ == "__main__":
