@@ -51,7 +51,8 @@ def main():
 
     config = LLaMAConfig.from_name("7B")
     config.block_size = block_size
-
+    
+    # TODO: make it configurable
     checkpoint = torch.load("../../weights/lit-llama.pth")
 
     with fabric.device, lora(r=lora_r, alpha=lora_alpha, dropout=lora_dropout, enabled=True):
@@ -123,8 +124,9 @@ def train(
 
 
 def generate_response(model, instruction):
+    # TODO: make it configurable
     tokenizer = Tokenizer("../../weights/tokenizer.model")
-    sample = {"instruction": instruction, "input": ""}
+    sample = {"instruction": instruction, "context": "", "category": "open_qa"}
     prompt = generate_prompt(sample)
     encoded = tokenizer.encode(prompt, bos=True, eos=False)
     encoded = encoded[None, :]  # add batch dimension
@@ -154,6 +156,7 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
 
     # produce an example:
     instruction = "Recommend a movie for me to watch during the weekend and explain the reason."
+
     
     output = generate_response(model, instruction)
     fabric.print(instruction)
@@ -197,6 +200,6 @@ def load_datasets(data_dir: str = "data/dolly"):
 
 if __name__ == "__main__":
     # Uncomment this line if you see an error: "Expected is_sm80 to be true, but got false"
-    # torch.backends.cuda.enable_flash_sdp(False)
+    torch.backends.cuda.enable_flash_sdp(False)
     torch.set_float32_matmul_precision("high")
     main()
