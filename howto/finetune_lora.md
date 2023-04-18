@@ -34,8 +34,10 @@ python generate_lora.py --prompt "Recommend a movie to watch on the weekend."
 ```
 Output:
 ```
-A good movie to watch on the weekend would be The Lion King, since it's a classic family film that everyone can enjoy...
+I would recommend the movie The Martian (2015). It is a sci-fi movie starring Matt Damon that follows the story of...
 ```
+
+If your GPU supports `bfloat16`, you can additionally pass `--dtype bfloat16` to bring the memory consumption down to ~14 GB.
 
 ## Tune on your dataset
 
