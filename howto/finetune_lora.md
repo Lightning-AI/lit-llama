@@ -24,9 +24,56 @@ python finetune_lora.py
 The finetuning requires at least one GPU with ~24 GB memory (GTX 3090).
 This script will save checkpoints periodically to the folder `out/`.
 
-## Testing the model
 
-Coming soon.
+## Test the model
+
+You can test the finetuned model with your own instructions by running:
+
+```bash
+python generate_lora.py --prompt "Recommend a movie to watch on the weekend."
+```
+Output:
+```
+A good movie to watch on the weekend would be The Lion King, since it's a classic family film that everyone can enjoy...
+```
+
+## Tune on your dataset
+
+With only a few modifications, you can prepare and train on your own instruction dataset.
+
+1. Create a json file in which each row holds one instruction-response pair. 
+   A row has an entry for 'instruction', 'input', and 'output', where 'input' is optional an can be 
+   the empty string if the instruction doesn't require a context. Below is an example json file:
+
+    ```
+    [
+        {
+            "instruction": "Arrange the given numbers in ascending order.",
+            "input": "2, 4, 0, 8, 3",
+            "output": "0, 2, 3, 4, 8"
+        },
+        ...
+    ]
+    ```
+
+2. Make a copy of `scripts/prepare_alpaca.py` and name it what you want:
+
+    ```bash
+    cp scripts/prepare_alpaca.py scripts/prepare_mydata.py
+    ```
+
+3. Modify `scripts/prepare_mydata.py` to read the json data file.
+4. Run the script to generate the preprocessed, tokenized train-val split:
+
+    ```bash
+    python scripts/prepare_mydata.py --destination_path data/mydata/
+    ```
+
+5. Run `finetune_lora.py` by passing in the location of your data (and optionally other parameters):
+    
+    ```bash
+    python finetune_lora.py --data_dir data/mydata/ --out_dir out/myexperiment
+    ```
 
 
 ## Troubleshooting

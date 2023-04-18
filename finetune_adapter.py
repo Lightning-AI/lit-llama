@@ -26,8 +26,6 @@ from scripts.prepare_alpaca import generate_prompt
 from lightning.fabric.strategies import DeepSpeedStrategy
 
 
-pretrained_path = "checkpoints/lit-llama/7B/lit-llama.pth"
-out_dir = "out/adapter/alpaca"
 eval_interval = 600
 save_interval = 1000
 eval_iters = 100
@@ -53,7 +51,12 @@ ds_config = {
 }
 
 
-def main():
+def main(
+    data_dir: str = "data/alpaca", 
+    pretrained_path: str = "checkpoints/lit-llama/7B/lit-llama.pth",
+    out_dir: str = "out/adapter/alpaca",
+):
+
     fabric = L.Fabric(
         accelerator="cuda", 
         devices=devices, 
@@ -66,7 +69,7 @@ def main():
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
 
-    train_data, val_data = load_datasets()
+    train_data, val_data = load_datasets(data_dir=data_dir)
 
     config = LLaMAConfig()
     config.block_size = block_size
@@ -92,7 +95,7 @@ def main():
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     model, optimizer = fabric.setup(model, optimizer)
-    train(fabric, model, optimizer, train_data, val_data)
+    train(fabric, model, optimizer, train_data, val_data, out_dir)
 
     # Save the final checkpoint at the end of training
     save_model_checkpoint(fabric, model, os.path.join(out_dir, "alpaca-adapter-finetuned.pth"))
@@ -104,6 +107,7 @@ def train(
     optimizer: torch.optim.Optimizer,
     train_data: np.ndarray,
     val_data: np.ndarray,
+    out_dir: str,
 ) -> None:
     """The training loop.
 
@@ -214,7 +218,7 @@ def get_batch(fabric: L.Fabric, data: list):
     return x, y
 
 
-def load_datasets(data_dir: str = "data/alpaca"):
+def load_datasets(data_dir):
     train_data = torch.load(os.path.join(data_dir, "train.pt"))
     val_data = torch.load(os.path.join(data_dir, "test.pt"))
     return train_data, val_data
@@ -224,4 +228,7 @@ if __name__ == "__main__":
     # Uncomment this line if you see an error: "Expected is_sm80 to be true, but got false"
     # torch.backends.cuda.enable_flash_sdp(False)
     torch.set_float32_matmul_precision("high")
-    main()
+
+    from jsonargparse.cli import CLI
+
+    CLI(main)

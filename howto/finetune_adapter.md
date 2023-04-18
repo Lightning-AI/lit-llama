@@ -51,7 +51,7 @@ Output:
 A good movie to watch on the weekend would be The Lion King, since it's a classic family film that everyone can enjoy...
 ```
 
-## Tune on your own dataset
+## Tune on your dataset
 
 With only a few modifications, you can prepare and train on your own instruction dataset.
 
@@ -83,7 +83,11 @@ With only a few modifications, you can prepare and train on your own instruction
     python scripts/prepare_mydata.py --destination_path data/mydata/
     ```
 
-5. In `finetune_adapter.py`, set the `data_dir="data/mydata"` so the finetuning script can load your dataset.
+5. Run `finetune_adapter.py` by passing in the location of your data (and optionally other parameters):
+    
+    ```bash
+    python finetune_adapter.py --data_dir data/mydata/ --out_dir out/myexperiment
+    ```
 
 
 ## Troubleshooting
