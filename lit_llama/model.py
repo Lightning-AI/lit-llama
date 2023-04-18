@@ -32,6 +32,12 @@ llama_configs = {
     "65B": LLaMAConfig(n_layer=80, n_head=64, n_embd=8192),
 }
 
+llama_model_lookup = {
+    4096: "7B",
+    5120: "13B",
+    6656: "30B",
+    8192: "65B",
+}
 
 class LLaMA(nn.Module):
     def __init__(self, config: LLaMAConfig) -> None:
