@@ -69,7 +69,7 @@ class CausalSelfAttention(nn.Module):
             self.rope_cache = build_rope_cache(
                 seq_len=self.block_size,
                 n_elem=self.n_embd // self.n_head, 
-                dtype=self.c_attn.weight.dtype,
+                dtype=x.dtype,
                 device=x.device,
             )
 
@@ -173,8 +173,6 @@ def mark_only_adapter_as_trainable(model: LLaMA) -> None:
         param.requires_grad = "adapter_wte" in name or "gating_factor" in name
 
 
-def adapter_state_dict(model: LLaMA) -> dict:
-    """Retrieve the model state dict with only the adapter weights for saving."""
-    return {
-        name: param for name, param in model.named_parameters() if "adapter_wte" in name or "gating_factor" in name
-    }
+def adapter_state_from_state_dict(state_dict: dict) -> dict:
+    """Returns the model state dict with only the adapter weights for saving."""
+    return {name: param for name, param in state_dict.items() if "adapter_wte" in name or "gating_factor" in name}
