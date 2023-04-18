@@ -15,6 +15,7 @@ from generate import generate
 from lit_llama.lora import mark_only_lora_as_trainable, lora, lora_state_dict
 from lit_llama.model import LLaMA, LLaMAConfig
 from lit_llama.tokenizer import Tokenizer
+from lit_llama.utils import save_model_checkpoint
 from scripts.prepare_alpaca import generate_prompt
 
 
@@ -51,7 +52,7 @@ def main():
     config = LLaMAConfig.from_name("7B")
     config.block_size = block_size
 
-    checkpoint = torch.load("checkpoints/lit-llama/7B/state_dict.pth")
+    checkpoint = torch.load("checkpoints/lit-llama/7B/lit-llama.pth")
 
     with fabric.device, lora(r=lora_r, alpha=lora_alpha, dropout=lora_dropout, enabled=True):
         torch.set_default_tensor_type(torch.HalfTensor)
@@ -65,6 +66,10 @@ def main():
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
     model, optimizer = fabric.setup(model, optimizer)
     train(fabric, model, optimizer, train_data, val_data)
+
+    # Save the final LoRA checkpoint at the end of training
+    checkpoint = lora_state_dict(model)
+    fabric.save(os.path.join(out_dir, "lit-llama-lora-finetuned.pth"), checkpoint)
 
 
 def train(
@@ -110,7 +115,7 @@ def train(
                 # We are only saving the LoRA weights
                 # TODO: Provide a function/script to merge the LoRA weights with pretrained weights
                 checkpoint = lora_state_dict(model)
-                fabric.save(os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pt"), checkpoint)
+                fabric.save(os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pth"), checkpoint)
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:
