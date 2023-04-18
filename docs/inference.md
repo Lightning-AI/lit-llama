@@ -10,7 +10,7 @@ Output:
 Hello my name is TJ. I have a passion for the outdoors, love hiking and exploring. I also enjoy traveling and learning new things. I especially enjoy long walks, good conversation and a friendly smile.
 ```
 
-The script assumes you have downloaded and converted the weights and saved them in the `./checkpoints` folder as described [here](download_weights.md). If you have the weights stored elswehere, you can pass it in as a parameter:
+The script assumes you have downloaded and converted the weights and saved them in the `./checkpoints` folder as described [here](download_weights.md). If you have the weights stored elsewhere, you can pass the weights file in as a parameter:
 
 ```bash
 python generate.py --prompt "Hello, my name is" \
