@@ -2,9 +2,9 @@
 
 import functools
 from pathlib import Path
-import zipfile
 import pickle
 import warnings
+from io import BytesIO
 
 import torch
 import torch.utils._device
@@ -111,8 +111,8 @@ class EmptyInitOnDevice(torch.overrides.TorchFunctionMode):
         return func(*args, **kwargs)
 
 
-
 # this is taken from torchhacks https://github.com/lernapparat/torchhacks
+
 
 class NotYetLoadedTensor:
     def __init__(self, metatensor, archiveinfo, storageinfo, rebuild_args):
@@ -154,14 +154,23 @@ class NotYetLoadedTensor:
         return NotYetLoadedTensor(metatensor, archiveinfo, storageinfo, rebuild_args)
 
     def _load_tensor(self):
-        # we could / should try to lean heavier on PyTorch's reader
         name, storage_cls, fn, device, size = self.storageinfo
-        buffer = self.archiveinfo.zipfile.read(
-            str(self.archiveinfo.prefix / "data" / fn)
+        dtype = self.metatensor.dtype
+
+        uts = (
+            self.archiveinfo.zipfile.get_storage_from_record(
+                f"data/{fn}",
+                size * torch._utils._element_size(dtype),
+                torch.UntypedStorage,
+            )
+            ._typed_storage()
+            ._untyped_storage
         )
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            storage = storage_cls.from_buffer(buffer, "native")
+            storage = torch.storage.TypedStorage(
+                wrap_storage=uts, dtype=self.metatensor.dtype, _internal=True
+            )
         tensor = torch._utils._rebuild_tensor_v2(storage, *self.rebuild_args)
         return tensor
 
@@ -204,10 +213,9 @@ class NotYetLoadedTensor:
 
 
 class LazyLoadingUnpickler(pickle.Unpickler):
-    def __init__(self, file, zipfile, prefix):
+    def __init__(self, file, zipfile):
         super().__init__(file)
         self.zipfile = zipfile
-        self.prefix = prefix
 
     def find_class(self, module, name):
         if module == "torch._utils" and name == "_rebuild_tensor_v2":
@@ -225,10 +233,8 @@ class LazyLoadingUnpickler(pickle.Unpickler):
 
 
 def lazy_load(fn):
-    zf = zipfile.ZipFile(fn)
-    nl = zf.namelist()
-    prefix = Path(Path(nl[0]).parts[0])
-    with zf.open(str(prefix / "data.pkl"), "r") as pkl:
-        mup = LazyLoadingUnpickler(pkl, zf, prefix)
+    zf = torch._C.PyTorchFileReader(str(fn))
+    with BytesIO(zf.get_record("data.pkl")) as pkl:
+        mup = LazyLoadingUnpickler(pkl, zf)
         sd = mup.load()
     return sd
