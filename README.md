@@ -104,13 +104,10 @@ python scripts/convert_checkpoint.py
 
 You might find the weights hosted online in the HuggingFace hub. Beware that this infringes the original weight's license.
 
-You could try downloading them by running:
+You could try downloading them by running the following command with a specific repo id:
 
-```python
-from huggingface_hub import snapshot_download
-
-repo_id = "..."
-snapshot_download(repo_id, local_dir="checkpoints/llama-7b-hf")
+```bash
+python scripts/download.py --repo_id ...
 ```
 
 Convert the weights to the Lit-LLaMA format:
