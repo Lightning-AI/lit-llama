@@ -111,24 +111,21 @@ def convert_hf_checkpoint(
     torch.save(model.state_dict(), output_dir / "lit-llama.pth")
 
     if verify:
-        print("Verifying...")
+        try:
+            from transformers import LlamaForCausalLM
+        except ImportError:
+            raise ImportError("verify=True requires transformers to be installed, please `pip install transformers`")
 
+        print("Verifying...")
         token_sample = torch.randint(
             0, config.vocab_size, size=(1, config.block_size), dtype=torch.int64
         )
-
         out = model(token_sample)
 
         del model
         gc.collect()
 
         print("Loading original model for comparison.")
-
-        try:
-            from transformers import LlamaForCausalLM
-        except ImportError:
-            print("verify=True requires transformers to be installed, please `pip install transformers`")
-
         model_hf = LlamaForCausalLM.from_pretrained(ckpt_dir)
 
         out_hf = model_hf(token_sample)
