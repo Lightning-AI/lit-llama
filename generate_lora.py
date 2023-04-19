@@ -88,7 +88,6 @@ def main(
         model.load_state_dict(pretrained_checkpoint, strict=False)
             
         # 2. Load the fine-tuned adapter weights
-        print(lora_path)
         adapter_checkpoint = lazy_load(lora_path)
         model.load_state_dict(adapter_checkpoint, strict=False)
 

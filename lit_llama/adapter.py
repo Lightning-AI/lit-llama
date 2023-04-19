@@ -20,18 +20,6 @@ class LLaMAConfig(llama.LLaMAConfig):
     adapter_prompt_length: int = 10
     adapter_start_layer: int = 2
 
-    @classmethod
-    def from_name(cls, name: str) -> Self:
-        return llama_configs[name]
-
-
-llama_configs = {
-    "7B": LLaMAConfig(n_layer=32, n_head=32, n_embd=4096),
-    "13B": LLaMAConfig(n_layer=40, n_head=40, n_embd=5120),
-    "30B": LLaMAConfig(n_layer=60, n_head=52, n_embd=6656),
-    "65B": LLaMAConfig(n_layer=80, n_head=64, n_embd=8192),
-}
-
 
 class CausalSelfAttention(nn.Module):
     """A modification of `lit_llama.model.CausalSelfAttention` that adds the attention
