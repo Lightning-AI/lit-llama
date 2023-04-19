@@ -2,7 +2,7 @@
 
 Except for when you are training from scratch, you will need the pretrained weights from Meta.
 
-### Original source
+### Original Meta weights
 
 Download the model weights following the instructions on the official [LLaMA repository](https://github.com/facebookresearch/llama).
 
