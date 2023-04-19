@@ -11,12 +11,9 @@ Once downloaded, you should have a folder like this:
 ```text
 checkpoints/llama
 ├── 7B
-│   ├── checklist.chk
-│   ├── consolidated.00.pth
-│   └── params.json
+│   └── consolidated.00.pth
 ├── 13B
 │   ...
-├── tokenizer_checklist.chk
 └── tokenizer.model
 ```
 
@@ -42,10 +39,28 @@ Or if you don't have `git-lfs` installed:
 python scripts/download.py --repo_id REPO_ID --model_size 7B
 ```
 
+Once downloaded, you should have a folder like this:
+
+```text
+checkpoints/hf-llama/
+└── 7B
+    ├── pytorch_model.bin.index.json
+    └── tokenizer.model
+```
+
 Convert the weights to the Lit-LLaMA format:
 
 ```bash
 python scripts/convert_hf_checkpoint.py --model_size 7B
+```
+
+Once converted, you should have a folder like this:
+
+```text
+checkpoints/lit-llama/
+├── 7B
+│   └── lit-llama.pth
+└── tokenizer.model
 ```
 
 You are all set. Now you can continue with inference or finetuning.
