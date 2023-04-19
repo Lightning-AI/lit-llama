@@ -128,7 +128,7 @@ def convert_hf_checkpoint(
         except ImportError:
             print("verify=True requires transformers to be installed, please `pip install transformers`")
 
-        model_hf = LlamaForCausalLM.from_pretrained(hf_checkpoint_path)
+        model_hf = LlamaForCausalLM.from_pretrained(ckpt_dir)
 
         out_hf = model_hf(token_sample)
 

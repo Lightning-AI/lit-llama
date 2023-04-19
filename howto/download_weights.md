@@ -46,6 +46,8 @@ Once downloaded, you should have a folder like this:
 checkpoints/hf-llama/
 └── 7B
     ├── ...
+    ├── pytorch_model-00001-of-00002.bin
+    ├── pytorch_model-00002-of-00002.bin
     ├── pytorch_model.bin.index.json
     └── tokenizer.model
 ```
