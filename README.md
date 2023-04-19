@@ -68,7 +68,6 @@ You are all set! 🎉
 
 ## Use the model
 
-
 To generate text predictions, you need to download the model weights.
 
 <details>

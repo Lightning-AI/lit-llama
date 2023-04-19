@@ -1,6 +1,7 @@
 import gc
 import os
 import json
+import shutil
 from pathlib import Path
 import sys
 
@@ -36,14 +37,13 @@ def convert_hf_checkpoint(
     with EmptyInitOnDevice(device="cpu", dtype=dtype):
         model = LLaMA(config)
 
-    sd = model.state_dict()
     qkv_size = model.transformer.h[0].attn.c_attn.weight.shape[0] // 3
 
     # initialize a new empty state dict to hold our new weights
     sd = model.state_dict()
 
     # Load the json file containing weight mapping
-    pytorch_bin_map_json_path = os.path.join(hf_checkpoint_path, "pytorch_model.bin.index.json")
+    pytorch_bin_map_json_path = hf_checkpoint_path / "pytorch_model.bin.index.json"
     with open(pytorch_bin_map_json_path) as json_map:
         bin_index = json.load(json_map)
 
@@ -75,7 +75,7 @@ def convert_hf_checkpoint(
     for bin_file in bin_files:
         print("Processing", bin_file)
 
-        hf_weights = torch.load(os.path.join(hf_checkpoint_path, bin_file), map_location="cpu")
+        hf_weights = torch.load(hf_checkpoint_path / bin_file, map_location="cpu")
 
         for name, param in hf_weights.items():
             param = param.to(dtype=dtype)
@@ -104,6 +104,8 @@ def convert_hf_checkpoint(
     lit_checkpoint.parent.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), lit_checkpoint)
 
+    shutil.copy(hf_checkpoint_path / "tokenizer.model", lit_checkpoint.parent.parent)
+
     if verify:
         print("Verifying...")
 
@@ -120,7 +122,7 @@ def convert_hf_checkpoint(
 
         try:
             from transformers import LlamaForCausalLM
-        except ImportError as e:
+        except ImportError:
             print("verify=True requires transformers to be installed, please `pip install transformers`")
 
         model_hf = LlamaForCausalLM.from_pretrained(hf_checkpoint_path)
