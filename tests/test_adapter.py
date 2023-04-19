@@ -1,8 +1,10 @@
 import torch
 from dataclasses import asdict
 import pytest
+import sys
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="EmptyInitOnDevice on CPU not working for Windows.")
 @pytest.mark.parametrize("model_size", ["7B", "13B", "30B", "65B"])
 def test_config_identical(model_size, lit_llama):
     import lit_llama.adapter as llama_adapter
