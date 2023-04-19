@@ -107,7 +107,7 @@ def convert_hf_checkpoint(
         gc.collect()
 
     print(f"Saving to disk at {output_dir}")
-    torch.save(model.state_dict(), output_dir)
+    torch.save(model.state_dict(), output_dir / "lit-llama.pth")
 
     if verify:
         print("Verifying...")
