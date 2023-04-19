@@ -4,11 +4,12 @@ import shutil
 import sys
 from pathlib import Path
 
+import torch
+
 # support running without installing as a package
 wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 
-import torch
 from lit_llama.model import LLaMA, LLaMAConfig
 from lit_llama.utils import EmptyInitOnDevice
 
