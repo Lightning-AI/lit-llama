@@ -19,17 +19,13 @@ llama_model_sizes = {
 }
 
 
-def llama_model_lookup_from_size(size: int) -> str:
-    """Returns the LLaMA model name from the embedding size."""
-    return llama_model_sizes[size]
-
-
 def llama_model_lookup(checkpoint: dict) -> str:
     """Returns the LLaMA model name from the checkpoint.
     
     Checks the width of the lm_head.weight matrix, as these uniquely identify the model.
     """
-    return llama_model_lookup_from_size(checkpoint["lm_head.weight"].shape[1])
+    embedding_size = checkpoint["lm_head.weight"].shape[1]
+    return llama_model_sizes[embedding_size]
 
 
 def save_model_checkpoint(fabric, model, file_path):
