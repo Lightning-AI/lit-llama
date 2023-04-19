@@ -37,7 +37,7 @@ git clone REPO_ID checkpoints/hf-llama/7B
 Or if you don't have `git-lfs` installed:
 
 ```bash
-python scripts/download.py --repo_id REPO_ID --model_size 7B
+python scripts/download.py --repo_id REPO_ID --local_dir checkpoints/hf-llama/7B
 ```
 
 Once downloaded, you should have a folder like this:
