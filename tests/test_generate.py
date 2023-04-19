@@ -6,7 +6,6 @@ from io import StringIO
 from pathlib import Path
 from unittest import mock
 from unittest.mock import Mock, call, ANY
-from lit_llama.model import LLaMA, LLaMAConfig
 
 import torch
 
@@ -23,6 +22,8 @@ def load_generate_script():
 
 
 def test_generate():
+    from lit_llama.model import LLaMA, LLaMAConfig
+
     generate = load_generate_script()
 
     T, C = 5, 3
