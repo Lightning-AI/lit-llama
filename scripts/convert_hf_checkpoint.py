@@ -18,7 +18,7 @@ from lit_llama.utils import EmptyInitOnDevice
 def convert_hf_checkpoint(
     model_size: str = "7B",
     hf_checkpoint_path: Path = Path("checkpoints/llama-7b-hf"),
-    lit_checkpoint: Path = Path("checkpoints/lit-llama.pth"),
+    lit_checkpoint: Path = Path("checkpoints/lit-llama/7B/lit-llama.pth"),
     dtype: str = "float32",
     verify: bool = False,
 ) -> None:
@@ -102,6 +102,7 @@ def convert_hf_checkpoint(
         gc.collect()
 
     print(f"Saving to disk at {lit_checkpoint}")
+    lit_checkpoint.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), lit_checkpoint)
 
     if verify:

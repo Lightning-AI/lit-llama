@@ -68,7 +68,14 @@ You are all set! 🎉
 
 ## Use the model
 
-To generate text predictions, download the model weights following the instructions on the official [LLaMA repository](https://github.com/facebookresearch/llama).
+
+To generate text predictions, you need to download the model weights.
+
+<details>
+
+<summary>Original weights</summary>
+
+Please follow the instructions on the official [LLaMA repository](https://github.com/facebookresearch/llama).
 
 Once downloaded, you should have a folder like this:
 
@@ -87,12 +94,33 @@ checkpoints/llama
 Convert the weights to the Lit-LLaMA format:
 
 ```bash
-python scripts/convert_checkpoint.py \
-    --output_dir checkpoints/lit-llama \
-    --ckpt_dir checkpoints/llama \
-    --tokenizer_path checkpoints/llama/tokenizer.model \
-    --model_size 7B
+python scripts/convert_checkpoint.py
 ```
+
+</details>
+
+<details>
+
+<summary>Hub weights</summary>
+
+You might find the weights hosted online in the HuggingFace hub. Beware that this infringes the original weight's license.
+
+You could try downloading them by running:
+
+```python
+from huggingface_hub import snapshot_download
+
+repo_id = "..."
+snapshot_download(repo_id, local_dir="checkpoints/llama-7b-hf")
+```
+
+Convert the weights to the Lit-LLaMA format:
+
+```bash
+python scripts/convert_hf_checkpoint.py
+```
+
+</details>
 
 Run inference:
 
