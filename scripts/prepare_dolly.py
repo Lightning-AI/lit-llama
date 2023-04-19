@@ -27,7 +27,7 @@ def prepare(
     seed: int = 42,
     mask_inputs: bool = False,  # as in alpaca-lora
 ) -> None:
-    """Prepare the Alpaca dataset for instruction tuning.
+    """Prepare the Dolly dataset for instruction tuning.
     
     The output is a training and validation dataset saved as `train.pt` and `val.pt`,
     which stores the preprocessed and tokenized prompts and labels.
