@@ -43,6 +43,9 @@ def prepare(
     with open(file_path, "r") as file:
         data = file.readlines()
         data = [json.loads(line) for line in data]
+    for item in data:
+        item["input"] = item.pop("context")
+        item["output"] = item.pop("response")
 
     # Partition the dataset into train and test
     train_split_size = len(data) - test_split_size
