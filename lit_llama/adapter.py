@@ -13,7 +13,6 @@ from torch.nn import functional as F
 import lit_llama.model as llama
 from lit_llama.model import build_rope_cache, apply_rope, RMSNorm, MLP
 
-from typing_extensions import Self
 
 @dataclass
 class LLaMAConfig(llama.LLaMAConfig):
