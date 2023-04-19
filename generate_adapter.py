@@ -10,7 +10,7 @@ import torch
 from generate import generate
 from lit_llama import Tokenizer
 from lit_llama.adapter import LLaMA, LLaMAConfig
-from lit_llama.utils import EmptyInitOnDevice
+from lit_llama.utils import EmptyInitOnDevice, llama_model_lookup
 from scripts.prepare_alpaca import generate_prompt
 
 
@@ -65,12 +65,14 @@ def main(
     ):
         print("Loading model ...", file=sys.stderr)
         t0 = time.time()
-        model = LLaMA(LLaMAConfig())  # TODO: Support different model sizes
 
         # 1. Load the pretrained weights
         pretrained_checkpoint = torch.load(pretrained_path, map_location=torch.device("cpu"))
+        name = llama_model_lookup(pretrained_checkpoint)
+        model = LLaMA.from_name(name)
         model.load_state_dict(pretrained_checkpoint, strict=False)
-        
+
+
         # 2. Load the fine-tuned adapter weights
         adapter_checkpoint = torch.load(adapter_path)
         model.load_state_dict(adapter_checkpoint, strict=False)

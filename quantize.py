@@ -194,9 +194,8 @@ def main(
         print("Loading model ...", file=sys.stderr)
         t0 = time.time()
         checkpoint = torch.load(checkpoint_path)
-        model = LLaMA.from_name(
-            llama_model_lookup[checkpoint["lm_head.weight"].shape[1]]
-        )
+        name = llama_model_lookup(checkpoint)
+        model = LLaMA.from_name(name)
         model.load_state_dict(checkpoint)
         print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 

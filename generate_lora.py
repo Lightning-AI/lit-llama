@@ -10,7 +10,7 @@ import torch
 from generate import generate
 from lit_llama import Tokenizer, LLaMA, LLaMAConfig
 from lit_llama.lora import lora
-from lit_llama.utils import EmptyInitOnDevice
+from lit_llama.utils import EmptyInitOnDevice, llama_model_lookup
 from scripts.prepare_alpaca import generate_prompt
 
 lora_r = 8
@@ -79,10 +79,11 @@ def main(
     ), lora(r=lora_r, alpha=lora_alpha, dropout=lora_dropout, enabled=True):
         print("Loading model ...", file=sys.stderr)
         t0 = time.time()
-        model = LLaMA(LLaMAConfig())  # TODO: Support different model sizes
 
         # 1. Load the pretrained weights
         pretrained_checkpoint = torch.load(pretrained_path)
+        name = llama_model_lookup(pretrained_checkpoint)
+        model = LLaMA.from_name(name)
         model.load_state_dict(pretrained_checkpoint, strict=False)
 
         # 2. Load the fine-tuned LoRA weights

@@ -7,8 +7,8 @@ from typing import Optional
 import lightning as L
 import torch
 
-from lit_llama import LLaMA, Tokenizer, llama_model_lookup
-from lit_llama.utils import EmptyInitOnDevice
+from lit_llama import LLaMA, Tokenizer
+from lit_llama.utils import EmptyInitOnDevice, llama_model_lookup
 
 
 @torch.no_grad()
@@ -107,9 +107,8 @@ def main(
         print("Loading model ...", file=sys.stderr)
         t0 = time.time()
         checkpoint = torch.load(checkpoint_path)
-        model = LLaMA.from_name(
-            llama_model_lookup[checkpoint["lm_head.weight"].shape[1]]
-        )
+        name = llama_model_lookup(checkpoint)
+        model = LLaMA.from_name(name)
         model.load_state_dict(checkpoint)
         print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
