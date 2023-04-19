@@ -93,7 +93,7 @@ checkpoints/llama
 Convert the weights to the Lit-LLaMA format:
 
 ```bash
-python scripts/convert_checkpoint.py
+python scripts/convert_checkpoint.py --model_size 7B
 ```
 
 </details>
@@ -107,13 +107,13 @@ You might find the weights hosted online in the HuggingFace hub. Beware that thi
 You could try downloading them by running the following command with a specific repo id:
 
 ```bash
-python scripts/download.py --repo_id ...
+python scripts/download.py --repo_id 'REPO_ID' --model_size 7B
 ```
 
 Convert the weights to the Lit-LLaMA format:
 
 ```bash
-python scripts/convert_hf_checkpoint.py
+python scripts/convert_hf_checkpoint.py --model_size 7B
 ```
 
 </details>
@@ -121,7 +121,7 @@ python scripts/convert_hf_checkpoint.py
 Run inference:
 
 ```bash
-python generate.py --prompt "Hello, my name is"
+python generate.py --prompt "Hello, my name is" --model_size 7B
 ```
 
 This will run the 7B model and require ~26 GB of GPU memory (A100 GPU).
