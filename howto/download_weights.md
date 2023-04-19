@@ -11,6 +11,7 @@ Once downloaded, you should have a folder like this:
 ```text
 checkpoints/llama
 ├── 7B
+│   ├── ...
 │   └── consolidated.00.pth
 ├── 13B
 │   ...
@@ -44,6 +45,7 @@ Once downloaded, you should have a folder like this:
 ```text
 checkpoints/hf-llama/
 └── 7B
+    ├── ...
     ├── pytorch_model.bin.index.json
     └── tokenizer.model
 ```
