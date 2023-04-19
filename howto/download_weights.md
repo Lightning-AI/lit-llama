@@ -28,12 +28,12 @@ python scripts/convert_checkpoint.py --model_size 7B
 
 ### Alternative sources
 
-You might find the weights hosted online in the HuggingFace hub. Beware that this infringes the original weight's license.
-
+You might find LLaMA weights hosted online in the HuggingFace hub. Beware that this infringes the original weight's license.
 You could try downloading them by running the following command with a specific repo id:
 
 ```bash
-python scripts/download.py --repo_id 'REPO_ID' --model_size 7B
+# Make sure you have git-lfs installed (https://git-lfs.com): git lfs install
+git clone REPO_ID checkpoints/hf-llama/7B
 ```
 
 Convert the weights to the Lit-LLaMA format:
