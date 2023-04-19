@@ -9,8 +9,7 @@ import torch
 
 from generate import generate
 from lit_llama import Tokenizer
-from lit_llama.adapter import LLaMA, LLaMAConfig
-from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup
+from lit_llama.utils import load_model, lazy_load
 from scripts.prepare_alpaca import generate_prompt
 
 
@@ -60,21 +59,16 @@ def main(
 
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
 
-    with EmptyInitOnDevice(
-        device=fabric.device, dtype=dtype, quantization_mode=quantize
-    ):
-        print("Loading model ...", file=sys.stderr)
-        t0 = time.time()
+    # 1. Load the pretrained weights
+    print("Loading model ...", file=sys.stderr)
+    t0 = time.time()
+    model = load_model(pretrained_path, device=fabric.device, dtype=dtype, quantize=quantize, adapter=True)
+    print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
-        # 1. Load the pretrained weights
-        pretrained_checkpoint = lazy_load(pretrained_path)
-        name = llama_model_lookup(pretrained_checkpoint)
-        model = LLaMA.from_name(name)
-        model.load_state_dict(pretrained_checkpoint, strict=False)
             
-        # 2. Load the fine-tuned adapter weights
-        adapter_checkpoint = lazy_load(adapter_path)
-        model.load_state_dict(adapter_checkpoint, strict=False)
+    # 2. Load the fine-tuned adapter weights
+    adapter_checkpoint = lazy_load(adapter_path)
+    model.load_state_dict(adapter_checkpoint, strict=False)
 
         
     print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
@@ -86,6 +80,8 @@ def main(
     sample = {"instruction": prompt, "input": input}
     prompt = generate_prompt(sample)
     encoded = tokenizer.encode(prompt, bos=True, eos=False, device=model.device)
+
+    L.seed_everything(1234)
 
     t0 = time.perf_counter()
     output = generate(

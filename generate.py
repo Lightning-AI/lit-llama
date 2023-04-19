@@ -7,9 +7,8 @@ from typing import Optional
 import lightning as L
 import torch
 
-from lit_llama import LLaMA, Tokenizer
-from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup
-from lit_llama.utils import EmptyInitOnDevice
+from lit_llama import Tokenizer
+from lit_llama.utils import load_model
 
 
 @torch.no_grad()
@@ -111,16 +110,8 @@ def main(
 
     print("Loading model ...", file=sys.stderr)
     t0 = time.time()
-    with EmptyInitOnDevice(
-        device=fabric.device, dtype=dtype, quantization_mode=quantize
-    ):
-        print("Loading model ...", file=sys.stderr)
-        t0 = time.time()
-        checkpoint = lazy_load(checkpoint_path)
-        name = llama_model_lookup(checkpoint)
-        model = LLaMA.from_name(name)
-        model.load_state_dict(checkpoint)
-        print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
+    model = load_model(checkpoint_path, device=fabric.device, dtype=dtype, quantize=quantize)
+    print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
     model = fabric.setup_module(model)

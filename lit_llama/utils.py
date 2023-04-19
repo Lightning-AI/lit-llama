@@ -13,6 +13,8 @@ from torch.distributed.fsdp import FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import StateDictType
 
+from lit_llama import LLaMA
+from lit_llama.adapter import LLaMA as LLaMAAdapter
 
 llama_model_sizes = {
     4096: "7B",  # 7B n_embd=4096
@@ -259,3 +261,20 @@ def lazy_load(fn):
         mup = LazyLoadingUnpickler(pkl, zf)
         sd = mup.load()
     return sd
+
+
+
+def load_model(checkpoint_path: Path, device: str, dtype: str, quantize: str, adapter: bool = False):
+    """Load a model from a checkpoint file."""
+    
+    checkpoint = lazy_load(checkpoint_path)
+    name = llama_model_lookup(checkpoint)
+    with EmptyInitOnDevice(
+        device=device, dtype=dtype, quantization_mode=quantize
+    ):       
+        if adapter:
+            model = LLaMAAdapter.from_name(name)
+        else:
+            model = LLaMA.from_name(name)
+    model.load_state_dict(checkpoint, strict=False)
+    return model
