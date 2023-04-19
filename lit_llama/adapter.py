@@ -12,6 +12,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from lit_llama.model import build_rope_cache, apply_rope, RMSNorm, MLP
 
+from typing_extensions import Self
 
 @dataclass
 class LLaMAConfig:
@@ -24,6 +25,18 @@ class LLaMAConfig:
 
     adapter_prompt_length: int = 10
     adapter_start_layer: int = 2
+
+    @classmethod
+    def from_name(cls, name: str) -> Self:
+        return llama_configs[name]
+
+
+llama_configs = {
+    "7B": LLaMAConfig(n_layer=32, n_head=32, n_embd=4096),
+    "13B": LLaMAConfig(n_layer=40, n_head=40, n_embd=5120),
+    "30B": LLaMAConfig(n_layer=60, n_head=52, n_embd=6656),
+    "65B": LLaMAConfig(n_layer=80, n_head=64, n_embd=8192),
+}
 
 
 class CausalSelfAttention(nn.Module):
@@ -164,8 +177,11 @@ class LLaMA(nn.Module):
         logits = self.lm_head(x)  # (b, t, vocab_size)
 
         return logits
-
-
+    
+    @classmethod
+    def from_name(cls, name: str) -> Self:
+        return cls(LLaMAConfig.from_name(name))
+    
 
 def mark_only_adapter_as_trainable(model: LLaMA) -> None:
     """Sets `requires_grad=False` for all non-adapter weights."""

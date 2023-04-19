@@ -10,7 +10,7 @@ import torch
 from generate import generate
 from lit_llama import Tokenizer
 from lit_llama.adapter import LLaMA, LLaMAConfig
-from lit_llama.utils import EmptyInitOnDevice, llama_model_lookup
+from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup
 from scripts.prepare_alpaca import generate_prompt
 
 
@@ -67,30 +67,25 @@ def main(
         t0 = time.time()
 
         # 1. Load the pretrained weights
-        pretrained_checkpoint = torch.load(pretrained_path, map_location=torch.device("cpu"))
+        pretrained_checkpoint = lazy_load(pretrained_path)
         name = llama_model_lookup(pretrained_checkpoint)
         model = LLaMA.from_name(name)
         model.load_state_dict(pretrained_checkpoint, strict=False)
-
-
+            
         # 2. Load the fine-tuned adapter weights
-        adapter_checkpoint = torch.load(adapter_path)
+        adapter_checkpoint = lazy_load(adapter_path)
         model.load_state_dict(adapter_checkpoint, strict=False)
+
         
-        print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
+    print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
     model = fabric.setup_module(model)
 
     tokenizer = Tokenizer(tokenizer_path)
-    encoded_prompt = tokenizer.encode(prompt, bos=True, eos=False, device=fabric.device)
-    encoded_prompt = encoded_prompt[None, :]  # add batch dimension
-
     sample = {"instruction": prompt, "input": input}
     prompt = generate_prompt(sample)
-    encoded = tokenizer.encode(prompt, bos=True, eos=False)
-    encoded = encoded[None, :]  # add batch dimension
-    encoded = encoded.to(model.device)
+    encoded = tokenizer.encode(prompt, bos=True, eos=False, device=model.device)
 
     t0 = time.perf_counter()
     output = generate(
@@ -100,9 +95,9 @@ def main(
         max_new_tokens=max_new_tokens,
         temperature=temperature,
         top_k=top_k,
+        eos_id=tokenizer.eos_id
     )
-    # The end of the response is where the model generates the EOS token
-    output = truncate_output_to_eos(output[0].cpu(), tokenizer.eos_id)
+
     output = tokenizer.decode(output)
     output = output.split("### Response:")[1].strip()
 
@@ -112,16 +107,6 @@ def main(
     print(f"\n\nTime for inference: {t:.02f} sec total, {max_new_tokens / t:.02f} tokens/sec", file=sys.stderr)
     print(f"Memory used: {torch.cuda.max_memory_reserved() / 1e9:.02f} GB", file=sys.stderr)
 
-
-def truncate_output_to_eos(output, eos_id):
-    # TODO: Make this more efficient, terminate generation early
-    try:
-        eos_pos = output.tolist().index(eos_id)
-    except ValueError:
-        eos_pos = -1
-
-    output = output[:eos_pos]
-    return output
 
 
 if __name__ == "__main__":
