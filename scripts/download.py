@@ -19,7 +19,7 @@ def download_original(wd: str) -> None:
             print("Original implementation found. Skipping download.")
 
 
-def download_from_hub(repo_id: Optional[str], model_size: str = "7B") -> None:
+def download_from_hub(repo_id: Optional[str] = None, model_size: str = "7B") -> None:
     if repo_id is None:
         raise ValueError("Please pass `--repo_id=...`. You can try googling 'huggingface hub llama' for options.")
 
