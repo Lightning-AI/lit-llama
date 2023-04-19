@@ -135,6 +135,10 @@ class LLaMA(llama.LLaMA):
             )
         )
 
+    @classmethod
+    def from_name(cls, name: str):
+        return cls(LLaMAConfig.from_name(name))
+
 
 def mark_only_adapter_as_trainable(model: LLaMA) -> None:
     """Sets `requires_grad=False` for all non-adapter weights."""
