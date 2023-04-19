@@ -6,6 +6,7 @@ from io import StringIO
 from pathlib import Path
 from unittest import mock
 from unittest.mock import Mock, call, ANY
+from lit_llama.model import LLaMA, LLaMAConfig
 
 import torch
 
@@ -28,7 +29,8 @@ def test_generate():
     logits = torch.randn(T, C)
     input_idx = torch.randint(10, size=(T,))
 
-    model = Mock(return_value=logits)
+    config = LLaMAConfig(block_size=128, vocab_size=16, n_layer=1, n_head=4, n_embd=8)
+    model = LLaMA(config)
     max_new_tokens = 20
 
     multinomial_results = []
