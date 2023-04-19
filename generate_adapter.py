@@ -81,9 +81,6 @@ def main(
     model = fabric.setup_module(model)
 
     tokenizer = Tokenizer(tokenizer_path)
-    encoded_prompt = tokenizer.encode(prompt, bos=True, eos=False, device=fabric.device)
-    encoded_prompt = encoded_prompt[None, :]  # add batch dimension
-
     sample = {"instruction": prompt, "input": input}
     prompt = generate_prompt(sample)
     encoded = tokenizer.encode(prompt, bos=True, eos=False, device=model.device)
@@ -98,7 +95,7 @@ def main(
         top_k=top_k,
     )
     # The end of the response is where the model generates the EOS token
-    output = truncate_output_to_eos(output.cpu(), tokenizer.eos_id)
+    output = truncate_output_to_eos(output, tokenizer.eos_id)
     output = tokenizer.decode(output)
     output = output.split("### Response:")[1].strip()
 

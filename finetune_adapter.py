@@ -165,7 +165,7 @@ def generate_response(model, instruction, input=""):
         max_new_tokens=100,
         temperature=0.8,
     )
-    output = tokenizer.decode(output.cpu())
+    output = tokenizer.decode(output)
     return output # output.split("### Response:")[1].strip()
 
 

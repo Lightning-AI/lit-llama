@@ -139,7 +139,7 @@ def generate_response(model, instruction):
         max_seq_length=block_size,
         max_new_tokens=100,
     )
-    output = tokenizer.decode(output.cpu())
+    output = tokenizer.decode(output)
     return output # output.split("### Response:")[1].strip()
 
 
