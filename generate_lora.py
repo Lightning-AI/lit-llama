@@ -109,6 +109,7 @@ def main(
         top_k=top_k,
         eos_id=tokenizer.eos_id
     )
+
     output = tokenizer.decode(output)
     output = output.split("### Response:")[1].strip()
 
