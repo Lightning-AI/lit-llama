@@ -22,9 +22,9 @@ def load_generate_script():
 
 
 def test_generate():
-    from lit_llama.model import LLaMA, LLaMAConfig
-
     generate = load_generate_script()
+
+    from lit_llama.model import LLaMA, LLaMAConfig
 
     T, C = 5, 3
     logits = torch.randn(T, C)
