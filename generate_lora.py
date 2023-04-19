@@ -8,9 +8,9 @@ import lightning as L
 import torch
 
 from generate import generate
-from lit_llama import Tokenizer, LLaMA, LLaMAConfig
+from lit_llama import Tokenizer
 from lit_llama.lora import lora
-from lit_llama.utils import load_model, lazy_load# EmptyInitOnDevice, , llama_model_lookup
+from lit_llama.utils import load_model, lazy_load
 from scripts.prepare_alpaca import generate_prompt
 
 lora_r = 8
