@@ -65,7 +65,7 @@ def generate(
 
         # if <eos> token is triggered, return the output (stop generation)
         if idx_next == eos_id:
-            return idx[:t]
+            return idx[:t + 1]  # include the EOS token
 
     return idx
 
