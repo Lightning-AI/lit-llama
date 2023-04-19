@@ -44,7 +44,7 @@ filename_sets = {
 def prepare_sample(
     source_path: Path,
     tokenizer_path: Path,
-    destination_path: Path = Path("data/red_pajama_sample"),
+    destination_path: Path,
     match = ""
 ) -> None:
     """Prepare the "Red Pajama" dataset. We assume tokenizer has been trained (i.e. we reuse LLaMA's tokenizer model)."""
@@ -67,7 +67,7 @@ def prepare_sample(
             )
 
         bin_name = name.replace("jsonl", "bin")
-        index_name = name.replace("jsonl", "index")
+        index_name = name.replace("jsonl", "idx")
 
         builder = indexed_dataset.make_builder(
             destination_path / bin_name,
@@ -93,7 +93,7 @@ def prepare_sample(
 def prepare_full(
     source_path: Path,
     tokenizer_path: Path,
-    destination_path: Path = Path("data/red_pajama_sample"),
+    destination_path: Path,
     match: str = ""
 ) -> None:
     """Prepare the "Red Pajama" dataset. We assume tokenizer has been trained (i.e. we reuse LLaMA's tokenizer model)."""
@@ -108,7 +108,7 @@ def prepare_full(
             continue
 
         bin_name = f"{set_name}.bin"
-        index_name = f"{set_name}.index"
+        index_name = f"{set_name}.idx"
 
         is_cc = set_name == "common_crawl"
 
@@ -154,12 +154,13 @@ def prepare_full(
 
 
 def prepare(
-    source_path: Path,
-    tokenizer_path: Path,
+    source_path: Path = Path("data/RedPajama-Data-1T-Sample"),
+    tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
     destination_path: Path = Path("data/red_pajama_sample"),
     sample: bool = False,
     match: str = "",
 ) -> None:
+    """Prepare the "Red Pajama" dataset. We assume tokenizer has been trained (i.e. we reuse LLaMA's tokenizer model)."""
     if sample:
         prepare_sample(
             source_path=source_path,
