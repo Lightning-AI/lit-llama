@@ -3,7 +3,6 @@ import os
 import json
 from pathlib import Path
 import sys
-from typing import Optional
 
 # support running without installing as a package
 wd = Path(__file__).parent.parent.resolve()
@@ -102,7 +101,7 @@ def convert_hf_checkpoint(
         gc.collect()
 
     print(f"Saving to disk at {lit_checkpoint}")
-    lit_checkpoint.mkdir(parents=True, exist_ok=True)
+    lit_checkpoint.parent.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), lit_checkpoint)
 
     if verify:
