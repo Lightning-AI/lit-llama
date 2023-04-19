@@ -10,8 +10,8 @@ import lightning as L
 import torch
 import tqdm
 
-from lit_llama import LLaMA, Tokenizer, llama_model_lookup
-from lit_llama.utils import EmptyInitOnDevice
+from lit_llama import LLaMA, Tokenizer
+from lit_llama.utils import EmptyInitOnDevice, llama_model_lookup
 
 from datasets import load_dataset
 
