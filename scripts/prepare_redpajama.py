@@ -114,6 +114,14 @@ def prepare_full(
 
         filenames = glob.glob(os.path.join(source_path, pattern), recursive=True)
 
+        if not filenames:
+            raise RuntimeError(
+                f"No files matching {pattern} found at {source_path}. \n"
+                "Make sure you download the data, e.g. wget -i https://data.together.xyz/redpajama-data-1T/v1.0.0/urls.txt or through \n"
+                "https://huggingface.co/datasets/togethercomputer/RedPajama-Data-1T \n"
+                "https://huggingface.co/datasets/togethercomputer/RedPajama-Data-1T-Sample \n"
+            )
+
         builder = indexed_dataset.make_builder(
             destination_path / bin_name,
             impl="mmap",
@@ -122,14 +130,6 @@ def prepare_full(
 
         for name in filenames:
             filepath = source_path / name
-
-            if not filepath.is_file():
-                raise RuntimeError(
-                    f"Input file not found at {filepath}. \n"
-                    "Make sure you download the data, e.g. wget -i https://data.together.xyz/redpajama-data-1T/v1.0.0/urls.txt or through \n"
-                    "https://huggingface.co/datasets/togethercomputer/RedPajama-Data-1T \n"
-                    "https://huggingface.co/datasets/togethercomputer/RedPajama-Data-1T-Sample \n"
-                )
 
             print(f"Processing {name}")
 
