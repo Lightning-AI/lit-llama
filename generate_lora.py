@@ -95,14 +95,9 @@ def main(
     model = fabric.setup_module(model)
 
     tokenizer = Tokenizer(tokenizer_path)
-    encoded_prompt = tokenizer.encode(prompt, bos=True, eos=False, device=fabric.device)
-    encoded_prompt = encoded_prompt[None, :]  # add batch dimension
-
     sample = {"instruction": prompt, "input": input}
     prompt = generate_prompt(sample)
-    encoded = tokenizer.encode(prompt, bos=True, eos=False)
-    encoded = encoded[None, :]  # add batch dimension
-    encoded = encoded.to(model.device)
+    encoded = tokenizer.encode(prompt, bos=True, eos=False, device=model.device)
 
     t0 = time.perf_counter()
     output = generate(
@@ -112,9 +107,9 @@ def main(
         max_new_tokens=max_new_tokens,
         temperature=temperature,
         top_k=top_k,
+        eos_id=tokenizer.eos_id
     )
-    # The end of the response is where the model generates the EOS token
-    output = truncate_output_to_eos(output[0].cpu(), tokenizer.eos_id)
+
     output = tokenizer.decode(output)
     output = output.split("### Response:")[1].strip()
 
@@ -123,17 +118,6 @@ def main(
 
     print(f"\n\nTime for inference: {t:.02f} sec total, {max_new_tokens / t:.02f} tokens/sec", file=sys.stderr)
     print(f"Memory used: {torch.cuda.max_memory_reserved() / 1e9:.02f} GB", file=sys.stderr)
-
-
-def truncate_output_to_eos(output, eos_id):
-    # TODO: Make this more efficient, terminate generation early
-    try:
-        eos_pos = output.tolist().index(eos_id)
-    except ValueError:
-        eos_pos = -1
-
-    output = output[:eos_pos]
-    return output
 
 
 if __name__ == "__main__":

@@ -19,7 +19,6 @@ from lit_llama.utils import save_model_checkpoint
 from scripts.prepare_alpaca import generate_prompt
 
 
-out_dir = "out/lora/alpaca"
 eval_interval = 100
 save_interval = 100
 eval_iters = 100
@@ -39,7 +38,12 @@ lora_dropout = 0.05
 warmup_steps = 100
 
 
-def main():
+def main(
+    data_dir: str = "data/alpaca", 
+    pretrained_path: str = "checkpoints/lit-llama/7B/lit-llama.pth",
+    out_dir: str = "out/lora/alpaca",
+):
+
     fabric = L.Fabric(accelerator="cuda", devices=1, precision="bf16-mixed")
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
@@ -47,12 +51,12 @@ def main():
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
 
-    train_data, val_data = load_datasets()
+    train_data, val_data = load_datasets(data_dir=data_dir)
 
     config = LLaMAConfig.from_name("7B")
     config.block_size = block_size
 
-    checkpoint = torch.load("checkpoints/lit-llama/7B/lit-llama.pth")
+    checkpoint = torch.load(pretrained_path)
 
     with fabric.device, lora(r=lora_r, alpha=lora_alpha, dropout=lora_dropout, enabled=True):
         torch.set_default_tensor_type(torch.HalfTensor)
@@ -65,7 +69,7 @@ def main():
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
     model, optimizer = fabric.setup(model, optimizer)
-    train(fabric, model, optimizer, train_data, val_data)
+    train(fabric, model, optimizer, train_data, val_data, out_dir)
 
     # Save the final LoRA checkpoint at the end of training
     checkpoint = lora_state_dict(model)
@@ -78,6 +82,7 @@ def train(
     optimizer: torch.optim.Optimizer,
     train_data: np.ndarray,
     val_data: np.ndarray,
+    out_dir: str,
 ) -> None:
     """The training loop.
 
@@ -126,9 +131,7 @@ def generate_response(model, instruction):
     tokenizer = Tokenizer("checkpoints/lit-llama/tokenizer.model")
     sample = {"instruction": instruction, "input": ""}
     prompt = generate_prompt(sample)
-    encoded = tokenizer.encode(prompt, bos=True, eos=False)
-    encoded = encoded[None, :]  # add batch dimension
-    encoded = encoded.to(model.device)
+    encoded = tokenizer.encode(prompt, bos=True, eos=False, device=model.device)
 
     output = generate(
         model,
@@ -136,7 +139,7 @@ def generate_response(model, instruction):
         max_seq_length=block_size,
         max_new_tokens=100,
     )
-    output = tokenizer.decode(output[0].cpu())
+    output = tokenizer.decode(output)
     return output # output.split("### Response:")[1].strip()
 
 
@@ -189,7 +192,7 @@ def get_batch(fabric: L.Fabric, data: list):
     return x, y
 
 
-def load_datasets(data_dir: str = "data/alpaca"):
+def load_datasets(data_dir):
     train_data = torch.load(os.path.join(data_dir, "train.pt"))
     val_data = torch.load(os.path.join(data_dir, "test.pt"))
     return train_data, val_data
@@ -199,4 +202,7 @@ if __name__ == "__main__":
     # Uncomment this line if you see an error: "Expected is_sm80 to be true, but got false"
     # torch.backends.cuda.enable_flash_sdp(False)
     torch.set_float32_matmul_precision("high")
-    main()
+    
+    from jsonargparse.cli import CLI
+
+    CLI(main)
