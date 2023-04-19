@@ -117,9 +117,7 @@ def convert_hf_checkpoint(
             raise ImportError("verify=True requires transformers to be installed, please `pip install transformers`")
 
         print("Verifying...")
-        token_sample = torch.randint(
-            0, config.vocab_size, size=(1, config.block_size), dtype=torch.int64
-        )
+        token_sample = torch.randint(0, config.vocab_size, size=(1, config.block_size), dtype=torch.int64)
         out = model(token_sample)
 
         del model

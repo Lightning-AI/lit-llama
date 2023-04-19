@@ -70,8 +70,6 @@ You are all set! 🎉
 
 To generate text predictions, you need to download the model weights. **If you don't have them, check out our [guide](howto/download_weights.md).**
 
-</details>
-
 Run inference:
 
 ```bash
