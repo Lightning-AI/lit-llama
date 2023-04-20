@@ -18,6 +18,8 @@ from lit_llama.tokenizer import Tokenizer
 from lit_llama.utils import save_model_checkpoint
 from scripts.prepare_alpaca import generate_prompt
 
+import torch._dynamo
+torch._dynamo.config.verbose=True
 
 eval_interval = 100
 save_interval = 100
@@ -67,7 +69,8 @@ def main(
     
     mark_only_lora_as_trainable(model)
 
-    # torch._dynamo.config.verbose=True
+    fabric.print("Compiling the model. Note: The first iteration will take a few seconds...")
+    
     model = torch.compile(model)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
@@ -182,11 +185,10 @@ def get_batch(fabric: L.Fabric, data: list):
     input_ids = [data[i]["input_ids"].type(torch.int64) for i in ix]
     labels = [data[i]["labels"].type(torch.int64) for i in ix]
 
-    max_len = max(len(s) for s in input_ids)
-
     def pad_right(x, pad_id):
-        # pad right based on the longest sequence
-        n = max_len - len(x)
+        # note: we pad to the full block size instead of max length to make
+        # shapes constant for `torch.compile`
+        n = block_size - len(x)
         return torch.cat((x, torch.full((n,), pad_id, dtype=x.dtype)))
 
     x = torch.stack([pad_right(x, pad_id=0) for x in input_ids])

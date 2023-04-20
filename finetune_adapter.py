@@ -94,12 +94,13 @@ def main(
     num_params = sum([p.numel() for p in model.parameters() if p.requires_grad])
     fabric.print(f"Number of trainable parameters: {num_params}")
 
-   
+    fabric.print("Compiling the model. Note: The first iteration will take a few seconds...")
+    model = torch.compile(model)
+
+    # 117.89ms vs 351.81m
+
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     model, optimizer = fabric.setup(model, optimizer)
-
-    torch._dynamo.config.verbose = True
-    model = torch.compile(model)
 
     train(fabric, model, optimizer, train_data, val_data, out_dir)
 
@@ -209,12 +210,10 @@ def get_batch(fabric: L.Fabric, data: list):
     input_ids = [data[i]["input_ids"].type(torch.int64) for i in ix]
     labels = [data[i]["labels"].type(torch.int64) for i in ix]
 
-    # max_len = max(len(s) for s in input_ids)
-    max_len = block_size
-
     def pad_right(x, pad_id):
-        # pad right based on the longest sequence
-        n = max_len - len(x)
+        # note: we pad to the full block size instead of max length to make
+        # shapes constant for `torch.compile`
+        n = block_size - len(x)
         return torch.cat((x, torch.full((n,), pad_id, dtype=x.dtype)))
 
     x = torch.stack([pad_right(x, pad_id=0) for x in input_ids])
