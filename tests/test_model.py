@@ -177,3 +177,20 @@ def test_adapter_parity(orig_llama_adapter):
     expected = orig_llama_model(token_sample, 0)
     out = llama_model(token_sample)
     assert torch.allclose(out, expected)
+
+
+def test_model_compile(lit_llama):
+    llama_config = lit_llama.LLaMAConfig(
+        block_size=8,
+        vocab_size=8,
+        n_layer=2,
+        n_head=2,
+        n_embd=4,
+    )
+    model = lit_llama.LLaMA(llama_config)
+    model.apply(model._init_weights)
+
+    model = torch.compile(model)
+
+    sample = torch.ones(4, model.config.block_size, dtype=torch.int64)
+    _ = model(sample)
