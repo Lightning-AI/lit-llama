@@ -4,7 +4,6 @@ Based on the nanoGPT implementation: https://github.com/karpathy/nanoGPT.
 """
 # mypy: ignore-errors
 import math
-import os
 from dataclasses import dataclass
 
 import torch
@@ -188,51 +187,6 @@ class RMSNorm(nn.Module):
         return self.scale * x_normed
 
 
-def build_rope_cache_reference(seq_len: int, n_elem: int, dtype: torch.dtype, device: torch.device, base: int = 10000) -> torch.Tensor:
-    """Enhanced Transformer with Rotary Position Embedding.
-
-    Derived from: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/
-    transformers/rope/__init__.py. MIT License:
-    https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/license.
-    """
-    # $\Theta = {\theta_i = 10000^{\frac{2(i-1)}{d}}, i \in [1, 2, ..., \frac{d}{2}]}$
-    theta = 1.0 / (base ** (torch.arange(0, n_elem, 2, dtype=dtype, device=device) / n_elem))
-
-    # Create position indexes `[0, 1, ..., seq_len - 1]`
-    seq_idx = torch.arange(seq_len, dtype=dtype, device=device)
-
-    # Calculate the product of position index and $\theta_i$
-    idx_theta = torch.outer(seq_idx, theta)
-
-    # Compute cache. Because polar only takes float32 or float64, we need to cast
-    # when working with 16 bit floats (float16 or bfloat16)
-    dtypes_requiring_casting = [torch.float16, torch.bfloat16, torch.int8]
-    working_dtype = (
-        torch.float32 if dtype in dtypes_requiring_casting else dtype
-    )
-    complex_dtype = (
-        torch.complex32 if dtype in dtypes_requiring_casting else torch.complex64
-    )
-    cache = torch.polar(
-        torch.ones_like(idx_theta).to(working_dtype), idx_theta.to(working_dtype)
-    ).to(complex_dtype)
-    return cache
-
-
-def apply_rope_reference(x: torch.Tensor, rope_cache: torch.Tensor) -> torch.Tensor:
-    x = x.transpose(1, 2)
-
-    # truncate to support variable sizes
-    T = x.size(1)
-    rope_cache = rope_cache[:T]
-
-    # cast because `view_as_complex` does not support 16 bit tensors
-    xc = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
-    rope_cache = rope_cache.view(1, xc.size(1), 1, xc.size(3))
-    x_out = torch.view_as_real(xc * rope_cache).flatten(3)
-    return x_out.transpose(1, 2).type_as(x)
-
-
 def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, device: torch.device, base: int = 10000) -> torch.Tensor:
     """Enhanced Transformer with Rotary Position Embedding.
 
@@ -273,8 +227,3 @@ def apply_rope(x: torch.Tensor, rope_cache: torch.Tensor) -> torch.Tensor:
 
     x_out2 = x_out2.flatten(3)
     return x_out2.transpose(1, 2).type_as(x)
-
-if os.environ.get('__LLAMA_REFERENCE_ROPE', '')[:1] in {'Y', 'y' ,'1'}:
-    print("USING REFERENCE ROPE")
-    build_rope_cache = build_rope_cache_reference
-    apply_rope = apply_rope_reference
