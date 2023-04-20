@@ -1,5 +1,7 @@
 import torch
 import pytest
+import sys
+
 
 def copy_mlp(llama_mlp, orig_llama_mlp) -> None:
     orig_llama_mlp.w1.weight.copy_(llama_mlp.c_fc1.weight)
@@ -179,6 +181,7 @@ def test_adapter_parity(orig_llama_adapter):
     assert torch.allclose(out, expected)
 
 
+@pytest.mark.skipif(sys.platform in ("win32", "darwin"), reason="torch.compile not supported on this platform")
 def test_model_compile(lit_llama):
     llama_config = lit_llama.LLaMAConfig(
         block_size=8,
@@ -192,5 +195,6 @@ def test_model_compile(lit_llama):
 
     model = torch.compile(model)
 
-    sample = torch.ones(4, model.config.block_size, dtype=torch.int64)
-    _ = model(sample)
+    sample = torch.randint(model.config.vocab_size, size=(2, model.config.block_size), dtype=torch.int64)
+    for _ in range(3):
+        _ = model(sample)
