@@ -9,9 +9,6 @@ gcloud compute tpus tpu-vm create lit-llama --version=tpu-vm-v4-pt-2.0 --acceler
 gcloud compute tpus tpu-vm ssh lit-llama --zone=us-central2-b
 ```
 
-> **Note**
-> You can find an extensive guide to get set-up [here](https://cloud.google.com/tpu/docs/v4-users-guide)
-
 Now that you are in the machine, let's clone the repository and install the dependencies
 
 ```shell
@@ -26,6 +23,9 @@ By default, computations will run using the new (and experimental) PjRT runtime.
 export PJRT_DEVICE=TPU
 export ALLOW_MULTIPLE_LIBTPU_LOAD=1
 ```
+
+> **Note**
+> You can find an extensive guide on how to get set-up and all the available options [here](https://cloud.google.com/tpu/docs/v4-users-guide).
 
 Since you created a new machine, you'll probably need to download the weights. You could scp them into the machine with `gcloud compute tpus tpu-vm scp` or you can follow the steps described in our [downloading guide](download_weights.md).
 
