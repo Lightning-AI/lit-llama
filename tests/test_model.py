@@ -181,7 +181,7 @@ def test_adapter_parity(orig_llama_adapter):
     assert torch.allclose(out, expected)
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="torch.compile not supported on Windows")
+@pytest.mark.skipif(sys.platform in ("win32", "darwin"), reason="torch.compile not supported on this platform")
 def test_model_compile(lit_llama):
     llama_config = lit_llama.LLaMAConfig(
         block_size=8,
