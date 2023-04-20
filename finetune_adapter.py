@@ -97,7 +97,9 @@ def main(
     fabric.print("Compiling the model. Note: The first iteration will take a few seconds...")
     model = torch.compile(model)
 
-    # 117.89ms vs 351.81m
+    # no compile + dynamic padding: between 90ms and 160ms
+    # no compile + full padding: 352 ms
+    # torch.compile + full padding: 118 ms
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     model, optimizer = fabric.setup(model, optimizer)
