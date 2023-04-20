@@ -125,11 +125,12 @@ def convert_hf_checkpoint(
 
         print("Loading original model for comparison.")
         model_hf = LlamaForCausalLM.from_pretrained(ckpt_dir)
-
-        out_hf = model_hf(token_sample)
+        out_hf = model_hf(token_sample)["logits"]
 
         print("Comparing outputs")
-        assert torch.allclose(out, out_hf["logits"])
+        assert out.device.type == out_hf.device.type
+        assert out.dtype == out_hf.dtype
+        assert torch.testing.assert_close(out, out_hf)
 
 
 if __name__ == "__main__":
