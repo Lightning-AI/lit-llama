@@ -187,20 +187,13 @@ class RMSNorm(nn.Module):
         return self.scale * x_normed
 
 
-
-def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, device: torch.device, base: int = 10000, complex: bool = False) -> torch.Tensor:
+def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, device: torch.device, base: int = 10000) -> torch.Tensor:
     """Enhanced Transformer with Rotary Position Embedding.
 
     Derived from: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/
     transformers/rope/__init__.py. MIT License:
     https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/license.
     """
-    if complex:
-        from lit_llama.utils import build_rope_cache_complex
-
-        return build_rope_cache_complex(seq_len=seq_len, n_elem=n_elem, dtype=dtype, device=device, base=base)
-    
-
     # $\Theta = {\theta_i = 10000^{\frac{2(i-1)}{d}}, i \in [1, 2, ..., \frac{d}{2}]}$
     theta = 1.0 / (base ** (torch.arange(0, n_elem, 2, dtype=dtype, device=device) / n_elem))
 
@@ -218,13 +211,8 @@ def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, device: torc
     return cache
 
 def apply_rope(x: torch.Tensor, rope_cache: torch.Tensor) -> torch.Tensor:
-    if rope_cache.dtype in (torch.complex32, torch.complex64):
-        from lit_llama.utils import apply_rope_complex
-        
-        return apply_rope_complex(x, rope_cache)
+    x = x.transpose(1, 2)
 
-    neg_half_x = rotate_neg_half(x)
-    cos, sin = rope_cache
     # truncate to support variable sizes
     T = x.size(1)
     rope_cache = rope_cache[:T]
