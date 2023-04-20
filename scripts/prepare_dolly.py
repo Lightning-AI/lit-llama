@@ -23,7 +23,7 @@ def prepare(
     destination_path: Path = Path("data/dolly"), 
     tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
     test_split_size: int = 2000,
-    max_seq_length: int = 256,
+    max_seq_length: int = 1024,
     seed: int = 42,
     mask_inputs: bool = False,  # as in alpaca-lora
 ) -> None:
