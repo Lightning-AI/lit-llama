@@ -105,8 +105,8 @@ def main(
     assert checkpoint_path.is_file()
     assert tokenizer_path.is_file()
 
-    fabric = L.Fabric(accelerator="cuda", devices=1)
-    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
+    fabric = L.Fabric(devices=1)
+    dtype = torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else torch.float32
 
     print("Loading model ...", file=sys.stderr)
     t0 = time.time()
