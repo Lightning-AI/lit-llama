@@ -192,5 +192,6 @@ def test_model_compile(lit_llama):
 
     model = torch.compile(model)
 
-    sample = torch.ones(4, model.config.block_size, dtype=torch.int64)
-    _ = model(sample)
+    sample = torch.randint(model.config.vocab_size, size=(2, model.config.block_size), dtype=torch.int64)
+    for _ in range(3):
+        _ = model(sample)
