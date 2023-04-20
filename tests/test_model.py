@@ -186,7 +186,6 @@ def test_model_compile(lit_llama):
         n_layer=2,
         n_head=2,
         n_embd=4,
-        complex_rope=False,
     )
     model = lit_llama.LLaMA(llama_config)
     model.apply(model._init_weights)

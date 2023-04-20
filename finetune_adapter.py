@@ -73,7 +73,7 @@ def main(
 
     train_data, val_data = load_datasets(data_dir=data_dir)
 
-    config = LLaMAConfig(block_size=block_size, complex_rope=False)
+    config = LLaMAConfig(block_size=block_size)
 
     if not os.path.isfile(pretrained_path):
         raise FileNotFoundError(

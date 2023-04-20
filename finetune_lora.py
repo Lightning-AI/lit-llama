@@ -54,7 +54,6 @@ def main(
     train_data, val_data = load_datasets(data_dir=data_dir)
 
     config = LLaMAConfig.from_name("7B")
-    config.complex_rope = False  # enable torch.compile
     config.block_size = block_size
 
     checkpoint = torch.load(pretrained_path)

@@ -53,7 +53,7 @@ def main() -> None:
 
     train_data, val_data = load_datasets()
 
-    config = LLaMAConfig(n_layer=4, n_embd=64, n_head=8, complex_rope=False)
+    config = LLaMAConfig(n_layer=4, n_embd=64, n_head=8)
     config.block_size = block_size
     config.vocab_size = 100  # from prepare_shakespeare.py
 

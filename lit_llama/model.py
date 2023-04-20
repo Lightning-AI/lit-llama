@@ -18,7 +18,6 @@ class LLaMAConfig:
     n_layer: int = 32
     n_head: int = 32
     n_embd: int = 4096
-    complex_rope: bool = True
 
     @classmethod
     def from_name(cls, name: str) -> Self:
@@ -104,7 +103,6 @@ class CausalSelfAttention(nn.Module):
         self.n_head = config.n_head
         self.n_embd = config.n_embd
         self.block_size = config.block_size
-        self.complex_rope = config.complex_rope
         self.rope_cache = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -125,7 +123,6 @@ class CausalSelfAttention(nn.Module):
                 n_elem=self.n_embd // self.n_head, 
                 dtype=x.dtype,
                 device=x.device,
-                complex=self.complex_rope,
             )
 
         q = apply_rope(q, self.rope_cache)

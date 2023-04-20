@@ -17,7 +17,7 @@ def main():
 
     train_data, val_data = load_datasets()
 
-    config = LLaMAConfig(block_size=block_size, complex_rope=False, n_layer=4, n_embd=64, n_head=8)
+    config = LLaMAConfig(block_size=block_size, n_layer=4, n_embd=64, n_head=8)
 
     with fabric.device:
         model = LLaMA(config)
