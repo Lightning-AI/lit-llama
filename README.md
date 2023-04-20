@@ -68,44 +68,22 @@ You are all set! 🎉
 
 ## Use the model
 
-To generate text predictions, download the model weights following the instructions on the official [LLaMA repository](https://github.com/facebookresearch/llama).
-
-Once downloaded, you should have a folder like this:
-
-```text
-checkpoints/llama
-├── 7B
-│   ├── checklist.chk
-│   ├── consolidated.00.pth
-│   └── params.json
-├── 13B
-│   ...
-├── tokenizer_checklist.chk
-└── tokenizer.model
-```
-
-Convert the weights to the Lit-LLaMA format:
-
-```bash
-python scripts/convert_checkpoint.py \
-    --output_dir checkpoints/lit-llama \
-    --ckpt_dir checkpoints/llama \
-    --tokenizer_path checkpoints/llama/tokenizer.model \
-    --model_size 7B
-```
+To generate text predictions, you need to download the model weights. **If you don't have them, check out our [guide](howto/download_weights.md).**
 
 Run inference:
 
 ```bash
-python generate.py --prompt "Hello, my name is"
+python generate.py --prompt "Hello, my name is" --model_size 7B
 ```
 
 This will run the 7B model and require ~26 GB of GPU memory (A100 GPU).
 
+[Full guide for generating samples from the model](howto/inference.md).
+
 ### Run Lit-LLaMA on consumer devices
 
-For GPUs with less memory, enable quantization (`--quantize llm.int8`) or use bfloat16 (`--dtype bfloat16`). Quantization will take longer to load but require ~8GB of memory. bfloat16 is closer to the "full deal" and runs on ~10GB of GPU memory.
-This can run on any consumer GPU.
+On GPUs with `bfloat16` support, the `generate.py` script will automatically convert the weights and consume about ~14 GB.
+For GPUs with less memory, or ones that don't support `bfloat16`, enable quantization (`--quantize llm.int8`):
 
 ```bash
 python generate.py --quantize llm.int8 --prompt "Hello, my name is"
@@ -116,12 +94,12 @@ See `python generate.py --help` for more options.
 You can also use GPTQ-style int4 quantization, but this needs conversions of the weights first:
 
 ```bash
-python quantize.py --checkpoint_path state_dict.pth --tokenizer_path tokenizer.model --output_path llama-7b-gptq.4bit.pt --dtype bfloat16  --quantize gptq.int4
+python quantize.py --checkpoint_path lit-llama.pth --tokenizer_path tokenizer.model --output_path llama-7b-gptq.4bit.pth --dtype bfloat16  --quantize gptq.int4
 ```
 
 With the generated quantized checkpoint generation works as usual with `--quantize gptq.int4`, bringing GPU usage to about ~5GB. As only the weights of the Linear layers are quantized, it is useful to use `--dtype bfloat16` even with the quantization enabled.
 
-&nbsp;
+[Full guide for generating samples from the model](howto/inference.md).
 
 ## Finetune the model
 
@@ -146,6 +124,11 @@ We provide a simple training scripts in `finetune_lora.py` and `finetune_adapter
 It is expected that you have downloaded the pretrained weights as described above.
 The finetuning requires at least one GPU with ~24 GB memory (GTX 3090). Follow the instructions in the script to efficiently fit your GPU memory.
 Note: For some GPU models you might need to set `torch.backends.cuda.enable_flash_sdp(False)` (see comments at the top of the script).
+
+More details about each finetuning method and how you can apply it to your own data can be found in our how-to guides:
+
+- [Finetune with LoRA](howto/finetune_lora.md)
+- [Finetune with Adapters](howto/finetune_adapter.md)
 
 ## Get involved!
 

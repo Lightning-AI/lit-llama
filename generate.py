@@ -8,7 +8,7 @@ import lightning as L
 import torch
 
 from lit_llama import LLaMA, Tokenizer
-from lit_llama.utils import EmptyInitOnDevice
+from lit_llama.utils import EmptyInitOnDevice, lazy_load
 
 
 @torch.no_grad()
@@ -19,6 +19,7 @@ def generate(
     max_seq_length: int,
     temperature: float = 1.0,
     top_k: Optional[int] = None,
+    eos_id: Optional[int] = None,
 ) -> torch.Tensor:
     """Takes a conditioning sequence (prompt) as input and continues to generate as many tokens as requested.
 
@@ -26,40 +27,45 @@ def generate(
 
     Args:
         model: The model to use.
-        idx: Tensor of shape (B, T) with indices of the prompt sequence.
+        idx: Tensor of shape (T) with indices of the prompt sequence.
         max_new_tokens: The number of new tokens to generate.
         max_seq_length: The maximum sequence length allowed.
         temperature: Scales the predicted logits by 1 / temperature
         top_k: If specified, only sample among the tokens with the k highest probabilities
+        eos_id: If specified, stop generating any more token once the <eos> token is triggered
     """
     # create an empty tensor of the expected final shape and fill in the current tokens
-    B, T = idx.shape
+    T = idx.size(0)
     T_new = T + max_new_tokens
-    empty = torch.empty(B, T_new, dtype=idx.dtype, device=idx.device)
-    empty[:, :T] = idx
+    empty = torch.empty(T_new, dtype=idx.dtype, device=idx.device)
+    empty[:T] = idx
     idx = empty
 
     # generate max_new_tokens tokens
     for t in range(T, T_new):
         # ignore the not-filled-yet tokens
-        idx_cond = idx[:, :t]
+        idx_cond = idx[:t]
         # if the sequence context is growing too long we must crop it at max_seq_length
-        idx_cond = idx_cond if T <= max_seq_length else idx_cond[:, -max_seq_length:]
+        idx_cond = idx_cond if T <= max_seq_length else idx_cond[-max_seq_length:]
 
         # forward
-        logits = model(idx_cond)
-        logits = logits[:, -1] / temperature
+        logits = model(idx_cond.view(1, -1))
+        logits = logits[0, -1] / temperature
 
         # optionally crop the logits to only the top k options
         if top_k is not None:
             v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
-            logits[logits < v[:, [-1]]] = -float("Inf")
+            logits[logits < v[[-1]]] = -float("Inf")
 
         probs = torch.nn.functional.softmax(logits, dim=-1)
         idx_next = torch.multinomial(probs, num_samples=1)
 
-        # concatenate the new column
-        idx[:, t:] = idx_next
+        # concatenate the new generation
+        idx[t] = idx_next
+
+        # if <eos> token is triggered, return the output (stop generation)
+        if idx_next == eos_id:
+            return idx[:t + 1]  # include the EOS token
 
     return idx
 
@@ -71,13 +77,9 @@ def main(
     max_new_tokens: int = 50,
     top_k: int = 200,
     temperature: float = 0.8,
-    # compilation fails as it does not support torch.complex64 for RoPE
-    # compile: bool = False,
-    accelerator: str = "auto",
     checkpoint_path: Optional[Path] = None,
     tokenizer_path: Optional[Path] = None,
     model_size: str = "7B",
-    dtype: Optional[str] = None,
     quantize: Optional[str] = None,
 ) -> None:
     """Generates text samples based on a pre-trained LLaMA model and tokenizer.
@@ -89,50 +91,39 @@ def main(
         top_k: The number of top most probable tokens to consider in the sampling process.
         temperature: A value controlling the randomness of the sampling process. Higher values result in more random
             samples.
-        # compile: Whether to compile the model.
-        accelerator: The hardware to run on. Possible choices are:
-            ``"cpu"``, ``"cuda"``, ``"mps"``, ``"gpu"``, ``"tpu"``, ``"auto"``.
         checkpoint_path: The checkpoint path to load.
         tokenizer_path: The tokenizer path to load.
+        model_size: The model size to load.
         quantize: Whether to quantize the model and using which method:
             ``"llm.int8"``: LLM.int8() mode,
             ``"gptq.int4"``: GPTQ 4-bit mode.
     """
     if not checkpoint_path:
-        checkpoint_path = Path(f"./checkpoints/lit-llama/{model_size}/state_dict.pth")
+        checkpoint_path = Path(f"./checkpoints/lit-llama/{model_size}/lit-llama.pth")
     if not tokenizer_path:
         tokenizer_path = Path("./checkpoints/lit-llama/tokenizer.model")
-    assert checkpoint_path.is_file()
-    assert tokenizer_path.is_file()
+    assert checkpoint_path.is_file(), checkpoint_path
+    assert tokenizer_path.is_file(), tokenizer_path
 
-    fabric = L.Fabric(accelerator=accelerator, devices=1)
+    fabric = L.Fabric(accelerator="cuda", devices=1)
+    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
 
-    if dtype is not None:
-        dt = getattr(torch, dtype, None)
-        if not isinstance(dt, torch.dtype):
-            raise ValueError(f"{dtype} is not a valid dtype.")
-        dtype = dt
-
+    print("Loading model ...", file=sys.stderr)
+    t0 = time.time()
     with EmptyInitOnDevice(
         device=fabric.device, dtype=dtype, quantization_mode=quantize
     ):
-        print("Loading model ...", file=sys.stderr)
-        t0 = time.time()
         model = LLaMA.from_name(model_size)
-        checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint)
-        print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
+
+    checkpoint = lazy_load(checkpoint_path)
+    model.load_state_dict(checkpoint)
+    print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
-
-    # if compile:
-    #     model = torch.compile(model)
-
     model = fabric.setup_module(model)
 
     tokenizer = Tokenizer(tokenizer_path)
     encoded_prompt = tokenizer.encode(prompt, bos=True, eos=False, device=fabric.device)
-    encoded_prompt = encoded_prompt[None, :]  # add batch dimension
 
     L.seed_everything(1234)
     t0 = time.perf_counter()
@@ -145,7 +136,7 @@ def main(
             model.config.block_size,  # type: ignore[union-attr,arg-type]
             temperature=temperature,
             top_k=top_k,
-        )[0]  # unpack batch dimension
+        )
         print(tokenizer.decode(y))
 
     t = time.perf_counter() - t0
@@ -161,5 +152,10 @@ if __name__ == "__main__":
         # Triggered internally at ../aten/src/ATen/EmptyTensor.cpp:31
         "ignore", 
         message="ComplexHalf support is experimental and many operators don't support it yet"
+    )
+    warnings.filterwarnings(
+        # Triggered in bitsandbytes/autograd/_functions.py:298
+        "ignore", 
+        message="MatMul8bitLt: inputs will be cast from torch.bfloat16 to float16 during quantization",
     )
     CLI(main)

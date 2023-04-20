@@ -4,15 +4,17 @@ Instruction-tuning with LLaMA-Adapter on the Alpaca dataset following the paper
 LLaMA-Adapter: Efficient Fine-tuning of Language Models with Zero-init Attention
 https://arxiv.org/abs/2303.16199
 
-This script uses DeepSpeed Zero-2 to train efficiently on 8 A100 GPUs within 1 hour as done in the original paper.
-If you have fewer GPUs, you can adjust the devices variable to e.g. `devices = 1` and tune the 
-`micro_batch_size` to fit your GPU memory.
+This script runs on a single GPU by default. You can adjust the `micro_batch_size` to fit your GPU memory.
+You can finetune within 1 hour as done in the original paper using DeepSpeed Zero-2 on 8 A100 GPUs by setting the
+devices variable to `devices = 8` and `micro_batch_size = 8` (or higher).
 
 Note: If you run into a CUDA error "Expected is_sm80 to be true, but got false", uncomment the line
 `torch.backends.cuda.enable_flash_sdp(False)` in the script below (see https://github.com/Lightning-AI/lit-llama/issues/101).
 """
 import os
 import time
+from pathlib import Path
+import shutil
 
 import lightning as L
 import numpy as np
@@ -20,25 +22,22 @@ import torch
 import torch._dynamo
 
 from generate import generate
-from lit_llama.adapter import LLaMA, LLaMAConfig, mark_only_adapter_as_trainable
+from lit_llama.adapter import LLaMA, LLaMAConfig, mark_only_adapter_as_trainable, adapter_state_from_state_dict
 from lit_llama.tokenizer import Tokenizer
-from lit_llama.utils import save_model_checkpoint
 from scripts.prepare_alpaca import generate_prompt
 from lightning.fabric.strategies import DeepSpeedStrategy
 
 
-pretrained_path = "checkpoints/lit-llama/7B/state_dict.pth"
-out_dir = "out/adapter/alpaca"
 eval_interval = 600
 save_interval = 1000
 eval_iters = 100
 log_interval = 1
-devices = 2
+devices = 1
 
 # Hyperparameters
 learning_rate = 9e-3
 batch_size = 64 / devices
-micro_batch_size = 2
+micro_batch_size = 4
 gradient_accumulation_steps = batch_size // micro_batch_size
 epoch_size = 50000  # train dataset size
 num_epochs = 5
@@ -54,7 +53,12 @@ ds_config = {
 }
 
 
-def main():
+def main(
+    data_dir: str = "data/alpaca", 
+    pretrained_path: str = "checkpoints/lit-llama/7B/lit-llama.pth",
+    out_dir: str = "out/adapter/alpaca",
+):
+
     fabric = L.Fabric(
         accelerator="cuda", 
         devices=devices, 
@@ -67,7 +71,7 @@ def main():
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
 
-    train_data, val_data = load_datasets()
+    train_data, val_data = load_datasets(data_dir=data_dir)
 
     config = LLaMAConfig(block_size=block_size, complex_rope=False)
 
@@ -97,11 +101,10 @@ def main():
     torch._dynamo.config.verbose = True
     model = torch.compile(model)
 
-
-    train(fabric, model, optimizer, train_data, val_data)
+    train(fabric, model, optimizer, train_data, val_data, out_dir)
 
     # Save the final checkpoint at the end of training
-    save_model_checkpoint(fabric, model, os.path.join(out_dir, "alpaca-adapter-finetuned.ckpt"))
+    save_model_checkpoint(fabric, model, os.path.join(out_dir, "lit-llama-adapter-finetuned.pth"))
 
 
 def train(
@@ -110,6 +113,7 @@ def train(
     optimizer: torch.optim.Optimizer,
     train_data: np.ndarray,
     val_data: np.ndarray,
+    out_dir: str,
 ) -> None:
     """The training loop.
 
@@ -146,7 +150,7 @@ def train(
             if step_count % save_interval == 0:
                 print(f"Saving adapter weights to {out_dir}")
                 # TODO: Provide a function/script to merge the adapter weights with pretrained weights
-                save_model_checkpoint(fabric, model, os.path.join(out_dir, f"iter-{iter_num:06d}.ckpt"))
+                save_model_checkpoint(fabric, model, os.path.join(out_dir, f"iter-{iter_num:06d}.pth"))
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:
@@ -157,9 +161,7 @@ def generate_response(model, instruction, input=""):
     tokenizer = Tokenizer("checkpoints/lit-llama/tokenizer.model")
     sample = {"instruction": instruction, "input": input}
     prompt = generate_prompt(sample)
-    encoded = tokenizer.encode(prompt, bos=True, eos=False)
-    encoded = encoded[None, :]  # add batch dimension
-    encoded = encoded.to(model.device)
+    encoded = tokenizer.encode(prompt, bos=True, eos=False, device=model.device)
 
     output = generate(
         model,
@@ -168,7 +170,7 @@ def generate_response(model, instruction, input=""):
         max_new_tokens=100,
         temperature=0.8,
     )
-    output = tokenizer.decode(output[0].cpu())
+    output = tokenizer.decode(output)
     return output # output.split("### Response:")[1].strip()
 
 
@@ -221,14 +223,40 @@ def get_batch(fabric: L.Fabric, data: list):
     return x, y
 
 
-def load_datasets(data_dir: str = "data/alpaca"):
+def load_datasets(data_dir):
     train_data = torch.load(os.path.join(data_dir, "train.pt"))
     val_data = torch.load(os.path.join(data_dir, "test.pt"))
     return train_data, val_data
+
+
+def save_model_checkpoint(fabric, model, file_path):
+    file_path = Path(file_path)
+
+    if isinstance(fabric.strategy, DeepSpeedStrategy):
+        from deepspeed.utils.zero_to_fp32 import get_fp32_state_dict_from_zero_checkpoint
+
+        tmp_path = file_path.with_suffix(".tmp")
+        fabric.save(tmp_path, {"model": model})
+        fabric.barrier()
+        if fabric.global_rank == 0:
+            # Create a consolidated checkpoint with the same name next to the deepspeed checkpoint
+            # and only keep the adapter weights
+            state_dict = get_fp32_state_dict_from_zero_checkpoint(tmp_path)
+            state_dict = adapter_state_from_state_dict(state_dict)
+            torch.save(state_dict, file_path)
+            shutil.rmtree(tmp_path)
+    else:
+        state_dict = adapter_state_from_state_dict(model.state_dict())
+        if fabric.global_rank == 0:
+            torch.save(state_dict, file_path)
+        fabric.barrier()
 
 
 if __name__ == "__main__":
     # Uncomment this line if you see an error: "Expected is_sm80 to be true, but got false"
     # torch.backends.cuda.enable_flash_sdp(False)
     torch.set_float32_matmul_precision("high")
-    main()
+
+    from jsonargparse.cli import CLI
+
+    CLI(main)

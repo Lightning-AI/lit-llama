@@ -1,5 +1,4 @@
 import gc
-import os
 import shutil
 from pathlib import Path
 from typing import Dict
@@ -24,9 +23,7 @@ def convert_state_dict(state_dict: Dict[str, torch.Tensor], dtype: torch.dtype =
     converted["lm_head.weight"] = state_dict["output.weight"].to(dtype)
     converted["transformer.ln_f.scale"] = state_dict["norm.weight"].to(dtype)
 
-    for key in [k for k in state_dict if k.startswith("layers")]:
-        layer_idx = key.split(".")[1]
-
+    for layer_idx in sorted(set([k.split(".")[1] for k in state_dict if k.startswith("layers")])):
         # attention
         # the wq, wk, wv from the FB model are stacked in our model as c_attn
         converted[f"transformer.h.{layer_idx}.attn.c_attn.weight"] = torch.cat(
@@ -70,23 +67,20 @@ def meta_weights_for_nano_model(
     *,
     output_dir: Path = Path("checkpoints/lit-llama"),
     ckpt_dir: Path = Path("checkpoints/llama/"),
-    tokenizer_path: Path = Path("checkpoints/llama/tokenizer.model"),
     model_size: str = "7B",
-    dtype: str = None,
+    dtype: str = "float32",
 ) -> None:
     output_dir = output_dir / model_size
     ckpt_dir = ckpt_dir / model_size
-    os.makedirs(output_dir, exist_ok=True)
-
-    if dtype is not None:
-        dt = getattr(torch, dtype, None)
-        if not isinstance(dt, torch.dtype):
-            raise ValueError(f"{dtype} is not a valid dtype.")
-        dtype = dt
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # the tokenizer is the same for all model sizes, so we store it in the parent dir
-    if "tokenizer.model" not in os.listdir(output_dir.parent):
-        shutil.copy(tokenizer_path, output_dir.parent)
+    shutil.copy(ckpt_dir / "tokenizer.model", output_dir.parent)
+
+    dt = getattr(torch, dtype, None)
+    if not isinstance(dt, torch.dtype):
+        raise ValueError(f"{dtype} is not a valid dtype.")
+    dtype = dt
 
     checkpoint_files = sorted(ckpt_dir.glob("*.pth"))
     checkpoint_files.sort()
@@ -138,7 +132,7 @@ def meta_weights_for_nano_model(
         del attn
         gc.collect()
 
-    torch.save(combined, Path(output_dir, "state_dict.pth"))
+    torch.save(combined, output_dir / "lit-llama.pth")
 
 
 if __name__ == "__main__":

@@ -10,19 +10,12 @@ from dataclasses import dataclass
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+import lit_llama.model as llama
 from lit_llama.model import build_rope_cache, apply_rope, RMSNorm, MLP
 
 
 @dataclass
-class LLaMAConfig:
-    # Default configuration is the 7B model
-    block_size: int = 4096
-    vocab_size: int = 32000
-    n_layer: int = 32
-    n_head: int = 32
-    n_embd: int = 4096
-    complex_rope: bool = True
-
+class LLaMAConfig(llama.LLaMAConfig):
     adapter_prompt_length: int = 10
     adapter_start_layer: int = 2
 
@@ -71,7 +64,7 @@ class CausalSelfAttention(nn.Module):
             self.rope_cache = build_rope_cache(
                 seq_len=self.block_size,
                 n_elem=self.n_embd // self.n_head, 
-                dtype=self.c_attn.weight.dtype,
+                dtype=x.dtype,
                 device=x.device,
                 complex=self.complex_rope,
             )
@@ -125,12 +118,12 @@ class Block(nn.Module):
         return x
 
 
-class LLaMA(nn.Module):
+class LLaMA(llama.LLaMA):
     """The implementation is identical to `lit_llama.model.LLaMA` with the exception that
     the `Block` saves the layer index and passes it down to the attention layer."""
 
     def __init__(self, config: LLaMAConfig) -> None:
-        super().__init__()
+        nn.Module.__init__(self)
         assert config.vocab_size is not None
         assert config.block_size is not None
         self.config = config
@@ -144,30 +137,9 @@ class LLaMA(nn.Module):
             )
         )
 
-    def _init_weights(self, module: nn.Module) -> None:
-        if isinstance(module, nn.Linear):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02 / math.sqrt(2 * self.config.n_layer))
-        elif isinstance(module, nn.Embedding):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02 / math.sqrt(2 * self.config.n_layer))
-
-    def forward(self, idx: torch.Tensor) -> torch.Tensor:
-        _, t = idx.size()
-        assert (
-            t <= self.config.block_size
-        ), f"Cannot forward sequence of length {t}, block size is only {self.config.block_size}"
-
-        # forward the LLaMA model itself
-        x = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
-
-        for block in self.transformer.h:
-            x = block(x)
-
-        x = self.transformer.ln_f(x)
-
-        logits = self.lm_head(x)  # (b, t, vocab_size)
-
-        return logits
-
+    @classmethod
+    def from_name(cls, name: str):
+        return cls(LLaMAConfig.from_name(name))
 
 
 def mark_only_adapter_as_trainable(model: LLaMA) -> None:
@@ -176,8 +148,6 @@ def mark_only_adapter_as_trainable(model: LLaMA) -> None:
         param.requires_grad = "adapter_wte" in name or "gating_factor" in name
 
 
-def adapter_state_dict(model: LLaMA) -> dict:
-    """Retrieve the model state dict with only the adapter weights for saving."""
-    return {
-        name: param for name, param in model.named_parameters() if "adapter_wte" in name or "gating_factor" in name
-    }
+def adapter_state_from_state_dict(state_dict: dict) -> dict:
+    """Returns the model state dict with only the adapter weights for saving."""
+    return {name: param for name, param in state_dict.items() if "adapter_wte" in name or "gating_factor" in name}

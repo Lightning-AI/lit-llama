@@ -11,7 +11,6 @@ import torch.nn as nn
 from torch.nn import functional as F
 from typing_extensions import Self
 
-
 @dataclass
 class LLaMAConfig:
     block_size: int = 4096
@@ -23,14 +22,14 @@ class LLaMAConfig:
 
     @classmethod
     def from_name(cls, name: str) -> Self:
-        return llama_configs[name]
+        return cls(**llama_configs[name])
 
 
 llama_configs = {
-    "7B": LLaMAConfig(n_layer=32, n_head=32, n_embd=4096),
-    "13B": LLaMAConfig(n_layer=40, n_head=40, n_embd=5120),
-    "30B": LLaMAConfig(n_layer=60, n_head=52, n_embd=6656),
-    "65B": LLaMAConfig(n_layer=80, n_head=64, n_embd=8192),
+    "7B": dict(n_layer=32, n_head=32, n_embd=4096),
+    "13B": dict(n_layer=40, n_head=40, n_embd=5120),
+    "30B": dict(n_layer=60, n_head=52, n_embd=6656),
+    "65B": dict(n_layer=80, n_head=64, n_embd=8192),
 }
 
 
@@ -212,18 +211,14 @@ def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, device: torc
     seq_idx = torch.arange(seq_len, dtype=dtype, device=device)
 
     # Calculate the product of position index and $\theta_i$
-    idx_theta = torch.outer(seq_idx, theta)
+    idx_theta = torch.outer(seq_idx, theta).float()
 
-    # Concatenate so that for row $m$ we have
-    # $[m \theta_0, m \theta_1, ..., m \theta_{\frac{d}{2}}, m \theta_0, m \theta_1, ..., m \theta_{\frac{d}{2}}]$
-    idx_theta2 = torch.cat([idx_theta, idx_theta], dim=1)
+    cache = torch.stack([torch.cos(idx_theta), torch.sin(idx_theta)], dim=-1)
 
-    # Cache them
-    cos_cache = idx_theta2.cos()[None, None, :, :]
-    sin_cache = idx_theta2.sin()[None, None, :, :]
-
-    return torch.stack((cos_cache, sin_cache), dim=0)
-
+    # this is to mimic the behaviour of complex32, else we will get different results
+    if dtype in (torch.float16, torch.bfloat16, torch.int8):
+        cache = cache.half()
+    return cache
 
 def apply_rope(x: torch.Tensor, rope_cache: torch.Tensor) -> torch.Tensor:
     if rope_cache.dtype in (torch.complex32, torch.complex64):
@@ -234,14 +229,16 @@ def apply_rope(x: torch.Tensor, rope_cache: torch.Tensor) -> torch.Tensor:
     neg_half_x = rotate_neg_half(x)
     cos, sin = rope_cache
     # truncate to support variable sizes
-    T = x.size(2)
-    cos = cos[:, :, :T]
-    sin = sin[:, :, :T]
-    return (x * cos) + (neg_half_x * sin)
+    T = x.size(1)
+    rope_cache = rope_cache[:T]
 
+    # cast because the reference does
+    xshaped = x.float().reshape(*x.shape[:-1], -1, 2)
+    rope_cache = rope_cache.view(1, xshaped.size(1), 1, xshaped.size(3), 2)
+    x_out2 = torch.stack(
+        [xshaped[..., 0] * rope_cache[..., 0] - xshaped[..., 1] * rope_cache[..., 1],
+         xshaped[..., 1] * rope_cache[..., 0] + xshaped[..., 0] * rope_cache[..., 1],
+        ], -1)
 
-def rotate_neg_half(x: torch.Tensor) -> torch.Tensor:
-    # $\frac{d}{2}$
-    d_2 = x.shape[-1] // 2
-    # Calculate $[-x^{(\frac{d}{2} + 1)}, -x^{(\frac{d}{2} + 2)}, ..., -x^{(d)}, x^{(1)}, x^{(2)}, ..., x^{(\frac{d}{2})}]$  # noqa: E501
-    return torch.cat([-x[:, :, :, d_2:], x[:, :, :, :d_2]], dim=-1)
+    x_out2 = x_out2.flatten(3)
+    return x_out2.transpose(1, 2).type_as(x)

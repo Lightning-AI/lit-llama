@@ -1,37 +1,60 @@
+import gc
+import json
+import shutil
 import sys
 from pathlib import Path
+
+import torch
 
 # support running without installing as a package
 wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 
-from transformers import LlamaForCausalLM
-import torch
-
 from lit_llama.model import LLaMA, LLaMAConfig
+from lit_llama.utils import EmptyInitOnDevice
 
 
+@torch.no_grad()
 def convert_hf_checkpoint(
+    *,
+    output_dir: Path = Path("checkpoints/lit-llama"),
+    ckpt_dir: Path = Path("checkpoints/hf-llama/"),
     model_size: str = "7B",
-    hf_checkpoint_path: Path = Path("checkpoints/llama-7b-hf"),
-    lit_checkpoint: Path = Path("checkpoints/lit-llama.ckpt"),
+    dtype: str = "float32",
     verify: bool = False,
 ) -> None:
     """
     Perform the reverse operation of: https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/convert_llama_weights_to_hf.py
     """
+    output_dir = output_dir / model_size
+    ckpt_dir = ckpt_dir / model_size
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    print("Loading weights from pretrained LLaMA %s" % model_size)
+    # the tokenizer is the same for all model sizes, so we store it in the parent dir
+    shutil.copy(ckpt_dir / "tokenizer.model", output_dir.parent)
 
+    dt = getattr(torch, dtype, None)
+    if not isinstance(dt, torch.dtype):
+        raise ValueError(f"{dtype} is not a valid dtype.")
+    dtype = dt
+
+    print("Initializing lit-llama")
     config = LLaMAConfig.from_name(model_size)
-    model = LLaMA(config)
-    sd = model.state_dict()
 
-    model_hf = LlamaForCausalLM.from_pretrained(hf_checkpoint_path)
-    sd_hf = model_hf.state_dict()
+    with EmptyInitOnDevice(device="cpu", dtype=dtype):
+        model = LLaMA(config)
 
     qkv_size = model.transformer.h[0].attn.c_attn.weight.shape[0] // 3
-    n_blocks = len(model.transformer.h)
+
+    # initialize a new empty state dict to hold our new weights
+    sd = model.state_dict()
+
+    # Load the json file containing weight mapping
+    pytorch_bin_map_json_path = ckpt_dir / "pytorch_model.bin.index.json"
+    with open(pytorch_bin_map_json_path) as json_map:
+        bin_index = json.load(json_map)
+
+    bin_files = set(el for el in bin_index["weight_map"].values())
 
     def permute(w):
         dim = config.n_embd
@@ -41,58 +64,76 @@ def convert_hf_checkpoint(
             .reshape(dim, dim)
         )
 
-    with torch.no_grad():
-        sd["transformer.wte.weight"].copy_(sd_hf["model.embed_tokens.weight"])
-        sd["transformer.ln_f.scale"].copy_(sd_hf["model.norm.weight"])
-        sd["lm_head.weight"].copy_(sd_hf["lm_head.weight"])
+    weight_map = {
+        "self_attn.o_proj.weight": "attn.c_proj.weight",
+        "self_attn.q_proj.weight": "attn.c_attn.weight",
+        "self_attn.k_proj.weight": "attn.c_attn.weight",
+        "self_attn.v_proj.weight": "attn.c_attn.weight",
+        "mlp.gate_proj.weight": "mlp.c_fc1.weight",
+        "mlp.up_proj.weight": "mlp.c_fc2.weight",
+        "mlp.down_proj.weight": "mlp.c_proj.weight",
+        "input_layernorm.weight": "rms_1.scale",
+        "post_attention_layernorm.weight": "rms_2.scale",
+        "model.embed_tokens.weight": "transformer.wte.weight",
+        "model.norm.weight": "transformer.ln_f.scale",
+        "lm_head.weight": "lm_head.weight"
+    }
 
-        for i in range(n_blocks):
-            sd[f"transformer.h.{i}.attn.c_proj.weight"].copy_(
-                sd_hf[f"model.layers.{i}.self_attn.o_proj.weight"]
-            )
+    for bin_file in bin_files:
+        print("Processing", bin_file)
 
-            sd[f"transformer.h.{i}.attn.c_attn.weight"][:qkv_size] = permute(
-                sd_hf[f"model.layers.{i}.self_attn.q_proj.weight"]
-            )
-            sd[f"transformer.h.{i}.attn.c_attn.weight"][qkv_size:-qkv_size] = permute(
-                sd_hf[f"model.layers.{i}.self_attn.k_proj.weight"]
-            )
-            sd[f"transformer.h.{i}.attn.c_attn.weight"][-qkv_size:] = sd_hf[
-                f"model.layers.{i}.self_attn.v_proj.weight"
-            ]
+        hf_weights = torch.load(ckpt_dir / bin_file, map_location="cpu")
 
-            sd[f"transformer.h.{i}.mlp.c_fc1.weight"].copy_(
-                sd_hf[f"model.layers.{i}.mlp.gate_proj.weight"]
-            )
-            sd[f"transformer.h.{i}.mlp.c_fc2.weight"].copy_(
-                sd_hf[f"model.layers.{i}.mlp.up_proj.weight"]
-            )
-            sd[f"transformer.h.{i}.mlp.c_proj.weight"].copy_(
-                sd_hf[f"model.layers.{i}.mlp.down_proj.weight"]
-            )
+        for name, param in hf_weights.items():
+            param = param.to(dtype=dtype)
+            if "rotary_emb.inv_freq" in name:
+                continue
+            if "model.layers" in name:
+                block_id = int(name.split(".")[2])
+                from_name = ".".join(name.split(".")[3:])
+                to_name = weight_map[from_name]
 
-            sd[f"transformer.h.{i}.rms_1.scale"].copy_(
-                sd_hf[f"model.layers.{i}.input_layernorm.weight"]
-            )
-            sd[f"transformer.h.{i}.rms_2.scale"].copy_(
-                sd_hf[f"model.layers.{i}.post_attention_layernorm.weight"]
-            )
+                if "q_proj" in name:
+                    sd[f"transformer.h.{block_id}.{to_name}"][:qkv_size] = permute(param)
+                elif "k_proj" in name:
+                    sd[f"transformer.h.{block_id}.{to_name}"][qkv_size:-qkv_size] = permute(param)
+                elif "v_proj" in name:
+                    sd[f"transformer.h.{block_id}.{to_name}"][-qkv_size:] = param
+                else:
+                    sd[f"transformer.h.{block_id}.{to_name}"].copy_(param)
+            else:
+                sd[weight_map[name]].copy_(param)
+
+        del hf_weights
+        gc.collect()
+
+    print(f"Saving to disk at {output_dir}")
+    torch.save(model.state_dict(), output_dir / "lit-llama.pth")
 
     if verify:
-        token_sample = torch.randint(
-            0, config.vocab_size, size=(1, config.block_size), dtype=torch.int64
-        )
+        try:
+            from transformers import LlamaForCausalLM
+        except ImportError:
+            raise ImportError("verify=True requires transformers to be installed, please `pip install transformers`")
 
-        with torch.no_grad():
-            out = model(token_sample)
-            out_hf = model_hf(token_sample)
+        print("Verifying...")
+        token_sample = torch.randint(0, config.vocab_size, size=(1, config.block_size), dtype=torch.int64)
+        out = model(token_sample)
 
+        del model
+        gc.collect()
+
+        print("Loading original model for comparison.")
+        model_hf = LlamaForCausalLM.from_pretrained(ckpt_dir)
+
+        out_hf = model_hf(token_sample)
+
+        print("Comparing outputs")
         assert torch.allclose(out, out_hf["logits"])
-
-    torch.save(model.state_dict(), lit_checkpoint)
 
 
 if __name__ == "__main__":
     from jsonargparse import CLI
 
     CLI(convert_hf_checkpoint)
+

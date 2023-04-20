@@ -1,22 +1,18 @@
 # This adapts GPTQ's quantization process: https://github.com/IST-DASLab/gptq/
 # E. Frantar et al GPTQ: Accurate Post-training Compression for GPT, arXiv:2210.17323
 # portions copyright by the authors licensed under the Apache License 2.0
-import math
+import gc
 import sys
 import time
 from pathlib import Path
 from typing import Optional
-import gc
 
-import lightning as L
 import torch
-import tqdm
+from datasets import load_dataset
 
 from lit_llama import LLaMA, Tokenizer
-from lit_llama.utils import EmptyInitOnDevice
 from lit_llama.quantization import GPTQQuantizer
-
-from datasets import load_dataset
+from lit_llama.utils import EmptyInitOnDevice
 
 
 def get_sample_data():
@@ -139,31 +135,30 @@ def llama_blockwise_quantization(
 
 
 def main(
-    datasets: str = "wikitext,ptb,c4",
     *,
     checkpoint_path: Optional[Path] = None,
     output_path: Optional[Path] = None,
     tokenizer_path: Optional[Path] = None,
     n_samples: int = 128,
     model_size: str = "7B",
-    dtype: Optional[str] = None,
+    dtype: str = "float32",
     quantize: Optional[str] = None,
 ) -> None:
     """Generates text samples based on a pre-trained LLaMA model and tokenizer.
 
     Args:
-        datasets: The datasets to use as a comma separated string
         # compile: Whether to compile the model.
         checkpoint_path: The checkpoint path to load.
         output_path: Path to write the quantized model's state dict to.
         tokenizer_path: The tokenizer path to load.
         n_samples: Number of example inputs to use for statistics (default: 128)
+        dtype: The dtype to use to load the model.
         quantize: Mode to quantize the model to:
             ``"gptq.int4"``: GPTQ 4-bit mode.
             Note that ``"llm.int8"```does not need a quantization step.
     """
     if not checkpoint_path:
-        checkpoint_path = Path(f"./checkpoints/lit-llama/{model_size}/state_dict.pth")
+        checkpoint_path = Path(f"./checkpoints/lit-llama/{model_size}/lit-llama.pth")
     if not tokenizer_path:
         tokenizer_path = Path("./checkpoints/lit-llama/tokenizer.model")
     assert checkpoint_path.is_file()
@@ -174,11 +169,10 @@ def main(
 
     device = "cuda"
 
-    if dtype is not None:
-        dt = getattr(torch, dtype, None)
-        if not isinstance(dt, torch.dtype):
-            raise ValueError(f"{dtype} is not a valid dtype.")
-        dtype = dt
+    dt = getattr(torch, dtype, None)
+    if not isinstance(dt, torch.dtype):
+        raise ValueError(f"{dtype} is not a valid dtype.")
+    dtype = dt
 
     if quantize == "gptq.int4":
         bits = 4
@@ -187,8 +181,9 @@ def main(
     else:
         raise RuntimeError(f"unknown/unsupported quantization mode {quantize}")
 
+    # we avoid loading the entire model on the GPU and do this block by block
     with EmptyInitOnDevice(
-        device=device,
+        device="cpu",
         dtype=dtype,
     ):
         print("Loading model ...", file=sys.stderr)
@@ -199,9 +194,6 @@ def main(
         print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
-
-
-    total_toks = 0
 
     tokenizer = Tokenizer(tokenizer_path)
 

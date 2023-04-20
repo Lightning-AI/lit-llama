@@ -2,6 +2,9 @@
 
 import functools
 from pathlib import Path
+import pickle
+import warnings
+from io import BytesIO
 
 import torch
 import torch.utils._device
@@ -25,7 +28,7 @@ def save_model_checkpoint(fabric, model, file_path):
         fabric.barrier()
         if fabric.global_rank == 0:
             # Create a consolidated checkpoint with the same name next to the deepspeed checkpoint
-            convert_zero_checkpoint_to_fp32_state_dict(file_path, file_path.with_suffix(".pt"))
+            convert_zero_checkpoint_to_fp32_state_dict(file_path, file_path.with_suffix(".pth"))
         return
 
     if isinstance(fabric.strategy, FSDPStrategy):
@@ -50,11 +53,12 @@ class EmptyInitOnDevice(torch.overrides.TorchFunctionMode):
             dtype: `torch.dtype` to work with
             quantization_mode: optional string, quantization mode to work with, default `None`.
                  Available modes: `llm.int8` bitsnbytes LLM.int8 quantization (only on GPU)
+                                  `qptq.int4`, `gptq.int8`: GPTQ pre-quantized models
 
         Example::
             with EmptyInitOnDevice("cuda", dtype=torch.bfloat16):
                model = LLaMA.from_name('7B')
-            model.load_state_dict(torch.load('llama-lit/7B/state_dict.pth'))"""
+            model.load_state_dict(torch.load('llama-lit/7B/lit-llama.pth'))"""
 
         self.quantization_mode = quantization_mode
         self.quantized_linear_cls = None
@@ -107,51 +111,134 @@ class EmptyInitOnDevice(torch.overrides.TorchFunctionMode):
         return func(*args, **kwargs)
 
 
-
-def build_rope_cache_complex(seq_len: int, n_elem: int, dtype: torch.dtype, device: torch.device, base: int = 10000) -> torch.Tensor:
-    """Enhanced Transformer with Rotary Position Embedding.
-
-    Derived from: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/
-    transformers/rope/__init__.py. MIT License:
-    https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/license.
-
-    Note: This version in the complex domain is only used to match the implementation of Meta's LLaMA version
-    in order to perform inference using their checkpoints.
-    """
-    # $\Theta = {\theta_i = 10000^{\frac{2(i-1)}{d}}, i \in [1, 2, ..., \frac{d}{2}]}$
-    theta = 1.0 / (base ** (torch.arange(0, n_elem, 2, dtype=dtype, device=device) / n_elem))
-
-    # Create position indexes `[0, 1, ..., seq_len - 1]`
-    seq_idx = torch.arange(seq_len, dtype=dtype, device=device)
-
-    # Calculate the product of position index and $\theta_i$
-    idx_theta = torch.outer(seq_idx, theta)
-
-    # Compute cache. Because polar only takes float32 or float64, we need to cast
-    # when working with 16 bit floats (float16 or bfloat16)
-    working_dtype = (
-        torch.float32 if (dtype == torch.float16 or dtype == torch.bfloat16) else dtype
-    )
-    complex_dtype = (
-        torch.complex32
-        if (dtype == torch.float16 or dtype == torch.bfloat16)
-        else torch.complex64
-    )
-    cache = torch.polar(
-        torch.ones_like(idx_theta).to(working_dtype), idx_theta.to(working_dtype)
-    ).to(complex_dtype)
-    return cache
+# this is taken from torchhacks https://github.com/lernapparat/torchhacks
 
 
-def apply_rope_complex(x: torch.Tensor, rope_cache: torch.Tensor) -> torch.Tensor:
-    x = x.transpose(1, 2)
+class NotYetLoadedTensor:
+    def __init__(self, metatensor, archiveinfo, storageinfo, rebuild_args):
+        self.metatensor = metatensor
+        self.archiveinfo = archiveinfo
+        self.storageinfo = storageinfo
+        self.rebuild_args = rebuild_args
 
-    # truncate to support variable sizes
-    T = x.size(1)
-    rope_cache = rope_cache[:T]
+    @classmethod
+    def rebuild(
+        cls,
+        storage,
+        storage_offset,
+        size,
+        stride,
+        requires_grad,
+        backward_hooks,
+        metadata=None,
+        archiveinfo=None,
+    ):
+        rebuild_args = (
+            storage_offset,
+            size,
+            stride,
+            requires_grad,
+            backward_hooks,
+            metadata,
+        )
+        metatensor = torch._utils._rebuild_tensor_v2(
+            storage,
+            storage_offset,
+            size,
+            stride,
+            requires_grad,
+            backward_hooks,
+            metadata,
+        )
+        storageinfo = storage.archiveinfo
+        return NotYetLoadedTensor(metatensor, archiveinfo, storageinfo, rebuild_args)
 
-    # cast because `view_as_complex` does not support 16 bit tensors
-    xc = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
-    rope_cache = rope_cache.view(1, xc.size(1), 1, xc.size(3))
-    x_out = torch.view_as_real(xc * rope_cache).flatten(3)
-    return x_out.transpose(1, 2).type_as(x)
+    def _load_tensor(self):
+        name, storage_cls, fn, device, size = self.storageinfo
+        dtype = self.metatensor.dtype
+
+        uts = (
+            self.archiveinfo.zipfile.get_storage_from_record(
+                f"data/{fn}",
+                size * torch._utils._element_size(dtype),
+                torch.UntypedStorage,
+            )
+            ._typed_storage()
+            ._untyped_storage
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            storage = torch.storage.TypedStorage(
+                wrap_storage=uts, dtype=self.metatensor.dtype, _internal=True
+            )
+        tensor = torch._utils._rebuild_tensor_v2(storage, *self.rebuild_args)
+        return tensor
+
+    @classmethod
+    def __torch_function__(cls, func, types, args=(), kwargs=None):
+        if kwargs is None:
+            kwargs = {}
+        loaded_args = [
+            (a._load_tensor() if isinstance(a, NotYetLoadedTensor) else a) for a in args
+        ]
+        res = func(*loaded_args, **kwargs)
+        # gc.collect would be costly here, maybe do it optionally
+        return res
+
+    def __getattr__(self, name):
+        # properties
+        ## TODO: device, is_...??
+        ## TODO: mH, mT, H, T, data, imag, real
+        ## name ???
+        if name in {
+            "dtype",
+            "grad",
+            "grad_fn",
+            "layout",
+            "names",
+            "ndim",
+            "output_nr",
+            "requires_grad",
+            "retains_grad",
+            "shape",
+            "volatile",
+        }:
+            return getattr(self.metatensor, name)
+        if name in {"size"}:
+            return getattr(self.metatensor, name)
+        # materializing with contiguous is needed for quantization
+        if name in {"contiguous"}:
+            return getattr(self._load_tensor(), name)
+
+        raise AttributeError(f"{type(self)} does not have {name}")
+
+    def __repr__(self):
+        return f"NotYetLoadedTensor({repr(self.metatensor)})"
+
+
+class LazyLoadingUnpickler(pickle.Unpickler):
+    def __init__(self, file, zipfile):
+        super().__init__(file)
+        self.zipfile = zipfile
+
+    def find_class(self, module, name):
+        if module == "torch._utils" and name == "_rebuild_tensor_v2":
+            res = super().find_class(module, name)
+            return functools.partial(NotYetLoadedTensor.rebuild, archiveinfo=self)
+        return super().find_class(module, name)
+
+    def persistent_load(self, pid):
+        name, cls, fn, device, size = pid
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            s = torch.storage.TypedStorage(dtype=cls().dtype, device="meta")
+        s.archiveinfo = pid
+        return s
+
+
+def lazy_load(fn):
+    zf = torch._C.PyTorchFileReader(str(fn))
+    with BytesIO(zf.get_record("data.pkl")) as pkl:
+        mup = LazyLoadingUnpickler(pkl, zf)
+        sd = mup.load()
+    return sd
