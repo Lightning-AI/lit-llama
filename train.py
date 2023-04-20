@@ -7,6 +7,7 @@ import os
 import time
 from functools import partial
 from typing import Tuple
+from pathlib import Path
 
 import lightning as L
 from lightning.fabric.strategies import FSDPStrategy
@@ -39,22 +40,25 @@ beta2 = 0.95
 grad_clip = 1.0
 
 
-def main() -> None:
+def main(
+    devices: int = 4,
+    train_data_dir: Path = "data/red_pajama",
+    val_data_dir: Path = "data/red_pajama_val"
+) -> None:
     auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
     strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block)
 
-    fabric = L.Fabric(accelerator="cuda", devices=4, precision="bf16-mixed", strategy=strategy)
+    fabric = L.Fabric(accelerator="cuda", devices=devices, precision="bf16-mixed", strategy=strategy)
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
 
-    # TODO: create val data during prepare_redpajama
-    # TODO: provide collate_fn
-    train_dataloader, val_dataloader = create_dataloaders(train_data_dir="data/red_pajama", val_data_dir="data/red_pajama")
-
     config = LLaMAConfig.from_name("7B")
+
+    # TODO: create val data during prepare_redpajama
+    train_dataloader, val_dataloader = create_dataloaders(block_size=config.block_size, train_data_dir=train_data_dir, val_data_dir=val_data_dir)
 
     with fabric.device:
         model = LLaMA(config)
@@ -142,31 +146,69 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_dataloader: DataLoade
     return out
 
 
-def get_batch(fabric: L.Fabric, data: np.ndarray, block_size: int) -> Tuple[torch.Tensor, torch.Tensor]:
-    ix = torch.randint(len(data) - block_size, (batch_size,))
-    x = torch.stack([torch.from_numpy((data[i : i + block_size]).astype(np.int64)) for i in ix])
-    y = torch.stack([torch.from_numpy((data[i + 1 : i + 1 + block_size]).astype(np.int64)) for i in ix])
-    x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
-    return x, y
+# def get_batch(fabric: L.Fabric, data: np.ndarray, block_size: int) -> Tuple[torch.Tensor, torch.Tensor]:
+#     ix = torch.randint(len(data) - block_size, (batch_size,))
+#     x = torch.stack([torch.from_numpy((data[i : i + block_size]).astype(np.int64)) for i in ix])
+#     y = torch.stack([torch.from_numpy((data[i + 1 : i + 1 + block_size]).astype(np.int64)) for i in ix])
+#     x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
+#     return x, y
 
 
-def create_dataloader(data_dir: str = "data/red_pajama", shuffle=False) -> DataLoader:
+def collate_batch(block_size, batch):
+    print("BATCH", [el.shape for el in batch])
+    max_len = max(len(el) for el in batch)
+
+    xs = []
+    ys = []
+    for data in batch:
+        i = torch.randint(max(len(data) - block_size - 1, 0), ())
+        x = torch.from_numpy((data[i : i + block_size]).astype(np.int64))
+        y = torch.from_numpy((data[i + 1 : i + 1 + block_size]).astype(np.int64))
+        xs.append(x)
+        ys.append(y)
+
+    def pad_right(x, pad_id):
+        # pad right based on the longest sequence
+        n = max_len - len(x)
+        return torch.cat((x, torch.full((n,), pad_id, dtype=x.dtype)))
+
+    xs = torch.stack([pad_right(x, pad_id=0) for x in xs])
+    ys = torch.stack([pad_right(y, pad_id=-1) for y in ys])
+
+    # x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
+    print("X", xs.shape, xs)
+    print("Y", ys.shape, ys)
+
+    return xs, ys
+
+
+def create_dataloader(block_size: int, data_dir: str, shuffle=False) -> DataLoader:
     datasets = []
-    for index_file in glob.glob(os.path.join(data_dir, "*.index")):
-        dataset = indexed_dataset.make_dataset(index_file, impl="infer", skip_warmup=False)
+    for name in [os.path.splitext(el)[0] for el in glob.glob(os.path.join(data_dir, "*.idx"))]:
+        dataset = indexed_dataset.make_dataset(name, impl="infer", skip_warmup=False)
         datasets.append(dataset)
+
+    if not datasets:
+        raise RuntimeError(f"No data found at {data_dir}. Make sure you ran prepare_redpajama.py to create the dataset.")
 
     concat_dataset = ConcatDataset(datasets)
 
-    return DataLoader(concat_dataset, batch_size=batch_size, shuffle=shuffle)
+    collate_fn = partial(collate_batch, block_size)
+
+    return DataLoader(concat_dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
 
 
-def create_dataloaders(train_data_dir: str = "data/red_pajama", val_data_dir: str = "data/red_pajama_val") -> Tuple[DataLoader, DataLoader]:    
-    train_dataloader = create_dataloader(data_dir=train_data_dir, shuffle=True)
-    val_dataloader = create_dataloader(data_dir=val_data_dir, shuffle=False)
+def create_dataloaders(block_size: int, train_data_dir: str = "data/red_pajama", val_data_dir: str = "data/red_pajama_val") -> Tuple[DataLoader, DataLoader]:    
+    train_dataloader = create_dataloader(block_size=block_size, data_dir=train_data_dir, shuffle=True)
+    val_dataloader = create_dataloader(block_size=block_size, data_dir=val_data_dir, shuffle=False)
     return train_dataloader, val_dataloader
 
 
 if __name__ == "__main__":
+    # Uncomment this line if you see an error: "Expected is_sm80 to be true, but got false"
+    # torch.backends.cuda.enable_flash_sdp(False)
     torch.set_float32_matmul_precision("high")
-    main()
+
+    from jsonargparse.cli import CLI
+
+    CLI(main)
