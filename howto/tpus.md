@@ -1,6 +1,6 @@
 # TPU support
 
-Lit-LLaMA used `lightning.Fabric` under the hood, which itself supports TPUs (via https://github.com/pytorch/xla).
+Lit-LLaMA used `lightning.Fabric` under the hood, which itself supports TPUs (via [PyTorch XLA](https://github.com/pytorch/xla)).
 
 The following commands will allow you to set up a `Google Cloud` instance with a [TPU v4](https://cloud.google.com/tpu/docs/system-architecture-tpu-vm) VM:
 
@@ -18,6 +18,13 @@ Now that you are in the machine, let's clone the repository and install the depe
 git clone https://github.com/Lightning-AI/lit-llama
 cd lit-llama
 pip install -r requirements.txt
+```
+
+By default, computations will run using the new (and experimental) PjRT runtime. Still, it's recommended that you set the following environment variables
+
+```shell
+export PJRT_DEVICE=TPU
+export ALLOW_MULTIPLE_LIBTPU_LOAD=1
 ```
 
 Since you created a new machine, you'll probably need to download the weights. You could scp them into the machine with `gcloud compute tpus tpu-vm scp` or you can follow the steps described in our [downloading guide](download_weights.md).
