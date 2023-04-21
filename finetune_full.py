@@ -1,19 +1,21 @@
 """
-Instruction-tuning of the 7B model
-on the Alpaca dataset using a regular finetuning procedure (= updating all layers).
+Instruction-tuning on the Alpaca dataset using a regular finetuning procedure (updating all layers).
 
 Note: If you run into a CUDA error "Expected is_sm80 to be true, but got false", uncomment the line
 `torch.backends.cuda.enable_flash_sdp(False)` in the script below (see https://github.com/Lightning-AI/lit-llama/issues/101).
 """
 import os
 import time
+from functools import partial
 
 import lightning as L
+from lightning.fabric.strategies import FSDPStrategy
 import numpy as np
 import torch
+from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 
 from generate import generate
-from lit_llama.model import LLaMA, LLaMAConfig
+from lit_llama.model import Block, LLaMA, LLaMAConfig
 from lit_llama.utils import save_model_checkpoint
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
@@ -44,7 +46,11 @@ def main(
     out_dir: str = "out/regular/alpaca",
 ):
 
-    fabric = L.Fabric(accelerator="cuda", devices=[4], precision="bf16-mixed")
+    auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
+    strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block)
+
+    # fabric = L.Fabric(accelerator="cuda", devices=4, precision="bf16-mixed")
+    fabric = L.Fabric(accelerator="cuda", devices=[4, 5, 6, 7], precision="bf16-mixed")
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
@@ -198,9 +204,9 @@ if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
     
     from jsonargparse.cli import CLI
-    import time
+    import time ## REMOVE LATER
 
-    start_time = time.time()
+    start_time = time.time() ## REMOVE LATER
     CLI(main)
-    duration = time.time() - start_time
-    print(f"{duration/60:.2f} sec elapsed")
+    duration = time.time() - start_time ## REMOVE LATER
+    print(f"{duration/60:.2f} sec elapsed") ## REMOVE LATER
