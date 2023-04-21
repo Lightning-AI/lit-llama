@@ -51,11 +51,14 @@ def test_lora_merge_unmerge(lit_llama):
 
     # calling eval/train multiple times in a row should not merge/unmerge multiple times
     model.eval()
+    assert model.transformer.h[0].attn.c_attn.merged
     weight_after = model.transformer.h[0].attn.c_attn.weight.clone()
     model.eval()
     model.eval()
     assert torch.equal(model.transformer.h[0].attn.c_attn.weight, weight_after)
-   
-    # model.train()
-    # # note: numerically, `W + (A * B) - (A * B) == W` does not hold exactly
-    # assert torch.allclose(model.transformer.h[0].attn.c_attn.weight, weight_before)
+    model.train()
+    assert not model.transformer.h[0].attn.c_attn.merged
+    weight_after = model.transformer.h[0].attn.c_attn.weight.clone()
+    model.train()
+    model.train()
+    assert torch.equal(model.transformer.h[0].attn.c_attn.weight, weight_after)
