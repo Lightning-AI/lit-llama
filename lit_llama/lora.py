@@ -98,12 +98,11 @@ class MergedLinear(nn.Linear, LoRALayer):
             return w.T if self.fan_in_fan_out else w
         nn.Linear.train(self, mode)
 
-        # if train(True) -> un-merge unless we already have them unmerged
+        # if train(True) -> unmerge unless we already have them unmerged
         # if train(False) -> merge unless we already have them merged
         should = self.merged if mode else not self.merged
 
         if self.merge_weights and should:
-            # Make sure that the weights are not merged
             if self.r > 0 and any(self.enable_lora):
                 delta_w = F.conv1d(
                     self.lora_A.data.unsqueeze(0), 
@@ -114,18 +113,6 @@ class MergedLinear(nn.Linear, LoRALayer):
                 sign = -1 if mode else 1
                 self.weight.data += sign * self.zero_pad(T(delta_w * self.scaling))
             self.merged = not mode
-
-    def merge_and_reset(self):
-        def T(w):
-            return w.T if self.fan_in_fan_out else w
-        if self.r > 0 and any(self.enable_lora):
-            delta_w = F.conv1d(
-                self.lora_A.data.unsqueeze(0), 
-                self.lora_B.data.unsqueeze(-1), 
-                groups=sum(self.enable_lora)
-            ).squeeze(0)
-            self.weight.data += self.zero_pad(T(delta_w * self.scaling))
-        self.reset_parameters()
 
     def forward(self, x: torch.Tensor):
         def T(w):
@@ -163,12 +150,6 @@ def mark_only_lora_as_trainable(model: nn.Module, bias: str = 'none') -> None:
                     m.bias.requires_grad = True
     else:
         raise NotImplementedError
-
-
-def merge_and_reset(model: nn.Module):
-    for _, mod in model.named_modules():
-        if hasattr(mod, "merge_and_reset"):
-            mod.merge_and_reset()
 
 
 def lora_state_dict(model: nn.Module, bias: str = 'none') -> Dict[str, torch.Tensor]:
