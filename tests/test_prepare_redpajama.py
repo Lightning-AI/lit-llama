@@ -110,9 +110,9 @@ def test_prepare_full(tmp_path):
     with mock.patch("prepare_redpajama.filename_sets", filename_sets):
         prepare_redpajama.prepare(source_path=source_path, tokenizer_path=tokenizer_path, destination_path=dest_path, sample=False)
 
-    all_names = prepare_redpajama.filename_sets.keys()
-    idx_files = [el + ".idx" for el in all_names]
-    bin_files = [el + ".bin" for el in all_names]
+        all_names = prepare_redpajama.filename_sets.keys()
+        idx_files = [el + ".idx" for el in all_names]
+        bin_files = [el + ".bin" for el in all_names]
 
     assert set(os.listdir(dest_path)) == set(idx_files + bin_files)
 
