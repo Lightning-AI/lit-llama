@@ -22,10 +22,11 @@ def train_tokenizer(destination_path):
             f.write(requests.get(data_url).text)
 
     from lit_llama import Tokenizer
+
     Tokenizer.train(input=input_file_path, destination=destination_path, vocab_size=100)
 
     return destination_path / "tokenizer.model"
- 
+
 
 def test_prepare_sample(tmp_path):
     sys.path.append(str(wd))
@@ -38,10 +39,7 @@ def test_prepare_sample(tmp_path):
 
     source_path.mkdir(parents=True, exist_ok=True)
 
-    sample = {
-        "meta": {"some": "info"},
-        "text": "some text"
-    }
+    sample = {"meta": {"some": "info"}, "text": "some text"}
 
     jsonl_sample = "\n".join([json.dumps(el) for el in [sample] * 2])
 
@@ -51,10 +49,20 @@ def test_prepare_sample(tmp_path):
         with open(source_path / filename, "w") as f:
             f.write(jsonl_sample)
 
-    prepare_redpajama.prepare(source_path=source_path, tokenizer_path=tokenizer_path, destination_path=dest_path, sample=True)
+    prepare_redpajama.prepare(
+        source_path=source_path,
+        tokenizer_path=tokenizer_path,
+        destination_path=dest_path,
+        strict=False,
+        sample=True,
+    )
 
-    idx_files = [el.replace("jsonl", "idx") for el in prepare_redpajama.filenames_sample]
-    bin_files = [el.replace("jsonl", "bin") for el in prepare_redpajama.filenames_sample]
+    idx_files = [
+        el.replace("jsonl", "idx") for el in prepare_redpajama.filenames_sample
+    ]
+    bin_files = [
+        el.replace("jsonl", "bin") for el in prepare_redpajama.filenames_sample
+    ]
 
     assert set(os.listdir(dest_path)) == set(idx_files + bin_files)
 
@@ -64,7 +72,7 @@ def test_prepare_sample(tmp_path):
     tokenizer = Tokenizer(tokenizer_path)
 
     for filename in idx_files:
-        dataset = make_dataset(str((dest_path / filename).with_suffix('')), "infer")
+        dataset = make_dataset(str((dest_path / filename).with_suffix("")), "infer")
         assert len(dataset) == 2
         assert tokenizer.decode(dataset[0]) == "some text"
         assert tokenizer.decode(dataset[1]) == "some text"
@@ -81,10 +89,7 @@ def test_prepare_full(tmp_path):
 
     source_path.mkdir(parents=True, exist_ok=True)
 
-    sample = {
-        "meta": {"some": "info"},
-        "text": "some text"
-    }
+    sample = {"meta": {"some": "info"}, "text": "some text"}
 
     jsonl_sample = "\n".join([json.dumps(el) for el in [sample] * 2])
 
@@ -102,7 +107,13 @@ def test_prepare_full(tmp_path):
     with zstd.open(cc_file, "wt", encoding="utf-8") as f:
         f.write(jsonl_sample)
 
-    prepare_redpajama.prepare(source_path=source_path, tokenizer_path=tokenizer_path, destination_path=dest_path, sample=False)
+    prepare_redpajama.prepare(
+        source_path=source_path,
+        tokenizer_path=tokenizer_path,
+        destination_path=dest_path,
+        strict=False,
+        sample=False,
+    )
 
     all_names = prepare_redpajama.filename_sets.keys()
     idx_files = [el + ".idx" for el in all_names]
@@ -116,7 +127,7 @@ def test_prepare_full(tmp_path):
     tokenizer = Tokenizer(tokenizer_path)
 
     for filename in ["arxiv", "common_crawl"]:
-        dataset = make_dataset(str((dest_path / filename).with_suffix('')), "infer")
+        dataset = make_dataset(str((dest_path / filename).with_suffix("")), "infer")
         assert len(dataset) == 2
         assert tokenizer.decode(dataset[0]) == "some text"
         assert tokenizer.decode(dataset[1]) == "some text"

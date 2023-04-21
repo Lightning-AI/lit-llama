@@ -44,6 +44,7 @@ def prepare_sample(
     source_path: Path,
     tokenizer_path: Path,
     destination_path: Path,
+    strict: bool = True,
     match = ""
 ) -> None:
     """Prepare the "Red Pajama" dataset. We assume tokenizer has been trained (i.e. we reuse LLaMA's tokenizer model)."""
@@ -58,6 +59,8 @@ def prepare_sample(
         filepath = source_path / name
 
         if not filepath.is_file():
+            if not strict:
+                continue
             raise RuntimeError(
                 f"Input file not found at {filepath}. \n"
                 "Make sure you download the data, e.g. wget -i https://data.together.xyz/redpajama-data-1T/v1.0.0/urls.txt or through \n"
@@ -93,6 +96,7 @@ def prepare_full(
     source_path: Path,
     tokenizer_path: Path,
     destination_path: Path,
+    strict: bool = True,
     match: str = ""
 ) -> None:
     """Prepare the "Red Pajama" dataset. We assume tokenizer has been trained (i.e. we reuse LLaMA's tokenizer model)."""
@@ -114,6 +118,8 @@ def prepare_full(
         filenames = glob.glob(os.path.join(source_path, pattern), recursive=True)
 
         if not filenames:
+            if not strict:
+                continue
             raise RuntimeError(
                 f"No files matching {pattern} found at {source_path}. \n"
                 "Make sure you download the data, e.g. wget -i https://data.together.xyz/redpajama-data-1T/v1.0.0/urls.txt or through \n"
@@ -157,6 +163,7 @@ def prepare(
     tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
     destination_path: Path = Path("data/red_pajama_sample"),
     sample: bool = False,
+    strict: bool = True,
     match: str = "",
 ) -> None:
     """Prepare the "Red Pajama" dataset. We assume tokenizer has been trained (i.e. we reuse LLaMA's tokenizer model)."""
@@ -165,6 +172,7 @@ def prepare(
             source_path=source_path,
             tokenizer_path=tokenizer_path,
             destination_path=destination_path,
+            strict=strict,
             match=match,
         )
     else:
@@ -172,6 +180,7 @@ def prepare(
             source_path=source_path,
             tokenizer_path=tokenizer_path,
             destination_path=destination_path,
+            strict=strict,
             match=match,
         )
 
