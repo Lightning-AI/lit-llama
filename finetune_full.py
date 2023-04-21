@@ -25,7 +25,7 @@ eval_interval = 1000
 save_interval = 1000
 eval_iters = 100
 log_interval = 100
-devices = 1
+devices = 4
 
 # Hyperparameters
 learning_rate = 3e-4
@@ -41,7 +41,7 @@ warmup_steps = 100
 
 
 def main(
-    data_dir: str = "data/alpaca", 
+    data_dir: str = "data/alpaca",
     pretrained_path: str = "checkpoints/lit-llama/7B/lit-llama.pth",
     out_dir: str = "out/regular/alpaca",
 ):
@@ -50,7 +50,7 @@ def main(
     strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block)
 
     # fabric = L.Fabric(accelerator="cuda", devices=4, precision="bf16-mixed")
-    fabric = L.Fabric(accelerator="cuda", devices=[4, 5, 6, 7], precision="bf16-mixed")
+    fabric = L.Fabric(accelerator="cuda", devices=[4, 5, 6, 7], precision="bf16-mixed", strategy=strategy)
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
@@ -70,8 +70,11 @@ def main(
         torch.set_default_tensor_type(torch.FloatTensor)
         model.load_state_dict(checkpoint, strict=False) 
 
+    model = fabric.setup_module(model)
+
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
-    model, optimizer = fabric.setup(model, optimizer)
+    optimizer = fabric.setup_optimizers(optimizer)
+
     train(fabric, model, optimizer, train_data, val_data, out_dir)
 
     # Save the final checkpoint at the end of training
@@ -121,7 +124,6 @@ def train(
                 print(f"Saving weights to {out_dir}")
                 save_model_checkpoint(fabric, model, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pth"))
 
-
         dt = time.time() - t0
         if iter_num % log_interval == 0:
             fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
@@ -165,6 +167,7 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     model.train()
     return out.item()
 
+
 def loss_fn(logits, targets):
     # shift the targets such that output n predicts token n+1
     logits = logits[..., :-1, :].contiguous()
@@ -202,7 +205,7 @@ if __name__ == "__main__":
     # Uncomment this line if you see an error: "Expected is_sm80 to be true, but got false"
     # torch.backends.cuda.enable_flash_sdp(False)
     torch.set_float32_matmul_precision("high")
-    
+
     from jsonargparse.cli import CLI
     import time ## REMOVE LATER
 
