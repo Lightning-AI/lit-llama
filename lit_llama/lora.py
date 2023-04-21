@@ -86,14 +86,8 @@ class MergedLinear(nn.Linear, LoRALayer):
 
     def zero_pad(self, x):
         x = x.transpose(0, 1)
-        # print("x", x.shape) # 64, 32
-        # print("lora_ind", self.lora_ind)  # [32 * True, 32 * False, 32 * True]
-        # print("out_features", self.out_features)
         result = x.new_zeros((*x.shape[:-1], self.out_features))
-        # print("result 1", result.shape)
         result = result.view(-1, self.out_features)
-        # print("result 2", result.shape)
-        # print("desired", -1, self.out_features // len(self.enable_lora) * sum(self.enable_lora))
         result[:, self.lora_ind] = x.reshape(
             -1, self.out_features // len(self.enable_lora) * sum(self.enable_lora)
         )
@@ -116,14 +110,9 @@ class MergedLinear(nn.Linear, LoRALayer):
                     self.lora_B.data.unsqueeze(-1), 
                     groups=sum(self.enable_lora)
                 ).squeeze(0)
-                # print("dw", delta_w.shape)  # 64, 32
-                # print("w", self.weight.shape)  # 96, 32
-                if mode:
-                    # unmerge
-                    self.weight.data -= self.zero_pad(T(delta_w * self.scaling))
-                else:
-                    # merge
-                    self.weight.data += self.zero_pad(T(delta_w * self.scaling))
+                # -1: W = W - delta_W (unmerge), +1: W = W + delta_W (merge)
+                sign = -1 if mode else 1
+                self.weight.data += sign * self.zero_pad(T(delta_w * self.scaling))
             self.merged = not mode
 
     def merge_and_reset(self):
