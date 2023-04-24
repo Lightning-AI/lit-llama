@@ -60,23 +60,22 @@ def main(
 
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
 
+    print("Loading model ...", file=sys.stderr)
+    t0 = time.time()
+    pretrained_checkpoint = lazy_load(pretrained_path)
+    adapter_checkpoint = lazy_load(adapter_path)
+    name = llama_model_lookup(pretrained_checkpoint)
+
     with EmptyInitOnDevice(
         device=fabric.device, dtype=dtype, quantization_mode=quantize
     ):
-        print("Loading model ...", file=sys.stderr)
-        t0 = time.time()
-
-        # 1. Load the pretrained weights
-        pretrained_checkpoint = lazy_load(pretrained_path)
-        name = llama_model_lookup(pretrained_checkpoint)
         model = LLaMA.from_name(name)
-        model.load_state_dict(pretrained_checkpoint, strict=False)
-            
-        # 2. Load the fine-tuned adapter weights
-        adapter_checkpoint = lazy_load(adapter_path)
-        model.load_state_dict(adapter_checkpoint, strict=False)
 
-        
+    # 1. Load the pretrained weights
+    model.load_state_dict(pretrained_checkpoint, strict=False)
+    # 2. Load the fine-tuned adapter weights
+    model.load_state_dict(adapter_checkpoint, strict=False)
+
     print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
