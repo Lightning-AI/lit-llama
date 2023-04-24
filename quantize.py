@@ -140,7 +140,6 @@ def main(
     output_path: Optional[Path] = None,
     tokenizer_path: Optional[Path] = None,
     n_samples: int = 128,
-    model_size: str = "7B",
     dtype: str = "float32",
     quantize: Optional[str] = None,
 ) -> None:
@@ -158,7 +157,7 @@ def main(
             Note that ``"llm.int8"```does not need a quantization step.
     """
     if not checkpoint_path:
-        checkpoint_path = Path(f"./checkpoints/lit-llama/{model_size}/lit-llama.pth")
+        checkpoint_path = Path(f"./checkpoints/lit-llama/7B/lit-llama.pth")
     if not tokenizer_path:
         tokenizer_path = Path("./checkpoints/lit-llama/tokenizer.model")
     assert checkpoint_path.is_file()
