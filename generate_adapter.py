@@ -9,7 +9,7 @@ import torch
 
 from generate import generate
 from lit_llama import Tokenizer
-from lit_llama.adapter import LLaMA, LLaMAConfig
+from lit_llama.adapter import LLaMA
 from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup
 from scripts.prepare_alpaca import generate_prompt
 

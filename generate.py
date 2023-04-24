@@ -9,7 +9,6 @@ import torch
 
 from lit_llama import LLaMA, Tokenizer
 from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup
-from lit_llama.utils import EmptyInitOnDevice
 
 
 @torch.no_grad()
@@ -80,7 +79,6 @@ def main(
     temperature: float = 0.8,
     checkpoint_path: Optional[Path] = None,
     tokenizer_path: Optional[Path] = None,
-    model_size: str = "7B",
     quantize: Optional[str] = None,
 ) -> None:
     """Generates text samples based on a pre-trained LLaMA model and tokenizer.
@@ -94,17 +92,16 @@ def main(
             samples.
         checkpoint_path: The checkpoint path to load.
         tokenizer_path: The tokenizer path to load.
-        model_size: The model size to load.
         quantize: Whether to quantize the model and using which method:
             ``"llm.int8"``: LLM.int8() mode,
             ``"gptq.int4"``: GPTQ 4-bit mode.
     """
     if not checkpoint_path:
-        checkpoint_path = Path(f"./checkpoints/lit-llama/{model_size}/lit-llama.pth")
+        checkpoint_path = Path(f"./checkpoints/lit-llama/7B/lit-llama.pth")
     if not tokenizer_path:
         tokenizer_path = Path("./checkpoints/lit-llama/tokenizer.model")
-    assert checkpoint_path.is_file()
-    assert tokenizer_path.is_file()
+    assert checkpoint_path.is_file(), checkpoint_path
+    assert tokenizer_path.is_file(), tokenizer_path
 
     fabric = L.Fabric(accelerator="cuda", devices=1)
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
