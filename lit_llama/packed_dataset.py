@@ -1,0 +1,211 @@
+# Very loosely inspired by indexed_dataset in Fairseq, Megatron
+# https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/data/indexed_dataset.py
+
+
+import os
+import struct
+import random
+
+import numpy as np
+from torch.utils.data import IterableDataset
+
+
+def __best_fitting_dtype(vocab_size=None):
+    if vocab_size is not None and vocab_size < 65500:
+        return np.uint16
+    else:
+        return np.int32
+
+
+dtypes = {
+    1: np.uint8,
+    2: np.int8,
+    3: np.int16,
+    4: np.int32,
+    5: np.int64,
+    6: np.float32,
+    7: np.float64,
+    8: np.uint16,
+}
+
+
+def code(dtype):
+    for k in dtypes.keys():
+        if dtypes[k] == dtype:
+            return k
+    raise ValueError(dtype)
+
+
+class PackedDataset(IterableDataset):
+    _HDR_MAGIC = b"LITPKDDS"
+    _HDR_SIZE = 33  # bytes
+
+    def __init__(self, filenames, n_chunks, seed=12345):
+        super().__init__()
+        self._seed = seed
+        self._rng = np.random.default_rng(seed)
+        self._block_idxs = None
+
+        self._filenames = filenames
+        self._file_idx = 0
+
+        self._n_chunks = n_chunks
+
+        self._dtype = None
+        self._block_size = None
+        self._n_blocks = None
+
+        self._mmaps = []
+        self._buffers = []
+
+        self._block_idxs = []
+        self._curr_idx = 0
+
+        self._load_n_chunks()
+
+    def _read_header(self, path):
+        with open(path, 'rb') as f:
+            magic = f.read(8)
+            assert magic == self._HDR_MAGIC, "File doesn\'t match expected format."
+            version = struct.unpack('<Q', f.read(8))
+            assert (1,) == version
+            dtype_code, = struct.unpack('<B', f.read(1))
+            dtype = dtypes[dtype_code]
+            block_size, = struct.unpack('<Q', f.read(8))
+            n_blocks, = struct.unpack('<Q', f.read(8))
+        return dtype, block_size, n_blocks
+ 
+    def _close_mmaps(self):
+        for mmap in self._mmaps:
+            mmap._mmap.close()
+
+    def _load_n_chunks(self):
+        self._close_mmaps()
+        # TODO: desume block_size etc from header
+        for i in range(self._n_chunks):
+            filename = self._filenames[self._file_idx + i]
+            if self._dtype is None:
+                self._dtype, self._block_size, self._n_blocks = self._read_header(filename)
+            # TODO: check header matches with previous files
+            mmap = np.memmap(filename, mode="r", order="C", offset=self._HDR_SIZE)
+            self._mmaps.append(mmap)
+            self._buffers.append(memoryview(mmap))
+        self._file_idx += self._n_chunks
+        self._block_idxs = self._rng.permutation(self._n_chunks * self._n_blocks)
+        self._curr_idx = 0
+
+    # def __getstate__(self):
+    #     # TODO: update
+    #     return self._filenames, self._n_chunks, self._seed
+
+    # def __setstate__(self, state):
+    #     # TODO: update
+    #     # to make it deterministic we'd have to rewind the rng
+    #     self._filenames, self._n_chunks, self._seed = state
+    #     self._refresh()
+
+    def __del__(self):
+        self._close_mmaps()
+        del self._mmaps
+
+    def __iter__(self):
+        block_idx = self._block_idxs[self._curr_idx]
+        buffer = self._buffers[chunk_id]
+        chunk_id = block_idx // self._block_size
+        elem_id = block_idx % self._block_size
+        offset = np.dtype(self._dtype).itemsize * elem_id
+        arr = np.frombuffer(
+            buffer, dtype=self._dtype, count=self._block_size, offset=offset
+        )
+        self._curr_idx += 1
+        if self._curr_idx >= len(self._block_idxs):
+            self._load_n_chunks()
+        return arr
+
+
+class CombinedPackedDataset(IterableDataset):
+    def __init__(self, datasets, seed, weights=None):
+        self._rng = random.Random(seed)
+        self._datasets = datasets
+        self._weights = weights
+        n_datasets = len(datasets)
+        if weights is None:
+            self._weights = [1 / n_datasets] * n_datasets
+
+    def __iter__(self):
+        self._rng.choices(self._datasets, weights=self._weights, k=1)
+        return next(self._datasets)
+
+    # def __getstate__(self):
+    #     # TODO
+    #     ...
+
+    # def __setstate__(self, state):
+    #     # TODO
+    #     ...
+
+
+class PackedDatasetBuilder(object):
+    def __init__(
+        self,
+        outdir,
+        prefix,
+        block_size,
+        n_blocks,
+        sep_token,
+        pad_token,
+        dtype="auto",
+        vocab_size=None,
+    ):
+        if dtype == "auto":
+            if vocab_size is None:
+                raise ValueError("vocab_size cannot be None when dtype='auto'")
+            self._dtype = __best_fitting_dtype(vocab_size)
+        else:
+            self._dtype = dtype
+        self._counter = 0
+        self._block_size = block_size
+        self._n_blocks = n_blocks
+        self._block_len = block_size * n_blocks
+        self._outdir = outdir
+        self._prefix = prefix
+        self._sep_token = sep_token
+        self._pad_token = pad_token
+        self._arr = np.zeros(self._block_len, dtype=dtype)
+        self._arr.fill(self._pad_token)
+        self._idx = 0
+        self._version = 1
+
+    def _write_chunk(self):
+        filename = f"{self._prefix}_{self._counter:010d}.bin"
+        # n_effective_blocks = self._idx // self._block_size + 1
+        with open(os.path.join(self._outdir, filename), "wb") as f:
+            f.write(PackedDataset._HDR_MAGIC)
+            f.write(struct.pack("<Q", self._version))
+            f.write(struct.pack("<B", code(self._dtype)))
+            f.write(struct.pack("<Q", self._block_size))
+            # f.write(struct.pack("<Q", n_effective_blocks))
+            f.write(struct.pack("<Q", self._n_blocks))
+            f.write(self._arr.tobytes(order="C"))
+        self._arr.fill(self._pad_token)
+        self._idx = 0
+
+    @property
+    def dtype(self):
+        return self._dtype
+
+    def add_item(self, arr):
+        if self._idx + arr.shape[0] >= self._block_len:
+            part_len = self._block_len - self._idx
+            self._arr[self._idx : self._idx + part_len] = arr[:part_len]
+            self._write_chunk()
+            arr = arr[part_len:]
+
+        arr_len = arr.shape[0]
+        self._arr[self._idx : self._idx + arr_len] = arr
+        self._idx += arr_len
+        self._arr[self._idx] = self._sep_token
+        self._idx += 1
+
+    def finalize(self):
+        self._write_chunk()
