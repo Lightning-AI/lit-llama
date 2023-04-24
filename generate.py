@@ -7,8 +7,8 @@ from typing import Optional
 import lightning as L
 import torch
 
-from lit_llama import Tokenizer
-from lit_llama.utils import load_model
+from lit_llama import LLaMA, Tokenizer
+from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup
 
 
 @torch.no_grad()
@@ -79,7 +79,6 @@ def main(
     temperature: float = 0.8,
     checkpoint_path: Optional[Path] = None,
     tokenizer_path: Optional[Path] = None,
-    model_size: str = "7B",
     quantize: Optional[str] = None,
 ) -> None:
     """Generates text samples based on a pre-trained LLaMA model and tokenizer.
@@ -93,13 +92,12 @@ def main(
             samples.
         checkpoint_path: The checkpoint path to load.
         tokenizer_path: The tokenizer path to load.
-        model_size: The model size to load.
         quantize: Whether to quantize the model and using which method:
             ``"llm.int8"``: LLM.int8() mode,
             ``"gptq.int4"``: GPTQ 4-bit mode.
     """
     if not checkpoint_path:
-        checkpoint_path = Path(f"./checkpoints/lit-llama/{model_size}/lit-llama.pth")
+        checkpoint_path = Path(f"./checkpoints/lit-llama/7B/lit-llama.pth")
     if not tokenizer_path:
         tokenizer_path = Path("./checkpoints/lit-llama/tokenizer.model")
     assert checkpoint_path.is_file(), checkpoint_path
@@ -110,8 +108,16 @@ def main(
 
     print("Loading model ...", file=sys.stderr)
     t0 = time.time()
-    model = load_model(checkpoint_path, device=fabric.device, dtype=dtype, quantize=quantize)
-    print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
+    with EmptyInitOnDevice(
+        device=fabric.device, dtype=dtype, quantization_mode=quantize
+    ):
+        print("Loading model ...", file=sys.stderr)
+        t0 = time.time()
+        checkpoint = lazy_load(checkpoint_path)
+        name = llama_model_lookup(checkpoint)
+        model = LLaMA.from_name(name)
+        model.load_state_dict(checkpoint)
+        print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
     model = fabric.setup_module(model)

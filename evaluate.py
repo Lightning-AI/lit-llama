@@ -10,8 +10,8 @@ import lightning as L
 import torch
 import tqdm
 
-from lit_llama import Tokenizer
-from lit_llama.utils import load_model
+from lit_llama import LLaMA, Tokenizer
+from lit_llama.utils import EmptyInitOnDevice, llama_model_lookup
 
 from datasets import load_dataset
 
@@ -47,7 +47,6 @@ def main(
     accelerator: str = "auto",
     checkpoint_path: Optional[Path] = None,
     tokenizer_path: Optional[Path] = None,
-    model_size: str = "7B",
     dtype: str = "float32",
     quantize: Optional[str] = None,
 ) -> None:
@@ -65,7 +64,7 @@ def main(
             ``"gptq.int4"``: GPTQ 4-bit mode.
     """
     if not checkpoint_path:
-        checkpoint_path = Path(f"./checkpoints/lit-llama/{model_size}/lit-llama.pth")
+        checkpoint_path = Path(f"./checkpoints/lit-llama/7B/lit-llama.pth")
     if not tokenizer_path:
         tokenizer_path = Path("./checkpoints/lit-llama/tokenizer.model")
     assert checkpoint_path.is_file()
@@ -78,10 +77,16 @@ def main(
         raise ValueError(f"{dtype} is not a valid dtype.")
     dtype = dt
 
-    print("Loading model ...", file=sys.stderr)
-    t0 = time.time()
-    model = load_model(checkpoint_path, device=fabric.device, dtype=dtype, quantize=quantize)
-    print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
+    with EmptyInitOnDevice(
+        device=fabric.device, dtype=dtype, quantization_mode=quantize
+    ):
+        print("Loading model ...", file=sys.stderr)
+        t0 = time.time()
+        checkpoint = torch.load(checkpoint_path)
+        name = llama_model_lookup(checkpoint)
+        model = LLaMA.from_name(name)
+        model.load_state_dict(checkpoint)
+        print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
 
