@@ -49,8 +49,7 @@ def main(
     auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
     strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block)
 
-    # fabric = L.Fabric(accelerator="cuda", devices=4, precision="bf16-mixed")
-    fabric = L.Fabric(accelerator="cuda", devices=[4, 5, 6, 7], precision="bf16-mixed", strategy=strategy)
+    fabric = L.Fabric(accelerator="cuda", devices=4, precision="bf16-mixed", strategy=strategy)
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
@@ -209,9 +208,5 @@ if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
 
     from jsonargparse.cli import CLI
-    import time ## REMOVE LATER
 
-    start_time = time.time() ## REMOVE LATER
     CLI(main)
-    duration = time.time() - start_time ## REMOVE LATER
-    print(f"{duration/60:.2f} min elapsed") ## REMOVE LATER
