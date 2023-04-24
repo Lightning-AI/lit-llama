@@ -14,35 +14,38 @@ from lit_llama.tokenizer import Tokenizer
 from tqdm import tqdm
 
 
-DATA_FILE = "https://raw.githubusercontent.com/tloen/alpaca-lora/main/alpaca_data_cleaned_archive.json"
-DATA_FILE_NAME = "alpaca_data_cleaned_archive.json"
+DATA_FILE = "https://raw.githubusercontent.com/databrickslabs/dolly/master/data/databricks-dolly-15k.jsonl"
+DATA_FILE_NAME = "dolly_data_cleaned.json"
 IGNORE_INDEX = -1
 
 
 def prepare(
-    destination_path: Path = Path("data/alpaca"), 
+    destination_path: Path = Path("data/dolly"), 
     tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
     test_split_size: int = 2000,
-    max_seq_length: int = 256,
+    max_seq_length: int = 1024,
     seed: int = 42,
     mask_inputs: bool = False,  # as in alpaca-lora
-    data_file_name: str = DATA_FILE_NAME
 ) -> None:
-    """Prepare the Alpaca dataset for instruction tuning.
+    """Prepare the Dolly dataset for instruction tuning.
     
     The output is a training and validation dataset saved as `train.pt` and `val.pt`,
     which stores the preprocessed and tokenized prompts and labels.
     """
     
     destination_path.mkdir(parents=True, exist_ok=True)
-    file_path = destination_path / data_file_name
+    file_path = destination_path / DATA_FILE_NAME
     download(file_path)
 
     # TODO: If we don't have the Meta weights, where do we get the tokenizer from?
     tokenizer = Tokenizer(tokenizer_path)
-    
+
     with open(file_path, "r") as file:
-        data = json.load(file)
+        data = file.readlines()
+        data = [json.loads(line) for line in data]
+    for item in data:
+        item["input"] = item.pop("context")
+        item["output"] = item.pop("response")
 
     # Partition the dataset into train and test
     train_split_size = len(data) - test_split_size
@@ -113,12 +116,12 @@ def generate_prompt(example):
 
     if example["input"]:
         return (
-            "Below is an instruction that describes a task, paired with an input that provides further context. "
+            f"Below is an instruction that describes a task, paired with an input that provides further context. "
             "Write a response that appropriately completes the request.\n\n"
             f"### Instruction:\n{example['instruction']}\n\n### Input:\n{example['input']}\n\n### Response:"
         )
     return (
-        "Below is an instruction that describes a task. "
+        f"Below is an instruction that describes a task. "
         "Write a response that appropriately completes the request.\n\n"
         f"### Instruction:\n{example['instruction']}\n\n### Response:"
     )
