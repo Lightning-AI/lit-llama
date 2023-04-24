@@ -29,8 +29,8 @@ devices = 4
 
 # Hyperparameters
 learning_rate = 3e-4
-batch_size = 128
-micro_batch_size = 1
+batch_size = 128 / devices
+micro_batch_size = 4
 gradient_accumulation_steps = batch_size // micro_batch_size
 epoch_size = 50000  # train dataset size
 num_epochs = 5
@@ -94,6 +94,8 @@ def train(
     Loosely based on the nanoGPT implementation: https://github.com/karpathy/nanoGPT.
     """
     step_count = 0
+    model.train()
+    print(model)
 
     for iter_num in range(max_iters):
 
@@ -212,4 +214,4 @@ if __name__ == "__main__":
     start_time = time.time() ## REMOVE LATER
     CLI(main)
     duration = time.time() - start_time ## REMOVE LATER
-    print(f"{duration/60:.2f} sec elapsed") ## REMOVE LATER
+    print(f"{duration/60:.2f} min elapsed") ## REMOVE LATER
