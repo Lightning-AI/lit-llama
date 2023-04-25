@@ -28,7 +28,7 @@ log_interval = 100
 devices = 4
 
 # Hyperparameters
-learning_rate = 3e-4
+learning_rate = 3e-5
 batch_size = 128 / devices
 micro_batch_size = 4
 gradient_accumulation_steps = batch_size // micro_batch_size
@@ -43,13 +43,13 @@ warmup_steps = 100
 def main(
     data_dir: str = "data/alpaca",
     pretrained_path: str = "checkpoints/lit-llama/7B/lit-llama.pth",
-    out_dir: str = "out/regular/alpaca",
+    out_dir: str = "out/full2/alpaca",
 ):
 
     auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
     strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block)
 
-    fabric = L.Fabric(accelerator="cuda", devices=4, precision="bf16-mixed", strategy=strategy)
+    fabric = L.Fabric(accelerator="cuda", devices=devices, precision="bf16-mixed", strategy=strategy)
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
@@ -77,7 +77,7 @@ def main(
     train(fabric, model, optimizer, train_data, val_data, out_dir)
 
     # Save the final checkpoint at the end of training
-    save_model_checkpoint(fabric, model, os.path.join(out_dir, "lit-llama-regular-finetuned.pth"))
+    save_model_checkpoint(fabric, model, os.path.join(out_dir, "lit-llama-full2-finetuned.pth"))
 
 
 def train(
@@ -94,9 +94,10 @@ def train(
     """
     step_count = 0
     model.train()
-    print(model)
 
     for iter_num in range(max_iters):
+
+        is_accumulating = (iter_num + 1) % gradient_accumulation_steps == 0
 
         if step_count <= warmup_steps:
             # linear warmup
@@ -106,16 +107,17 @@ def train(
 
         t0 = time.time()
 
-        input_ids, targets = get_batch(fabric, train_data)
-        logits = model(input_ids)
-        loss = loss_fn(logits, targets)
-        fabric.backward(loss)
+        with fabric.no_backward_sync(model, enabled=is_accumulating):
+            input_ids, targets = get_batch(fabric, train_data)
+            logits = model(input_ids)
+            loss = loss_fn(logits, targets)
+            fabric.backward(loss)
 
-        if (iter_num + 1) % gradient_accumulation_steps == 0:
+        if not is_accumulating:
             optimizer.step()
             optimizer.zero_grad()
             step_count += 1
-                
+
             if step_count % eval_interval == 0:
                 val_loss = validate(fabric, model, val_data)
                 fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")

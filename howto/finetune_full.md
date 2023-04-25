@@ -35,8 +35,8 @@ Depending on the available GPU memory, you can also tune the `micro_batch_size` 
 For example, the following settings will let you finetune the model in ??> hour using a fully-sharded data parallel strategy:
 ```python
 devices = 4
-batch_size = 128
-micro_batch_size = 1
+batch_size = 128 // devices
+micro_batch_size = 4
 ```
 
 This script will save checkpoints periodically to the folder `out/`.
@@ -91,10 +91,10 @@ With only a few modifications, you can prepare and train on your own instruction
     python scripts/prepare_mydata.py --destination_path data/mydata/
     ```
 
-5. Run `finetune_adapter.py` by passing in the location of your data (and optionally other parameters):
+5. Run `finetune_full.py` by passing in the location of your data (and optionally other parameters):
    
     ```bash
-    python finetune_adapter.py --data_dir data/mydata/ --out_dir out/myexperiment
+    python finetune_full.py --data_dir data/mydata/ --out_dir out/myexperiment
     ```
 
 
