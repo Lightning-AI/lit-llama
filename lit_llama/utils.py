@@ -139,7 +139,38 @@ class NotYetLoadedTensor:
         self.rebuild_args = rebuild_args
 
     @classmethod
-    def rebuild(
+    def rebuild_from_type_v2(cls, func, new_type, args, state, *, archiveinfo=None):
+        ret = func(*args)
+        if isinstance(ret, NotYetLoadedTensor):
+            old_lt = ret._load_tensor
+
+            def _load_tensor():
+                t = old_lt()
+                return torch._tensor._rebuild_from_type_v2(
+                    lambda: t, new_type, (), state
+                )
+
+            ret._load_tensor = _load_tensor
+            return ret
+        return torch._tensor._rebuild_from_type_v2(func, new_type, args, state)
+
+    @classmethod
+    def rebuild_parameter(
+        cls, data, requires_grad, backward_hooks, *, archiveinfo=None
+    ):
+        if isinstance(data, NotYetLoadedTensor):
+            old_lt = data._load_tensor
+
+            def _load_tensor():
+                t = old_lt()
+                return torch._utils._rebuild_parameter(t, requires_grad, backward_hooks)
+
+            data._load_tensor = _load_tensor
+            return data
+        return torch._utils._rebuild_parameter(data, requires_grad, backward_hooks)
+
+    @classmethod
+    def rebuild_tensor_v2(
         cls,
         storage,
         storage_offset,
@@ -148,6 +179,7 @@ class NotYetLoadedTensor:
         requires_grad,
         backward_hooks,
         metadata=None,
+        *,
         archiveinfo=None,
     ):
         rebuild_args = (
@@ -239,10 +271,20 @@ class LazyLoadingUnpickler(pickle.Unpickler):
         self.zipfile = zipfile
 
     def find_class(self, module, name):
+        res = super().find_class(module, name)
         if module == "torch._utils" and name == "_rebuild_tensor_v2":
-            res = super().find_class(module, name)
-            return functools.partial(NotYetLoadedTensor.rebuild, archiveinfo=self)
-        return super().find_class(module, name)
+            return functools.partial(
+                NotYetLoadedTensor.rebuild_tensor_v2, archiveinfo=self
+            )
+        elif module == "torch._tensor" and name == "_rebuild_from_type_v2":
+            return functools.partial(
+                NotYetLoadedTensor.rebuild_from_type_v2, archiveinfo=self
+            )
+        elif module == "torch._utils" and name == "_rebuild_parameter":
+            return functools.partial(
+                NotYetLoadedTensor.rebuild_parameter, archiveinfo=self
+            )
+        return res
 
     def persistent_load(self, pid):
         name, cls, fn, device, size = pid
