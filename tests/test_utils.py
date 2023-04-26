@@ -3,14 +3,14 @@ import pathlib
 
 import torch
 
-import lit_llama.utils
-
 
 class ATensor(torch.Tensor):
     pass
 
 
-def test_lazy_load_basic():
+def test_lazy_load_basic(lit_llama):
+    import lit_llama.utils
+
     with tempfile.TemporaryDirectory() as tmpdirname:
         m = torch.nn.Linear(5, 3)
         path = pathlib.Path(tmpdirname)
@@ -27,7 +27,9 @@ def test_lazy_load_basic():
         torch.testing.assert_close(actual, expected)
 
 
-def test_lazy_load_subclass():
+def test_lazy_load_subclass(lit_llama):
+    import lit_llama.utils
+
     with tempfile.TemporaryDirectory() as tmpdirname:
         path = pathlib.Path(tmpdirname)
         fn = str(path / "test.pt")
@@ -43,7 +45,3 @@ def test_lazy_load_subclass():
             actual = sd_lazy[k]
             expected = sd[k]
             torch.testing.assert_close(actual._load_tensor(), expected)
-
-
-if __name__ == "__main__":
-    pytest.main([__file__])
