@@ -168,28 +168,6 @@ class PackedDataset(IterableDataset):
             )
 
 
-class CombinedPackedDataset(IterableDataset):
-    def __init__(self, datasets, seed, weights=None):
-        self._rng = random.Random(seed)
-        self._datasets = datasets
-        self._weights = weights
-        n_datasets = len(datasets)
-        if weights is None:
-            self._weights = [1 / n_datasets] * n_datasets
-
-    def __iter__(self):
-        self._rng.choices(self._datasets, weights=self._weights, k=1)
-        return next(self._datasets)
-
-    # def __getstate__(self):
-    #     # TODO
-    #     ...
-
-    # def __setstate__(self, state):
-    #     # TODO
-    #     ...
-
-
 class PackedDatasetBuilder(object):
     def __init__(
         self,
