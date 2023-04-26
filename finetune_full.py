@@ -16,7 +16,6 @@ from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 
 from generate import generate
 from lit_llama.model import Block, LLaMA, LLaMAConfig
-from lit_llama.utils import save_model_checkpoint
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
 
@@ -77,7 +76,7 @@ def main(
     train(fabric, model, optimizer, train_data, val_data, out_dir)
 
     # Save the final checkpoint at the end of training
-    save_model_checkpoint(fabric, model, os.path.join(out_dir, "lit-llama-full-finetuned.pth"))
+    fabric.save(os.path.join(out_dir, "lit-llama-full-finetuned.pth"), checkpoint)
 
 
 def train(
