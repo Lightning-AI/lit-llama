@@ -64,7 +64,6 @@ def test_packed_dataset(tmp_path):
 
     import numpy as np
 
-    expected = " ".join(texts)
     ex_tokenized = [
         tokenizer.encode(text).numpy().astype(builder.dtype)
         for text in texts
