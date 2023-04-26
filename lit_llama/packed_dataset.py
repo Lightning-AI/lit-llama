@@ -82,7 +82,6 @@ class PackedDatasetIterator:
         if self._n_chunks > len(self._filenames[self._file_idx :]):
             raise StopIteration
 
-        # TODO: desume block_size etc from header
         for i in range(self._n_chunks):
             filename = self._filenames[self._file_idx + i]
             if self._dtype is None:
