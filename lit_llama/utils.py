@@ -207,7 +207,7 @@ class NotYetLoadedTensor:
         if name in {"size"}:
             return getattr(self.metatensor, name)
         # materializing with contiguous is needed for quantization
-        if name in {"contiguous", "as_subclass"}:
+        if name in {"contiguous"}:
             return getattr(self._load_tensor(), name)
 
         raise AttributeError(f"{type(self)} does not have {name}")
