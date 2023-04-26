@@ -38,12 +38,12 @@ def test_packed_dataset(tmp_path):
 
     block_size = 10
     n_blocks = 2
+    chunk_size = block_size * n_blocks
 
     builder = PackedDatasetBuilder(
         outdir=tmp_path,
         prefix="packed_dataset",
-        block_size=block_size,
-        n_blocks=n_blocks,
+        chunk_size=chunk_size,
         sep_token=tokenizer.bos_id,
         dtype="auto",
         vocab_size=100,
@@ -64,12 +64,15 @@ def test_packed_dataset(tmp_path):
 
     import numpy as np
 
-    expected = [
-        "The moment of truth is up",
-        "on us. Time to open the fri"
+    expected = " ".join(texts)
+    ex_tokenized = [
+        tokenizer.encode(text).numpy().astype(builder.dtype)
+        for text in texts
     ]
+    ex_tokenized = np.concatenate(ex_tokenized)
+    ex_tokenized = ex_tokenized[:2 * chunk_size]
 
-    for filename, el in zip(filenames, expected):
+    for filename, el in zip(filenames, np.array_split(ex_tokenized, 2)):
         mmap = np.memmap(filename, mode="r", order="C", offset=HDR_SIZE)
         count = len(mmap) // np.dtype(builder.dtype).itemsize
         arr = np.frombuffer(
@@ -78,29 +81,45 @@ def test_packed_dataset(tmp_path):
         where_bos = np.where(arr == tokenizer.bos_id)
         # we expect two BOS tokens, one per file
         assert len(where_bos) == 1
-        assert tokenizer.decode(arr) == el
+        assert np.array_equal(arr, el)
 
-    dataset = PackedDataset(filenames=filenames, n_chunks=2, shuffle=False)
+    dataset = PackedDataset(filenames=filenames, n_chunks=2, block_size=block_size, shuffle=False)
 
-    expected = [
-        "The moment of ",
-        "truth is up",
-        "on us. Tim",
-        "e to open the fri",
-    ]
+    ex_split = np.array_split(ex_tokenized, ex_tokenized.shape[0] // block_size)
 
-    for item, el in zip(dataset, expected):
-        assert tokenizer.decode(item) == el
+    for item, el in zip(dataset, ex_split):
+        assert np.array_equal(item, el)
 
-    dataset = PackedDataset(filenames=filenames, n_chunks=2, seed=12345)
+    dataset = PackedDataset(filenames=filenames, n_chunks=2, block_size=block_size, seed=12345)
 
     for i, item in enumerate(dataset):
         block_idxs = iter(dataset)._block_idxs
-        assert tokenizer.decode(item) == expected[block_idxs[i]]
+        assert np.array_equal(item, ex_split[block_idxs[i]])
 
-    dataset = PackedDataset(filenames=filenames, n_chunks=1, seed=12345)
+    dataset = PackedDataset(filenames=filenames, n_chunks=1, block_size=block_size, seed=12345)
 
     for i, item in enumerate(dataset):
         block_idxs = iter(dataset)._block_idxs
         chunk_idx = i // n_blocks * n_blocks
-        assert tokenizer.decode(item) == expected[chunk_idx + block_idxs[i % n_blocks]]
+        assert np.array_equal(item, ex_split[chunk_idx + block_idxs[i % n_blocks]])
+
+    block_size_ = block_size // 2
+    ex_split = np.array_split(ex_tokenized, ex_tokenized.shape[0] // block_size_)
+    dataset = PackedDataset(filenames=filenames, n_chunks=2, block_size=block_size_, seed=12345)
+
+    for i, item in enumerate(dataset):
+        block_idxs = iter(dataset)._block_idxs
+        assert np.array_equal(item, ex_split[block_idxs[i]])
+
+    block_size_ = block_size // 3
+    n_chunks = 2
+    ex_chunks = np.split(ex_tokenized, n_chunks)
+    n_splits = ex_tokenized.shape[0] // n_chunks // block_size_
+    ex_splits = [np.split(el[:n_splits * block_size_], n_splits) for el in ex_chunks]
+    ex_split = sum(ex_splits, [])
+
+    dataset = PackedDataset(filenames=filenames, n_chunks=n_chunks, block_size=block_size_, seed=12345)
+
+    for i, item in enumerate(dataset):
+        block_idxs = iter(dataset)._block_idxs
+        assert np.array_equal(item, ex_split[block_idxs[i]])

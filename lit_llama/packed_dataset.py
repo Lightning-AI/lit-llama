@@ -29,12 +29,12 @@ def code(dtype):
     raise ValueError(dtype)
 
 
-HDR_MAGIC = b"LITPKDDS"
-HDR_SIZE = 33  # bytes
+HDR_MAGIC = b"LITPKDS"
+HDR_SIZE = 24  # bytes
 
 
 class PackedDatasetIterator:
-    def __init__(self, filenames, n_chunks, seed, shuffle):
+    def __init__(self, filenames, n_chunks, block_size, seed, shuffle):
         self._seed = seed
         self._shuffle = shuffle
         self._rng = np.random.default_rng(seed) if shuffle else None
@@ -49,7 +49,7 @@ class PackedDatasetIterator:
         self._n_chunks = n_chunks
 
         self._dtype = None
-        self._block_size = None
+        self._block_size = block_size
         self._n_blocks = None
 
         self._mmaps = []
@@ -62,15 +62,14 @@ class PackedDatasetIterator:
 
     def _read_header(self, path):
         with open(path, "rb") as f:
-            magic = f.read(8)
+            magic = f.read(len(HDR_MAGIC))
             assert magic == HDR_MAGIC, "File doesn't match expected format."
             version = struct.unpack("<Q", f.read(8))
             assert (1,) == version
             (dtype_code,) = struct.unpack("<B", f.read(1))
             dtype = dtypes[dtype_code]
-            (block_size,) = struct.unpack("<Q", f.read(8))
-            (n_blocks,) = struct.unpack("<Q", f.read(8))
-        return dtype, block_size, n_blocks
+            (chunk_size,) = struct.unpack("<Q", f.read(8))
+        return dtype, chunk_size
 
     def _close_mmaps(self):
         for mmap in self._mmaps:
@@ -85,9 +84,10 @@ class PackedDatasetIterator:
         for i in range(self._n_chunks):
             filename = self._filenames[self._file_idx + i]
             if self._dtype is None:
-                self._dtype, self._block_size, self._n_blocks = self._read_header(
+                self._dtype, self._chunk_size = self._read_header(
                     filename
                 )
+                self._n_blocks = self._chunk_size // self._block_size
             # TODO: check header matches with previous files
             mmap = np.memmap(filename, mode="r", order="C", offset=HDR_SIZE)
             self._mmaps.append(mmap)
@@ -137,9 +137,10 @@ class PackedDatasetIterator:
 
 
 class PackedDataset(IterableDataset):
-    def __init__(self, filenames, n_chunks, seed=12345, shuffle=True):
+    def __init__(self, filenames, n_chunks, block_size, seed=12345, shuffle=True):
         self._filenames = filenames
         self._n_chunks = n_chunks
+        self._block_size = block_size
         self._seed = seed
         self._shuffle = shuffle
 
@@ -149,6 +150,7 @@ class PackedDataset(IterableDataset):
             return PackedDatasetIterator(
                 filenames=self._filenames,
                 n_chunks=self._n_chunks,
+                block_size=self._block_size,
                 seed=self._seed,
                 shuffle=self._shuffle,
             )
@@ -160,6 +162,7 @@ class PackedDataset(IterableDataset):
                     if idx % worker_info.num_workers == worker_info.id
                 ],
                 n_chunks=self._n_chunks,
+                block_size=self._block_size,
                 seed=self._seed,
                 shuffle=self._shuffle,
             )
@@ -192,8 +195,7 @@ class PackedDatasetBuilder(object):
         self,
         outdir,
         prefix,
-        block_size,
-        n_blocks,
+        chunk_size,
         sep_token,
         dtype="auto",
         vocab_size=None,
@@ -208,13 +210,11 @@ class PackedDatasetBuilder(object):
         else:
             self._dtype = dtype
         self._counter = 0
-        self._block_size = block_size
-        self._n_blocks = n_blocks
-        self._block_len = block_size * n_blocks
+        self._chunk_size = chunk_size
         self._outdir = outdir
         self._prefix = prefix
         self._sep_token = sep_token
-        self._arr = np.zeros(self._block_len, dtype=self._dtype)
+        self._arr = np.zeros(self._chunk_size, dtype=self._dtype)
         self._arr.fill(self._sep_token)
         self._idx = 0
         self._version = 1
@@ -228,8 +228,7 @@ class PackedDatasetBuilder(object):
             f.write(HDR_MAGIC)
             f.write(struct.pack("<Q", self._version))
             f.write(struct.pack("<B", code(self._dtype)))
-            f.write(struct.pack("<Q", self._block_size))
-            f.write(struct.pack("<Q", self._n_blocks))
+            f.write(struct.pack("<Q", self._chunk_size))
             f.write(self._arr.tobytes(order="C"))
 
         self._filenames.append(filename)
@@ -246,8 +245,8 @@ class PackedDatasetBuilder(object):
         return self._filenames.copy()
 
     def add_array(self, arr):
-        while self._idx + arr.shape[0] > self._block_len:
-            part_len = self._block_len - self._idx
+        while self._idx + arr.shape[0] > self._chunk_size:
+            part_len = self._chunk_size - self._idx
             self._arr[self._idx : self._idx + part_len] = arr[:part_len]
             self._write_chunk()
             arr = arr[part_len:]
