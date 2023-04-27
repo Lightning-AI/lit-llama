@@ -94,6 +94,9 @@ class LLaMA(nn.Module):
 
         if cache_kvs is None:
             cache_kvs = [None] * len(self.transformer.h)
+            return_cache_kvs = False
+        else:
+            return_cache_kvs = True
 
         new_cache_kvs = []
         for block, cache_kv in zip(self.transformer.h, cache_kvs):
@@ -103,7 +106,10 @@ class LLaMA(nn.Module):
 
         logits = self.lm_head(x)  # (b, t, vocab_size)
 
-        return logits, new_cache_kvs
+        if return_cache_kvs:
+            return logits, new_cache_kvs
+        else:
+            return logits
 
     @classmethod
     def from_name(cls, name: str) -> Self:
