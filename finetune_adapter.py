@@ -86,7 +86,6 @@ def main(
         # strict=False because missing keys due to adapter weights not containted in state dict
         model.load_state_dict(checkpoint, strict=False)
 
-    print(torch.cuda.max_memory_allocated() // 1e6)
     mark_only_adapter_as_trainable(model)
 
     num_params = sum([p.numel() for p in model.parameters() if p.requires_grad])

@@ -62,8 +62,6 @@ def main(
         # strict=False because missing keys due to LoRA weights not contained in checkpoint state
         model.load_state_dict(checkpoint, strict=False)
     
-    print(torch.cuda.max_memory_allocated() // 1e6)
-    
     mark_only_lora_as_trainable(model)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
