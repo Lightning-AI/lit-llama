@@ -7,6 +7,8 @@ from typing import Optional
 import lightning as L
 import torch
 
+import torch_xla.core.xla_model as xm
+
 from lit_llama import LLaMA, Tokenizer
 from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup
 
@@ -36,20 +38,28 @@ def generate(
     """
     # create an empty tensor of the expected final shape and fill in the current tokens
     T = idx.size(0)
-    T_new = T + max_new_tokens
+    T_new = min(T + max_new_tokens, max_seq_length)
     empty = torch.empty(T_new, dtype=idx.dtype, device=idx.device)
     empty[:T] = idx
     idx = empty
 
+    cache_kvs = [(torch.zeros((1, model.config.n_head, T_new, model.config.n_embd // model.config.n_head), device=idx.device),
+                  torch.zeros((1, model.config.n_head, T_new, model.config.n_embd // model.config.n_head), device=idx.device))
+                 for _ in range(model.config.n_layer)]
+
+    input_pos = torch.arange(0, T).to(idx.device)
+    input_idx = idx.index_select(0, input_pos)
+
+    xm.mark_step()
     # generate max_new_tokens tokens
     for t in range(T, T_new):
         # ignore the not-filled-yet tokens
-        idx_cond = idx[:t]
-        # if the sequence context is growing too long we must crop it at max_seq_length
-        idx_cond = idx_cond if T <= max_seq_length else idx_cond[-max_seq_length:]
+        # idx_cond = idx[:t]
+        ## if the sequence context is growing too long we must crop it at max_seq_length
+        #idx_cond = idx_cond if T <= max_seq_length else idx_cond[-max_seq_length:]
 
         # forward
-        logits = model(idx_cond.view(1, -1))
+        logits, cache_kvs = model(input_idx.view(1, -1), input_pos, cache_kvs)
         logits = logits[0, -1] / temperature
 
         # optionally crop the logits to only the top k options
@@ -61,11 +71,17 @@ def generate(
         idx_next = torch.multinomial(probs, num_samples=1)
 
         # concatenate the new generation
-        idx[t] = idx_next
+        # idx[t] = idx_next
+        idx = idx.index_copy(0, input_pos[-1] + 1, idx_next)
+
+        input_pos = input_pos[-1:] + 1
+        input_idx = idx.index_select(0, input_pos)
 
         # if <eos> token is triggered, return the output (stop generation)
-        if idx_next == eos_id:
-            return idx[:t + 1]  # include the EOS token
+        #if idx_next == eos_id:
+        #    return idx[:t + 1]  # include the EOS token
+        
+        xm.mark_step()
 
     return idx
 
@@ -96,11 +112,12 @@ def main(
             ``"llm.int8"``: LLM.int8() mode,
             ``"gptq.int4"``: GPTQ 4-bit mode.
     """
-    if not checkpoint_path:
-        checkpoint_path = Path(f"./checkpoints/lit-llama/7B/lit-llama.pth")
+    torch.manual_seed(1)
+    #if not checkpoint_path:
+    #    checkpoint_path = Path(f"./checkpoints/lit-llama/7B/lit-llama.pth")
     if not tokenizer_path:
         tokenizer_path = Path("./checkpoints/lit-llama/tokenizer.model")
-    assert checkpoint_path.is_file(), checkpoint_path
+    #assert checkpoint_path.is_file(), checkpoint_path
     assert tokenizer_path.is_file(), tokenizer_path
 
     fabric = L.Fabric(devices=1)
@@ -108,15 +125,16 @@ def main(
 
     print("Loading model ...", file=sys.stderr)
     t0 = time.time()
-    checkpoint = lazy_load(checkpoint_path)
-    name = llama_model_lookup(checkpoint)
+    #checkpoint = lazy_load(checkpoint_path)
+    #name = llama_model_lookup(checkpoint)
+    name = "7B"
 
     with EmptyInitOnDevice(
         device=fabric.device, dtype=dtype, quantization_mode=quantize
     ):
         model = LLaMA.from_name(name)
 
-    model.load_state_dict(checkpoint)
+    #model.load_state_dict(checkpoint)
     print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
@@ -137,7 +155,11 @@ def main(
             top_k=top_k,
         )
         t = time.perf_counter() - t0
-        print(tokenizer.decode(y))
+        try:
+            sentence = tokenizer.decode(y)
+        except IndexError:
+            sentence = tokenizer.decode(y[1:])
+        print(sentence)
         print(f"Time for inference {i + 1}: {t:.02f} sec total, {max_new_tokens / t:.02f} tokens/sec", file=sys.stderr)
     if fabric.device.type == "cuda":
         print(f"Memory used: {torch.cuda.max_memory_reserved() / 1e9:.02f} GB", file=sys.stderr)
