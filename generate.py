@@ -114,11 +114,13 @@ def main(
             ``"gptq.int4"``: GPTQ 4-bit mode.
     """
     torch.manual_seed(1)
-    #if not checkpoint_path:
-    #    checkpoint_path = Path(f"./checkpoints/lit-llama/7B/lit-llama.pth")
+    if not checkpoint_path:
+        checkpoint_path = Path(f"./checkpoints/lit-llama/7B/lit-llama.pth")
     if not tokenizer_path:
         tokenizer_path = Path("./checkpoints/lit-llama/tokenizer.model")
     #assert checkpoint_path.is_file(), checkpoint_path
+    if not checkpoint_path.is_file():
+        checkpoint_path = None
     assert tokenizer_path.is_file(), tokenizer_path
 
     fabric = L.Fabric(devices=1)
@@ -126,16 +128,19 @@ def main(
 
     print("Loading model ...", file=sys.stderr)
     t0 = time.time()
-    #checkpoint = lazy_load(checkpoint_path)
-    #name = llama_model_lookup(checkpoint)
-    name = "7B"
+    if checkpoint_path is not None:
+        checkpoint = lazy_load(checkpoint_path)
+        name = llama_model_lookup(checkpoint)
+    else:
+        name = "7B"
 
     with EmptyInitOnDevice(
         device=fabric.device, dtype=dtype, quantization_mode=quantize
     ):
         model = LLaMA.from_name(name)
 
-    #model.load_state_dict(checkpoint)
+    if checkpoint_path is not None:
+        model.load_state_dict(checkpoint)
     print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
