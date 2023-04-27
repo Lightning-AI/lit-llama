@@ -82,10 +82,7 @@ def main(
     checkpoint = torch.load(pretrained_path)
 
     with fabric.init_module():
-    # with fabric.device:
-        # torch.set_default_tensor_type(torch.HalfTensor)
-        model = LLaMA(config) # .bfloat16()
-        # torch.set_default_tensor_type(torch.FloatTensor)
+        model = LLaMA(config)
         # strict=False because missing keys due to adapter weights not containted in state dict
         model.load_state_dict(checkpoint, strict=False)
 

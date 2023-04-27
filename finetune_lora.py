@@ -58,9 +58,7 @@ def main(
     checkpoint = torch.load(pretrained_path)
 
     with fabric.init_module(), lora(r=lora_r, alpha=lora_alpha, dropout=lora_dropout, enabled=True):
-        # torch.set_default_tensor_type(torch.HalfTensor)
-        model = LLaMA(config)  # .bfloat16()
-        # torch.set_default_tensor_type(torch.FloatTensor)
+        model = LLaMA(config)
         # strict=False because missing keys due to LoRA weights not contained in checkpoint state
         model.load_state_dict(checkpoint, strict=False)
     
