@@ -207,7 +207,7 @@ class NotYetLoadedTensor:
         dtype = self.metatensor.dtype
 
         uts = (
-            self.archiveinfo.zipfile.get_storage_from_record(
+            self.archiveinfo.zipfile_context.zf.get_storage_from_record(
                 f"data/{fn}",
                 size * torch._utils._element_size(dtype),
                 torch.UntypedStorage,
@@ -266,9 +266,9 @@ class NotYetLoadedTensor:
 
 
 class LazyLoadingUnpickler(pickle.Unpickler):
-    def __init__(self, file, zipfile):
+    def __init__(self, file, zipfile_context):
         super().__init__(file)
-        self.zipfile = zipfile
+        self.zipfile_context = zipfile_context
 
     def find_class(self, module, name):
         res = super().find_class(module, name)
@@ -295,9 +295,16 @@ class LazyLoadingUnpickler(pickle.Unpickler):
         return s
 
 
-def lazy_load(fn):
-    zf = torch._C.PyTorchFileReader(str(fn))
-    with BytesIO(zf.get_record("data.pkl")) as pkl:
-        mup = LazyLoadingUnpickler(pkl, zf)
-        sd = mup.load()
-    return sd
+class lazy_load:
+    def __init__(self, fn):
+        self.zf = torch._C.PyTorchFileReader(str(fn))
+        with BytesIO(self.zf.get_record("data.pkl")) as pkl:
+            mup = LazyLoadingUnpickler(pkl, self)
+            self.sd = mup.load()
+
+    def __enter__(self):
+        return self.sd
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        del self.zf  # I don't think there is a way to force closing...
+        self.zf = None

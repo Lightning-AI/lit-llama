@@ -16,10 +16,10 @@ def test_lazy_load_basic(lit_llama):
         path = pathlib.Path(tmpdirname)
         fn = str(path / "test.pt")
         torch.save(m.state_dict(), fn)
-        sd_lazy = lit_llama.utils.lazy_load(fn)
-        assert "NotYetLoadedTensor" in str(next(iter(sd_lazy.values())))
-        m2 = torch.nn.Linear(5, 3)
-        m2.load_state_dict(sd_lazy)
+        with lit_llama.utils.lazy_load(fn) as sd_lazy:
+            assert "NotYetLoadedTensor" in str(next(iter(sd_lazy.values())))
+            m2 = torch.nn.Linear(5, 3)
+            m2.load_state_dict(sd_lazy)
 
         x = torch.randn(2, 5)
         actual = m2(x)
@@ -40,8 +40,8 @@ def test_lazy_load_subclass(lit_llama):
             3: torch.Tensor._make_subclass(ATensor, t),
         }
         torch.save(sd, fn)
-        sd_lazy = lit_llama.utils.lazy_load(fn)
-        for k in sd.keys():
-            actual = sd_lazy[k]
-            expected = sd[k]
-            torch.testing.assert_close(actual._load_tensor(), expected)
+        with lit_llama.utils.lazy_load(fn) as sd_lazy:
+            for k in sd.keys():
+                actual = sd_lazy[k]
+                expected = sd[k]
+                torch.testing.assert_close(actual._load_tensor(), expected)
