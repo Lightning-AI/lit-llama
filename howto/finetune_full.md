@@ -32,7 +32,7 @@ python finetune_full.py
 You can speed up training by setting the `devices` variable in the script to utilize more GPUs if available or increase the `batch_size`.
 Depending on the available GPU memory, you can also tune the `micro_batch_size` parameter to utilize the GPU efficiently.
 
-For example, the following settings will let you finetune the model in ??> hour using a fully-sharded data parallel strategy:
+For example, the following settings will let you finetune the model in 32 hours using a fully-sharded data parallel strategy:
 ```python
 devices = 4
 batch_size = 128 // devices
