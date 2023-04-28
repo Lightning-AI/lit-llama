@@ -76,7 +76,6 @@ def main(
     train(fabric, model, optimizer, train_data, val_data, out_dir)
 
     # Save the final checkpoint at the end of training
-    checkpoint = lora_state_dict(model)
     fabric.save(os.path.join(out_dir, "lit-llama-full-finetuned.pth"), model.state_dict())
 
 
