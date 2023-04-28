@@ -70,13 +70,15 @@ def meta_weights_for_nano_model(
     model_size: str = "7B",
     dtype: str = "float32",
 ) -> None:
+    # i changed this line of code since tokenizer is in parent directory (in ../llama not in ../llama/7B)
+    # the tokenizer is the same for all model sizes, so we store it in the parent dir
+    shutil.copy(ckpt_dir / "tokenizer.model", output_dir.parent)
+
     output_dir = output_dir / model_size
     ckpt_dir = ckpt_dir / model_size
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # the tokenizer is the same for all model sizes, so we store it in the parent dir
-    shutil.copy(ckpt_dir / "tokenizer.model", output_dir.parent)
-
+    
     dt = getattr(torch, dtype, None)
     if not isinstance(dt, torch.dtype):
         raise ValueError(f"{dtype} is not a valid dtype.")
