@@ -1,6 +1,9 @@
 ## Environment
 
+On alvis I use the env called llama-dev in the parent folder (which is also called llama-dev):
+
 `source llama-dev/bin/activate`
+`cd lit-llama`
 
 ## Set up the weights
 
@@ -31,3 +34,5 @@ So according to the README this loads it in full precision, unless it detects yo
 ## Run sanity check translations
 
 Prompts are in: `/mnt/startiger0/nbogoych/allprompt.tar.gz`
+
+TODO###
