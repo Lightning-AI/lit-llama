@@ -1,4 +1,5 @@
 import os
+import math
 import glob
 import time
 from functools import partial
@@ -20,23 +21,37 @@ from lit_llama.utils import save_model_checkpoint
 
 
 out_dir = "out/training"
-eval_interval = 2000
-eval_iters = 200
+save_interval = 1000
+eval_interval = 1000
+eval_iters = 100
 log_interval = 1
-# compilation fails as it does not support torch.complex64 for RoPE
+
 # compile = False
 
 # Hyperparameters
 learning_rate = 6e-4
-batch_size = 2
-max_iters = 600000
+batch_size = 64
+micro_batch_size = 12
+max_iters = 600000  # num_epochs * epoch_size // devices
 weight_decay = 1e-1
 beta1 = 0.9
 beta2 = 0.95
 grad_clip = 1.0
+decay_lr = True
+warmup_iters = 2000
+lr_decay_iters = max_iters
+min_lr = 6e-5
 
-# For shakespeare, choose smaller block size than vanilla LLaMA
-block_size = 1024
+
+data_config = [
+    ("arxiv", 1.0),
+    ("book", 1.0),
+    ("c4", 1.0),
+    ("cc", 1.0),
+    ("github", 1.0),
+    ("stackexchange", 1.0),
+    ("wikipedia", 1.0),
+]
 
 
 def main(
@@ -61,8 +76,6 @@ def main(
         os.makedirs(out_dir, exist_ok=True)
 
     config = LLaMAConfig.from_name("7B")
-    config.block_size = block_size
-    config.vocab_size = 100  # from prepare_shakespeare.py
 
     with fabric.device:
         model = LLaMA(config)
@@ -72,11 +85,14 @@ def main(
 
     model = fabric.setup_module(model)
 
+    process_batch_size = batch_size // devices
+
     train_dataloader, val_dataloader = create_dataloaders(
+        batch_size=process_batch_size,
         block_size=config.block_size,
         train_data_dir=train_data_dir,
         val_data_dir=val_data_dir,
-        seed=12345,
+        seed=1338 + fabric.global_rank,
     )
 
     optimizer = torch.optim.AdamW(
@@ -87,7 +103,9 @@ def main(
     )
     optimizer = fabric.setup_optimizers(optimizer)
 
-    train(fabric, model, optimizer, train_dataloader, val_dataloader)
+    grad_accum_steps = process_batch_size // micro_batch_size
+
+    train(fabric, model, optimizer, train_dataloader, val_dataloader, grad_accum_steps)
 
 
 def train(
@@ -96,6 +114,7 @@ def train(
     optimizer: torch.optim.Optimizer,
     train_dataloader: DataLoader,
     val_dataloader: Optional[DataLoader],
+    grad_accum_steps: int,
 ) -> None:
     """The training loop.
 
@@ -103,38 +122,52 @@ def train(
     """
 
     for iter_num, train_data in enumerate(train_dataloader):
-        # TODO: add learning rate scheduling
-
-        # evaluate the loss on train/val sets and write checkpoints
-        if iter_num > 0 and iter_num % eval_interval == 0 and val_dataloader is not None:
-            val_loss = validate(fabric, model, val_dataloader)
-            fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
-            fabric.print(f"Saving checkpoint to {out_dir}")
-            save_model_checkpoint(
-                fabric, model, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pth")
-            )
+        # determine and set the learning rate for this iteration
+        lr = get_lr(iter_num) if decay_lr else learning_rate
+        for param_group in optimizer.param_groups:
+            param_group["lr"] = lr
 
         t0 = time.time()
 
         input_ids, targets = get_batch(
             fabric, train_data, block_size=model.config.block_size
         )
-        logits = model(input_ids)
-        loss = torch.nn.functional.cross_entropy(
-            logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1
-        )
 
-        fabric.backward(loss)
+        is_accumulating = (iter_num + 1) % grad_accum_steps == 0
 
-        # TODO: Gradient clipping
-        # if grad_clip != 0.0:
-        #     fabric.clip_gradients(model, optimizer, max_norm=grad_clip)
+        with fabric.no_backward_sync(model, enabled=is_accumulating):
+            logits = model(input_ids)
+            loss = torch.nn.functional.cross_entropy(
+                logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1
+            )
+            fabric.backward(loss / grad_accum_steps)
 
-        optimizer.step()
-        optimizer.zero_grad()
+        if not is_accumulating:
+            fabric.clip_gradients(model, optimizer, max_norm=grad_clip)
+
+            optimizer.step()
+            optimizer.zero_grad()
+            step_count += 1
+
+            if step_count % eval_interval == 0:
+                val_loss = validate(fabric, model, val_dataloader)
+                fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
+                fabric.barrier()
+                fabric.log_dict(
+                    {"iter": iter_num, "val_loss": val_loss, "step": step_count, "lr": lr}
+                )
+
+            if step_count % save_interval == 0:
+                fabric.print(f"Saving checkpoint to {out_dir}")
+                save_model_checkpoint(
+                    fabric, model, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pth")
+                )
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:
+            fabric.log_dict(
+                {"iter": iter_num, "train_loss": loss, "step": step_count, "lr": lr}
+            )
             fabric.print(
                 f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms"
             )
@@ -166,22 +199,15 @@ def validate(
     return out
 
 
-DATA_CONFIG = [
-    ("arxiv", 1.0),
-    ("book", 1.0),
-    ("c4", 1.0),
-    ("cc", 1.0),
-    ("github", 1.0),
-    ("stackexchange", 1.0),
-    ("wikipedia", 1.0),
-]
-
-
 def create_dataloader(
-    block_size: int, data_dir: str, shuffle: bool = True, seed: int = 12345
+    batch_size: int,
+    block_size: int,
+    data_dir: str,
+    shuffle: bool = True,
+    seed: int = 12345,
 ) -> DataLoader:
     datasets = []
-    for prefix, _ in DATA_CONFIG:
+    for prefix, _ in data_config:
         filenames = glob.glob(os.path.join(data_dir, prefix))
         dataset = PackedDataset(
             filenames, n_chunks=10, block_size=block_size, shuffle=shuffle, seed=seed
@@ -193,7 +219,7 @@ def create_dataloader(
             f"No data found at {data_dir}. Make sure you ran prepare_redpajama.py to create the dataset."
         )
 
-    weights = [weight for _, weight in DATA_CONFIG]
+    weights = [weight for _, weight in data_config]
     sum_weights = sum(weights)
     weights = [el / sum_weights for el in weights]
 
@@ -203,6 +229,7 @@ def create_dataloader(
 
 
 def create_dataloaders(
+    batch_size: int,
     block_size: int,
     train_data_dir: str = "data/red_pajama",
     val_data_dir: str = "data/red_pajama_val",
@@ -211,14 +238,23 @@ def create_dataloaders(
     # Increase by one because we need the next word as well
     effective_block_size = block_size + 1
     train_dataloader = create_dataloader(
+        batch_size=batch_size,
         block_size=effective_block_size,
         data_dir=train_data_dir,
         shuffle=True,
         seed=seed,
     )
-    val_dataloader = create_dataloader(
-        block_size=effective_block_size, data_dir=val_data_dir, shuffle=False, seed=seed
-    ) if val_data_dir else None
+    val_dataloader = (
+        create_dataloader(
+            batch_size=batch_size,
+            block_size=effective_block_size,
+            data_dir=val_data_dir,
+            shuffle=False,
+            seed=seed,
+        )
+        if val_data_dir
+        else None
+    )
     return train_dataloader, val_dataloader
 
 
@@ -229,6 +265,21 @@ def get_batch(
     y = torch.from_numpy([data[1 : block_size + 1]]).astype(np.int64)
     x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
     return x, y
+
+
+# learning rate decay scheduler (cosine with warmup)
+def get_lr(it):
+    # 1) linear warmup for warmup_iters steps
+    if it < warmup_iters:
+        return learning_rate * it / warmup_iters
+    # 2) if it > lr_decay_iters, return min learning rate
+    if it > lr_decay_iters:
+        return min_lr
+    # 3) in between, use cosine decay down to min learning rate
+    decay_ratio = (it - warmup_iters) / (lr_decay_iters - warmup_iters)
+    assert 0 <= decay_ratio <= 1
+    coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))  # coeff ranges 0..1
+    return min_lr + coeff * (learning_rate - min_lr)
 
 
 if __name__ == "__main__":
