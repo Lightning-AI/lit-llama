@@ -76,7 +76,7 @@ def main(
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
 
-    config = LLaMAConfig(n_layer=12, n_head=4, n_embd=512)
+    config = LLaMAConfig.from_name("7B")
 
     with fabric.device:
         torch.set_default_tensor_type(torch.HalfTensor)
