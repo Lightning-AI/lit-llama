@@ -30,8 +30,8 @@ log_interval = 1
 
 # Hyperparameters
 learning_rate = 6e-4
-batch_size = 64
-micro_batch_size = 12
+batch_size = 128
+micro_batch_size = 4
 max_iters = 600000  # num_epochs * epoch_size // devices
 weight_decay = 1e-1
 beta1 = 0.9
@@ -78,17 +78,18 @@ def main(
     config = LLaMAConfig.from_name("7B")
 
     with fabric.device:
-        model = LLaMA(config)
+        torch.set_default_tensor_type(torch.HalfTensor)
+        model = LLaMA(config).bfloat16()
+        model.apply(model._init_weights)
+        torch.set_default_tensor_type(torch.FloatTensor)
 
     # if compile:
     #     model = torch.compile(model)
 
     model = fabric.setup_module(model)
 
-    process_batch_size = batch_size // devices
-
     train_dataloader, val_dataloader = create_dataloaders(
-        batch_size=process_batch_size,
+        batch_size=micro_batch_size,
         block_size=config.block_size,
         train_data_dir=train_data_dir,
         val_data_dir=val_data_dir,
@@ -103,6 +104,7 @@ def main(
     )
     optimizer = fabric.setup_optimizers(optimizer)
 
+    process_batch_size = batch_size // devices
     grad_accum_steps = process_batch_size // micro_batch_size
 
     train(fabric, model, optimizer, train_dataloader, val_dataloader, grad_accum_steps)
@@ -120,6 +122,8 @@ def train(
 
     Loosely based on the nanoGPT implementation: https://github.com/karpathy/nanoGPT.
     """
+
+    step_count = 0
 
     for iter_num, train_data in enumerate(train_dataloader):
         # determine and set the learning rate for this iteration
