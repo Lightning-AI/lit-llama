@@ -94,7 +94,7 @@ def main(
         block_size=config.block_size,
         train_data_dir=train_data_dir,
         val_data_dir=val_data_dir,
-        seed=1338 + fabric.global_rank,
+        seed=1338,
     )
 
     optimizer = torch.optim.AdamW(
