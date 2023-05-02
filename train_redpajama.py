@@ -208,7 +208,7 @@ def create_dataloader(
 ) -> DataLoader:
     datasets = []
     for prefix, _ in data_config:
-        filenames = glob.glob(os.path.join(data_dir, prefix))
+        filenames = glob.glob(os.path.join(data_dir, prefix + "*"))
         dataset = PackedDataset(
             filenames, n_chunks=10, block_size=block_size, shuffle=shuffle, seed=seed
         )
@@ -223,7 +223,7 @@ def create_dataloader(
     sum_weights = sum(weights)
     weights = [el / sum_weights for el in weights]
 
-    combined_dataset = CombinedDataset(datasets, weights)
+    combined_dataset = CombinedDataset(datasets=datasets, seed=seed, weights=weights)
 
     return DataLoader(combined_dataset, batch_size=batch_size, shuffle=False)
 
@@ -261,8 +261,8 @@ def create_dataloaders(
 def get_batch(
     fabric: L.Fabric, data: np.ndarray, block_size: int
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    x = torch.from_numpy([data[0:block_size]]).astype(np.int64)
-    y = torch.from_numpy([data[1 : block_size + 1]]).astype(np.int64)
+    x = data[:, 0:block_size]
+    y = data[:, 1 : block_size + 1]
     x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
     return x, y
 
@@ -283,5 +283,10 @@ def get_lr(it):
 
 
 if __name__ == "__main__":
+    # Uncomment this line if you see an error: "Expected is_sm80 to be true, but got false"
+    # torch.backends.cuda.enable_flash_sdp(False)
     torch.set_float32_matmul_precision("high")
-    main()
+
+    from jsonargparse.cli import CLI
+
+    CLI(main)
