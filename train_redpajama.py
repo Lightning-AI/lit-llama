@@ -71,7 +71,7 @@ def main(
         accelerator="cuda", devices=devices, precision="bf16-mixed", strategy=strategy
     )
     fabric.launch()
-    fabric.seed_everything(1337 + fabric.global_rank)
+    fabric.seed_everything(1337)
 
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
