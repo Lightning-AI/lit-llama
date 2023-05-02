@@ -76,7 +76,7 @@ def main(
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
 
-    config = LLaMAConfig.from_name("7B")
+    config = LLaMAConfig(n_layer=12, n_head=4, n_embd=512)
 
     with fabric.device:
         torch.set_default_tensor_type(torch.HalfTensor)
@@ -267,9 +267,8 @@ def create_dataloaders(
 def get_batch(
     fabric: L.Fabric, data: np.ndarray, block_size: int
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    x = data[:, 0:block_size]
-    y = data[:, 1 : block_size + 1]
-    x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
+    x = data[:, 0 : block_size].contiguous()
+    y = data[:, 1 : block_size + 1].contiguous()
     return x, y
 
 
