@@ -231,7 +231,7 @@ def create_dataloader(
 
     combined_dataset = CombinedDataset(datasets=datasets, seed=seed, weights=weights)
 
-    return DataLoader(combined_dataset, batch_size=batch_size, shuffle=False)
+    return DataLoader(combined_dataset, batch_size=batch_size, shuffle=False, pin_memory=True)
 
 
 def create_dataloaders(
