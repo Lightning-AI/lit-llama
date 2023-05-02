@@ -96,6 +96,7 @@ def main(
         val_data_dir=val_data_dir,
         seed=1338,
     )
+    train_dataloader, val_dataloader = fabric.setup_dataloaders(train_dataloader, val_dataloader)
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
