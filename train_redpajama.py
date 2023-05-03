@@ -30,8 +30,8 @@ log_interval = 1
 
 # Hyperparameters
 learning_rate = 6e-4
-batch_size = 128
-micro_batch_size = 4
+batch_size = 125
+micro_batch_size = 5
 max_iters = 600000  # num_epochs * epoch_size // devices
 weight_decay = 1e-1
 beta1 = 0.9
@@ -89,10 +89,10 @@ def main(
     train_dataloader, val_dataloader = fabric.setup_dataloaders(train_dataloader, val_dataloader)
 
     with fabric.device:
-        torch.set_default_tensor_type(torch.HalfTensor)
-        model = LLaMA(config).bfloat16()
+        torch.set_default_dtype(torch.bfloat16)
+        model = LLaMA(config)
         model.apply(model._init_weights)
-        torch.set_default_tensor_type(torch.FloatTensor)
+        torch.set_default_dtype(torch.float32)
 
     # if compile:
     #     model = torch.compile(model)
