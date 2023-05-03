@@ -169,9 +169,9 @@ def test_sharded_packed_dataset(monkeypatch):
 
     dataset_iterator_mock = MagicMock()
     monkeypatch.setattr(lit_llama.packed_dataset, "PackedDatasetIterator", dataset_iterator_mock)
+    filenames = [str(i) for i in range(10)]
 
     # world_size = 1, rank = 0
-    filenames = [str(i) for i in range(10)]
     iter(PackedDataset(filenames=filenames, n_chunks=2, block_size=2))
     assert dataset_iterator_mock.call_args[1]["filenames"] == filenames
     dataset_iterator_mock.reset_mock()
@@ -195,4 +195,3 @@ def test_sharded_packed_dataset(monkeypatch):
     # world_size = 3, rank = 2 (dataset size not cleanly divisible by world size)
     iter(PackedDataset(filenames=filenames, n_chunks=2, block_size=2, num_processes=3, process_rank=2))
     assert dataset_iterator_mock.call_args[1]["filenames"] == ["2", "5", "8"]
-    dataset_iterator_mock.reset_mock()
