@@ -50,11 +50,8 @@ class PackedDataset(IterableDataset):
         worker_id = worker_info.id if worker_info is not None else 0
         num_shards = num_workers * self._num_processes
         shard_id = self._process_rank * num_workers + worker_id
-        
-        print(num_shards, shard_id, len(self._filenames))
         filenames = self._filenames[shard_id::num_shards]
-        print(shard_id, filenames, len(filenames))
-        
+
         return PackedDatasetIterator(
             filenames=filenames,
             n_chunks=self._n_chunks,

@@ -235,7 +235,7 @@ def create_dataloader(
     for prefix, _ in data_config:
         filenames = glob.glob(os.path.join(data_dir, prefix + "*"))
         dataset = PackedDataset(
-            filenames, n_chunks=10, block_size=block_size, shuffle=shuffle, seed=seed,
+            filenames, n_chunks=4, block_size=block_size, shuffle=shuffle, seed=seed,
             num_processes=fabric.world_size, process_rank=fabric.global_rank,
         )
         datasets.append(dataset)
