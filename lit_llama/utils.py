@@ -14,6 +14,23 @@ from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import StateDictType
 
 
+llama_model_sizes = {
+    4096: "7B",  # 7B n_embd=4096
+    5120: "13B",  # 13B n_embd=5120
+    6656: "30B",  # 30B n_embd=6656
+    8192: "65B",  # 65B n_embd=8192
+}
+
+
+def llama_model_lookup(checkpoint: dict) -> str:
+    """Returns the LLaMA model name from the checkpoint.
+    
+    Checks the width of the lm_head.weight matrix, as these uniquely identify the model.
+    """
+    embedding_size = checkpoint["lm_head.weight"].shape[1]
+    return llama_model_sizes[embedding_size]
+
+
 def save_model_checkpoint(fabric, model, file_path):
     """Handles boilerplate logic for retrieving and saving the state_dict.
     
@@ -122,7 +139,38 @@ class NotYetLoadedTensor:
         self.rebuild_args = rebuild_args
 
     @classmethod
-    def rebuild(
+    def rebuild_from_type_v2(cls, func, new_type, args, state, *, archiveinfo=None):
+        ret = func(*args)
+        if isinstance(ret, NotYetLoadedTensor):
+            old_lt = ret._load_tensor
+
+            def _load_tensor():
+                t = old_lt()
+                return torch._tensor._rebuild_from_type_v2(
+                    lambda: t, new_type, (), state
+                )
+
+            ret._load_tensor = _load_tensor
+            return ret
+        return torch._tensor._rebuild_from_type_v2(func, new_type, args, state)
+
+    @classmethod
+    def rebuild_parameter(
+        cls, data, requires_grad, backward_hooks, *, archiveinfo=None
+    ):
+        if isinstance(data, NotYetLoadedTensor):
+            old_lt = data._load_tensor
+
+            def _load_tensor():
+                t = old_lt()
+                return torch._utils._rebuild_parameter(t, requires_grad, backward_hooks)
+
+            data._load_tensor = _load_tensor
+            return data
+        return torch._utils._rebuild_parameter(data, requires_grad, backward_hooks)
+
+    @classmethod
+    def rebuild_tensor_v2(
         cls,
         storage,
         storage_offset,
@@ -131,6 +179,7 @@ class NotYetLoadedTensor:
         requires_grad,
         backward_hooks,
         metadata=None,
+        *,
         archiveinfo=None,
     ):
         rebuild_args = (
@@ -158,7 +207,7 @@ class NotYetLoadedTensor:
         dtype = self.metatensor.dtype
 
         uts = (
-            self.archiveinfo.zipfile.get_storage_from_record(
+            self.archiveinfo.zipfile_context.zf.get_storage_from_record(
                 f"data/{fn}",
                 size * torch._utils._element_size(dtype),
                 torch.UntypedStorage,
@@ -217,15 +266,25 @@ class NotYetLoadedTensor:
 
 
 class LazyLoadingUnpickler(pickle.Unpickler):
-    def __init__(self, file, zipfile):
+    def __init__(self, file, zipfile_context):
         super().__init__(file)
-        self.zipfile = zipfile
+        self.zipfile_context = zipfile_context
 
     def find_class(self, module, name):
+        res = super().find_class(module, name)
         if module == "torch._utils" and name == "_rebuild_tensor_v2":
-            res = super().find_class(module, name)
-            return functools.partial(NotYetLoadedTensor.rebuild, archiveinfo=self)
-        return super().find_class(module, name)
+            return functools.partial(
+                NotYetLoadedTensor.rebuild_tensor_v2, archiveinfo=self
+            )
+        elif module == "torch._tensor" and name == "_rebuild_from_type_v2":
+            return functools.partial(
+                NotYetLoadedTensor.rebuild_from_type_v2, archiveinfo=self
+            )
+        elif module == "torch._utils" and name == "_rebuild_parameter":
+            return functools.partial(
+                NotYetLoadedTensor.rebuild_parameter, archiveinfo=self
+            )
+        return res
 
     def persistent_load(self, pid):
         name, cls, fn, device, size = pid
@@ -236,9 +295,16 @@ class LazyLoadingUnpickler(pickle.Unpickler):
         return s
 
 
-def lazy_load(fn):
-    zf = torch._C.PyTorchFileReader(str(fn))
-    with BytesIO(zf.get_record("data.pkl")) as pkl:
-        mup = LazyLoadingUnpickler(pkl, zf)
-        sd = mup.load()
-    return sd
+class lazy_load:
+    def __init__(self, fn):
+        self.zf = torch._C.PyTorchFileReader(str(fn))
+        with BytesIO(self.zf.get_record("data.pkl")) as pkl:
+            mup = LazyLoadingUnpickler(pkl, self)
+            self.sd = mup.load()
+
+    def __enter__(self):
+        return self.sd
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        del self.zf  # I don't think there is a way to force closing...
+        self.zf = None

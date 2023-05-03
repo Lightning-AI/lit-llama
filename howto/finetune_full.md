@@ -1,18 +1,19 @@
-# Finetuning with Adapter
+# Full Finetuning
 
-[LLaMA-Adapter](https://arxiv.org/abs/2303.16199) is a form of prefix-tuning that prepends a learnable adaption-prompt to the inputs of the attention blocks in LLaMA. In total, there are only 1.2M parameters to update during finetuning, which significantly reduces the memory footprint and speeds up training.
+Full finetuning updates all layers in the pretrained LLaMA model. This *regular* finetuning procedure is typically considered as the baseline for parameter-efficient alternatives such as Low-Rank Adaptation (LoRA) or LLaMA-Adapter.
 
-We are able to demonstrate instruction-finetuning Lit-LLaMA 7B on the [Alpaca](https://github.com/tatsu-lab/stanford_alpaca) dataset on a **single GTX 3090 (24GB) GPU**. If using 8 GPUs, finetuning can be completed in under 1 hour.
+The current  [finetune_full.py](../scripts/finetune_full.py) we provide uses 4 A100 GPUs with a fully-sharded data parallel strategy to finetune Lit-LLaMA 7B on [Alpaca](https://github.com/tatsu-lab/stanford_alpaca) dataset. The A100 GPUs have 40 GB each, but it may require less memory to finetune this model.
 
-If you are new to LLaMA-Adapter and are interest to learn more about how it works before proceeding with the finetuning guide below, you might find our article [Understanding Parameter-Efficient Finetuning of Large Language Models: From Prefix Tuning to LLaMA-Adapters](https://lightning.ai/pages/community/article/understanding-llama-adapters/) helpful.
+
 
 ## Preparation
 
 The steps here only need to be done once:
 
 1. Follow the instructions in the [README](README.md) to install the dependencies.
+
 2. Download and convert the weights and save them in the `./checkpoints` folder as described [here](download_weights.md).
-3. If you want to utilize more than one GPU, you should `pip install deepspeed`.
+
 4. Download the data and generate the Alpaca instruction tuning dataset:
 
    ```bash
@@ -24,17 +25,18 @@ The steps here only need to be done once:
 ## Running the finetuning
 
 ```bash
-python finetune_adapter.py
+python finetune_full.py
 ```
 
-The finetuning requires at least one GPU with ~24 GB memory (GTX 3090).
-You can speed up training by setting the `devices` variable in the script to utilize more GPUs if available.
+
+You can speed up training by setting the `devices` variable in the script to utilize more GPUs if available or increase the `batch_size`.
 Depending on the available GPU memory, you can also tune the `micro_batch_size` parameter to utilize the GPU efficiently.
 
-For example, the following settings will let you finetune the model in under 1 hour using DeepSpeed Zero-2:
+For example, the following settings will let you finetune the model in 32 hours using a fully-sharded data parallel strategy:
 ```python
-devices = 8
-micro_batch_size = 8
+devices = 4
+batch_size = 128 // devices
+micro_batch_size = 4
 ```
 
 This script will save checkpoints periodically to the folder `out/`.
@@ -47,7 +49,7 @@ This script will save checkpoints periodically to the folder `out/`.
 You can test the finetuned model with your own instructions by running:
 
 ```bash
-python generate_adapter.py \
+python generate_full.py \
     --prompt "Recommend a movie to watch on the weekend." \
     --quantize llm.int8
 ```
@@ -89,10 +91,10 @@ With only a few modifications, you can prepare and train on your own instruction
     python scripts/prepare_mydata.py --destination_path data/mydata/
     ```
 
-5. Run `finetune_adapter.py` by passing in the location of your data (and optionally other parameters):
+5. Run `finetune_full.py` by passing in the location of your data (and optionally other parameters):
    
     ```bash
-    python finetune_adapter.py --data_dir data/mydata/ --out_dir out/myexperiment
+    python finetune_full.py --data_dir data/mydata/ --out_dir out/myexperiment
     ```
 
 

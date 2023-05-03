@@ -10,8 +10,10 @@ import lightning as L
 import torch
 import tqdm
 
-from lit_llama import LLaMA, Tokenizer
-from lit_llama.utils import EmptyInitOnDevice, llama_model_lookup
+from lit_llama import Tokenizer
+from lit_llama.adapter import LLaMA
+from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup
+from scripts.prepare_alpaca import generate_prompt
 
 from datasets import load_dataset
 
@@ -45,6 +47,7 @@ def main(
     # compilation fails as it does not support torch.complex64 for RoPE
     # compile: bool = False,
     accelerator: str = "auto",
+    adapter_path: Optional[Path] = None,
     checkpoint_path: Optional[Path] = None,
     tokenizer_path: Optional[Path] = None,
     dtype: str = "float32",
@@ -57,16 +60,22 @@ def main(
         # compile: Whether to compile the model.
         accelerator: The hardware to run on. Possible choices are:
             ``"cpu"``, ``"cuda"``, ``"mps"``, ``"gpu"``, ``"tpu"``, ``"auto"``.
+        adapter_path: Path to the checkpoint with trained adapter weights, which are the output of
+            `finetune_adapter.py`.
         checkpoint_path: The checkpoint path to load.
         tokenizer_path: The tokenizer path to load.
         quantize: Whether to quantize the model and using which method:
             ``"llm.int8"``: LLM.int8() mode,
             ``"gptq.int4"``: GPTQ 4-bit mode.
     """
+    if not adapter_path:
+        adapter_path = Path("out/adapter/alpaca/lit-llama-adapter-finetuned.pth")
     if not checkpoint_path:
         checkpoint_path = Path(f"./checkpoints/lit-llama/7B/lit-llama.pth")
     if not tokenizer_path:
         tokenizer_path = Path("./checkpoints/lit-llama/tokenizer.model")
+    
+    assert adapter_path.is_file()
     assert checkpoint_path.is_file()
     assert tokenizer_path.is_file()
 
@@ -82,10 +91,16 @@ def main(
     ):
         print("Loading model ...", file=sys.stderr)
         t0 = time.time()
-        checkpoint = torch.load(checkpoint_path)
-        name = llama_model_lookup(checkpoint)
+        pretrained_checkpoint = lazy_load(checkpoint_path)
+        adapter_checkpoint = lazy_load(adapter_path)
+        name = llama_model_lookup(pretrained_checkpoint)
         model = LLaMA.from_name(name)
-        model.load_state_dict(checkpoint)
+
+        # 1. Load the pretrained weights
+        model.load_state_dict(pretrained_checkpoint, strict=False)
+        # 2. Load the fine-tuned adapter weights
+        model.load_state_dict(adapter_checkpoint, strict=False)
+
         print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
@@ -100,6 +115,10 @@ def main(
 
     for dsname in datasets.split(","):
         test_string = load_eval_data(dsname)
+
+        sample = {"instruction": test_string, "input": input}
+        test_string = generate_prompt(sample)
+
         encoded_text = tokenizer.encode(
             test_string, bos=True, eos=False, device=fabric.device
         )
