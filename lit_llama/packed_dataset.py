@@ -52,14 +52,9 @@ class PackedDataset(IterableDataset):
         shard_id = self._process_rank * num_workers + worker_id
         
         print(num_shards, shard_id, len(self._filenames))
-        
         filenames = self._filenames[shard_id::num_shards]
-        # filenames=[
-        #     el
-        #     for idx, el in enumerate(self._filenames)
-        #     if idx % num_shards == shard_id
-        # ]
         print(shard_id, filenames, len(filenames))
+        
         return PackedDatasetIterator(
             filenames=filenames,
             n_chunks=self._n_chunks,
