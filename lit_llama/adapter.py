@@ -29,9 +29,9 @@ class CausalSelfAttention(nn.Module):
         assert config.n_embd % config.n_head == 0
 
         # key, query, value projections for all heads, but in a batch
-        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd, bias=False)
+        self.attn = nn.Linear(config.n_embd, 3 * config.n_embd, bias=False)
         # output projection
-        self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=False)
+        self.proj = nn.Linear(config.n_embd, config.n_embd, bias=False)
         
         if block_idx >= config.adapter_start_layer:
             # adapter embedding layer
@@ -51,7 +51,7 @@ class CausalSelfAttention(nn.Module):
         B, T, C = x.size()  # batch size, sequence length, embedding dimensionality (n_embd)
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
-        q, k, v = self.c_attn(x).split(self.n_embd, dim=2)
+        q, k, v = self.attn(x).split(self.n_embd, dim=2)
 
         head_size = C // self.n_head
         k = k.view(B, T, self.n_head, head_size).transpose(1, 2)  # (B, nh, T, hs)
@@ -83,7 +83,7 @@ class CausalSelfAttention(nn.Module):
             prefix = self.adapter_wte.weight.reshape(1, self.adapter_prompt_length, self.n_embd)
 
             aT = prefix.size(1)
-            _, ak, av = self.c_attn(prefix).split(self.n_embd, dim=2)
+            _, ak, av = self.attn(prefix).split(self.n_embd, dim=2)
             ak = ak.view(1, aT, self.n_head, head_size).repeat(B, 1, 1, 1).transpose(1, 2)
             av = av.view(1, aT, self.n_head, head_size).repeat(B, 1, 1, 1).transpose(1, 2)
 
@@ -94,7 +94,7 @@ class CausalSelfAttention(nn.Module):
         y = y.transpose(1, 2).contiguous().view(B, T, C)  # re-assemble all head outputs side by side
 
         # output projection
-        y = self.c_proj(y)
+        y = self.proj(y)
 
         return y
 
@@ -105,14 +105,14 @@ class Block(nn.Module):
 
     def __init__(self, config: LLaMAConfig, block_idx: int) -> None:
         super().__init__()
-        self.rms_1 = RMSNorm(config.n_embd)
+        self.norm_1 = RMSNorm(config.n_embd)
         self.attn = CausalSelfAttention(config, block_idx)
-        self.rms_2 = RMSNorm(config.n_embd)
+        self.norm_2 = RMSNorm(config.n_embd)
         self.mlp = MLP(config)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = x + self.attn(self.rms_1(x))
-        x = x + self.mlp(self.rms_2(x))
+        x = x + self.attn(self.norm_1(x))
+        x = x + self.mlp(self.norm_2(x))
         return x
 
 

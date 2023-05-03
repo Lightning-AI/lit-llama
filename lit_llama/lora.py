@@ -188,7 +188,7 @@ class CausalSelfAttention(llama.CausalSelfAttention):
         assert config.n_embd % config.n_head == 0
 
         # key, query, value projections for all heads, but in a batch
-        self.c_attn = MergedLinear(
+        self.attn = MergedLinear(
             in_features=config.n_embd,
             out_features=3 * config.n_embd,
             r=self.lora_config.r,
@@ -199,7 +199,7 @@ class CausalSelfAttention(llama.CausalSelfAttention):
             merge_weights=True,
             bias=False)
         # output projection
-        self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=False)
+        self.proj = nn.Linear(config.n_embd, config.n_embd, bias=False)
         # regularization
         self.n_head = config.n_head
         self.n_embd = config.n_embd

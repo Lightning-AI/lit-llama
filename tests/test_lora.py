@@ -28,9 +28,9 @@ def test_lora_merge_unmerge(lit_llama):
     with lora(r=8, alpha=8, dropout=0.1):
         model = LLaMA(config)
     
-    initial_weight = model.transformer.h[0].attn.c_attn.weight.clone()
+    initial_weight = model.transformer.h[0].attn.attn.weight.clone()
     model.train()
-    assert torch.equal(model.transformer.h[0].attn.c_attn.weight, initial_weight)
+    assert torch.equal(model.transformer.h[0].attn.attn.weight, initial_weight)
 
     # perform an update to the LoRA weights
     mark_only_lora_as_trainable(model)
@@ -39,26 +39,26 @@ def test_lora_merge_unmerge(lit_llama):
     optimizer.step()
     optimizer.zero_grad()
     # the weight remains unchanged (only lora A and B change)
-    assert torch.equal(model.transformer.h[0].attn.c_attn.weight, initial_weight)
+    assert torch.equal(model.transformer.h[0].attn.attn.weight, initial_weight)
 
     # 'merge' and then 'unmerge' should neutralize themselves
-    weight_before = model.transformer.h[0].attn.c_attn.weight.clone()
+    weight_before = model.transformer.h[0].attn.attn.weight.clone()
     model.eval()
-    assert not torch.equal(model.transformer.h[0].attn.c_attn.weight, weight_before)
+    assert not torch.equal(model.transformer.h[0].attn.attn.weight, weight_before)
     model.train()
     # note: numerically, `W + (A * B) - (A * B) == W` does not hold exactly
-    assert torch.allclose(model.transformer.h[0].attn.c_attn.weight, weight_before)
+    assert torch.allclose(model.transformer.h[0].attn.attn.weight, weight_before)
 
     # calling eval/train multiple times in a row should not merge/unmerge multiple times
     model.eval()
-    assert model.transformer.h[0].attn.c_attn.merged
-    weight_after = model.transformer.h[0].attn.c_attn.weight.clone()
+    assert model.transformer.h[0].attn.attn.merged
+    weight_after = model.transformer.h[0].attn.attn.weight.clone()
     model.eval()
     model.eval()
-    assert torch.equal(model.transformer.h[0].attn.c_attn.weight, weight_after)
+    assert torch.equal(model.transformer.h[0].attn.attn.weight, weight_after)
     model.train()
-    assert not model.transformer.h[0].attn.c_attn.merged
-    weight_after = model.transformer.h[0].attn.c_attn.weight.clone()
+    assert not model.transformer.h[0].attn.attn.merged
+    weight_after = model.transformer.h[0].attn.attn.weight.clone()
     model.train()
     model.train()
-    assert torch.equal(model.transformer.h[0].attn.c_attn.weight, weight_after)
+    assert torch.equal(model.transformer.h[0].attn.attn.weight, weight_after)

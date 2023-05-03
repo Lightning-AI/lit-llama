@@ -5,19 +5,28 @@ Based on the nanoGPT implementation: https://github.com/karpathy/nanoGPT.
 # mypy: ignore-errors
 import math
 from dataclasses import dataclass
+from typing import Optional
 
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from typing_extensions import Self
 
+from lit_llama.utils import find_multiple
+
+
 @dataclass
 class LLaMAConfig:
     block_size: int = 2048
     vocab_size: int = 32000
+    padded_vocab_size: Optional[int] = None
     n_layer: int = 32
     n_head: int = 32
     n_embd: int = 4096
+
+    def __post_init__(self):
+        if self.padded_vocab_size is None:
+            self.padded_vocab_size = find_multiple(self.vocab_size, 64)
 
     @classmethod
     def from_name(cls, name: str) -> Self:
@@ -35,14 +44,13 @@ llama_configs = {
 class LLaMA(nn.Module):
     def __init__(self, config: LLaMAConfig) -> None:
         super().__init__()
-        assert config.vocab_size is not None
-        assert config.block_size is not None
+        assert config.padded_vocab_size is not None
         self.config = config
 
-        self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
+        self.lm_head = nn.Linear(config.n_embd, config.padded_vocab_size, bias=False)
         self.transformer = nn.ModuleDict(
             dict(
-                wte=nn.Embedding(config.vocab_size, config.n_embd),
+                wte=nn.Embedding(config.padded_vocab_size, config.n_embd),
                 h=nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
                 ln_f=RMSNorm(config.n_embd),
             )
@@ -79,14 +87,14 @@ class LLaMA(nn.Module):
 class Block(nn.Module):
     def __init__(self, config: LLaMAConfig) -> None:
         super().__init__()
-        self.rms_1 = RMSNorm(config.n_embd)
+        self.norm_1 = RMSNorm(config.n_embd)
         self.attn = CausalSelfAttention(config)
-        self.rms_2 = RMSNorm(config.n_embd)
+        self.norm_2 = RMSNorm(config.n_embd)
         self.mlp = MLP(config)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = x + self.attn(self.rms_1(x))
-        x = x + self.mlp(self.rms_2(x))
+        x = x + self.attn(self.norm_1(x))
+        x = x + self.mlp(self.norm_2(x))
         return x
 
 
@@ -96,20 +104,20 @@ class CausalSelfAttention(nn.Module):
         assert config.n_embd % config.n_head == 0
 
         # key, query, value projections for all heads, but in a batch
-        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd, bias=False)
+        self.attn = nn.Linear(config.n_embd, 3 * config.n_embd, bias=False)
         # output projection
-        self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=False)
+        self.proj = nn.Linear(config.n_embd, config.n_embd, bias=False)
 
         self.n_head = config.n_head
         self.n_embd = config.n_embd
         self.block_size = config.block_size
-        self.rope_cache = None
+        self.rope_cache: Optional[torch.Tensor] = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, T, C = x.size()  # batch size, sequence length, embedding dimensionality (n_embd)
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
-        q, k, v = self.c_attn(x).split(self.n_embd, dim=2)
+        q, k, v = self.attn(x).split(self.n_embd, dim=2)
 
         head_size = C // self.n_head
         k = k.view(B, T, self.n_head, head_size).transpose(1, 2)  # (B, nh, T, hs)
@@ -140,7 +148,7 @@ class CausalSelfAttention(nn.Module):
         y = y.transpose(1, 2).contiguous().view(B, T, C)  # re-assemble all head outputs side by side
 
         # output projection
-        y = self.c_proj(y)
+        y = self.proj(y)
 
         return y
 
@@ -150,17 +158,15 @@ class MLP(nn.Module):
         super().__init__()
         hidden_dim = 4 * config.n_embd
         n_hidden = int(2 * hidden_dim / 3)
-        N = 256
-        # ensure n_hidden is multiple of N
-        n_hidden = ((n_hidden - 1) // N) * N + N
+        n_hidden = find_multiple(n_hidden, 256)
 
-        self.c_fc1 = nn.Linear(config.n_embd, n_hidden, bias=False)
-        self.c_fc2 = nn.Linear(config.n_embd, n_hidden, bias=False)
-        self.c_proj = nn.Linear(n_hidden, config.n_embd, bias=False)
+        self.fc_1 = nn.Linear(config.n_embd, n_hidden, bias=False)
+        self.fc_2 = nn.Linear(config.n_embd, n_hidden, bias=False)
+        self.proj = nn.Linear(n_hidden, config.n_embd, bias=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = F.silu(self.c_fc1(x)) * self.c_fc2(x)
-        x = self.c_proj(x)
+        x = F.silu(self.fc_1(x)) * self.fc_2(x)
+        x = self.proj(x)
         return x
 
 
@@ -209,6 +215,7 @@ def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, device: torc
     if dtype in (torch.float16, torch.bfloat16, torch.int8):
         cache = cache.half()
     return cache
+
 
 def apply_rope(x: torch.Tensor, rope_cache: torch.Tensor) -> torch.Tensor:
     x = x.transpose(1, 2)

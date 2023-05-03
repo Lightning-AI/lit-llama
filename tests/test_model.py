@@ -4,23 +4,23 @@ import sys
 
 
 def copy_mlp(llama_mlp, orig_llama_mlp) -> None:
-    orig_llama_mlp.w1.weight.copy_(llama_mlp.c_fc1.weight)
-    orig_llama_mlp.w3.weight.copy_(llama_mlp.c_fc2.weight)
-    orig_llama_mlp.w2.weight.copy_(llama_mlp.c_proj.weight)
+    orig_llama_mlp.w1.weight.copy_(llama_mlp.fc_1.weight)
+    orig_llama_mlp.w3.weight.copy_(llama_mlp.fc_2.weight)
+    orig_llama_mlp.w2.weight.copy_(llama_mlp.proj.weight)
 
 
 def copy_attention(llama_attn, orig_llama_attn) -> None:
-    n_embd = llama_attn.c_attn.weight.shape[1]
-    orig_llama_attn.wq.weight.copy_(llama_attn.c_attn.weight[:n_embd])
-    orig_llama_attn.wk.weight.copy_(llama_attn.c_attn.weight[n_embd:-n_embd])
-    orig_llama_attn.wv.weight.copy_(llama_attn.c_attn.weight[-n_embd:])
-    orig_llama_attn.wo.weight.copy_(llama_attn.c_proj.weight)
+    n_embd = llama_attn.attn.weight.shape[1]
+    orig_llama_attn.wq.weight.copy_(llama_attn.attn.weight[:n_embd])
+    orig_llama_attn.wk.weight.copy_(llama_attn.attn.weight[n_embd:-n_embd])
+    orig_llama_attn.wv.weight.copy_(llama_attn.attn.weight[-n_embd:])
+    orig_llama_attn.wo.weight.copy_(llama_attn.proj.weight)
 
 
 def copy_block(llama_block, orig_llama_block) -> None:
-    orig_llama_block.attention_norm.weight.copy_(llama_block.rms_1.scale)
+    orig_llama_block.attention_norm.weight.copy_(llama_block.norm_1.scale)
     copy_attention(llama_block.attn, orig_llama_block.attention)
-    orig_llama_block.ffn_norm.weight.copy_(llama_block.rms_2.scale)
+    orig_llama_block.ffn_norm.weight.copy_(llama_block.norm_2.scale)
     copy_mlp(llama_block.mlp, orig_llama_block.feed_forward)
 
 

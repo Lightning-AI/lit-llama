@@ -44,7 +44,7 @@ def convert_hf_checkpoint(
     with EmptyInitOnDevice(device="cpu", dtype=dtype):
         model = LLaMA(config)
 
-    qkv_size = model.transformer.h[0].attn.c_attn.weight.shape[0] // 3
+    qkv_size = model.transformer.h[0].attn.attn.weight.shape[0] // 3
 
     # initialize a new empty state dict to hold our new weights
     sd = model.state_dict()
@@ -65,13 +65,13 @@ def convert_hf_checkpoint(
         )
 
     weight_map = {
-        "self_attn.o_proj.weight": "attn.c_proj.weight",
-        "self_attn.q_proj.weight": "attn.c_attn.weight",
-        "self_attn.k_proj.weight": "attn.c_attn.weight",
-        "self_attn.v_proj.weight": "attn.c_attn.weight",
-        "mlp.gate_proj.weight": "mlp.c_fc1.weight",
-        "mlp.up_proj.weight": "mlp.c_fc2.weight",
-        "mlp.down_proj.weight": "mlp.c_proj.weight",
+        "self_attn.o_proj.weight": "attn.proj.weight",
+        "self_attn.q_proj.weight": "attn.attn.weight",
+        "self_attn.k_proj.weight": "attn.attn.weight",
+        "self_attn.v_proj.weight": "attn.attn.weight",
+        "mlp.gate_proj.weight": "mlp.fc_1.weight",
+        "mlp.up_proj.weight": "mlp.fc_2.weight",
+        "mlp.down_proj.weight": "mlp.proj.weight",
         "input_layernorm.weight": "rms_1.scale",
         "post_attention_layernorm.weight": "rms_2.scale",
         "model.embed_tokens.weight": "transformer.wte.weight",

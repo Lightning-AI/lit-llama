@@ -26,40 +26,40 @@ def convert_state_dict(state_dict: Dict[str, torch.Tensor], dtype: torch.dtype =
     for layer_idx in sorted(set([k.split(".")[1] for k in state_dict if k.startswith("layers")])):
         # attention
         # the wq, wk, wv from the FB model are stacked in our model as c_attn
-        converted[f"transformer.h.{layer_idx}.attn.c_attn.weight"] = torch.cat(
+        converted[f"transformer.h.{layer_idx}.attn.attn.weight"] = torch.cat(
             (
                 state_dict[f"layers.{layer_idx}.attention.wq.weight"].to(dtype),
                 state_dict[f"layers.{layer_idx}.attention.wk.weight"].to(dtype),
                 state_dict[f"layers.{layer_idx}.attention.wv.weight"].to(dtype),
             )
         )
-        converted[f"transformer.h.{layer_idx}.attn.c_proj.weight"] = state_dict[
+        converted[f"transformer.h.{layer_idx}.attn.proj.weight"] = state_dict[
             f"layers.{layer_idx}.attention.wo.weight"
         ].to(dtype)
         # mlp
-        converted[f"transformer.h.{layer_idx}.mlp.c_fc1.weight"] = state_dict[
+        converted[f"transformer.h.{layer_idx}.mlp.fc_1.weight"] = state_dict[
             f"layers.{layer_idx}.feed_forward.w1.weight"
         ].to(dtype)
-        converted[f"transformer.h.{layer_idx}.mlp.c_proj.weight"] = state_dict[
+        converted[f"transformer.h.{layer_idx}.mlp.proj.weight"] = state_dict[
             f"layers.{layer_idx}.feed_forward.w2.weight"
         ].to(dtype)
-        converted[f"transformer.h.{layer_idx}.mlp.c_fc2.weight"] = state_dict[
+        converted[f"transformer.h.{layer_idx}.mlp.fc_2.weight"] = state_dict[
             f"layers.{layer_idx}.feed_forward.w3.weight"
         ].to(dtype)
         # rms norm
-        converted[f"transformer.h.{layer_idx}.rms_1.scale"] = state_dict[f"layers.{layer_idx}.attention_norm.weight"].to(dtype)
-        converted[f"transformer.h.{layer_idx}.rms_2.scale"] = state_dict[f"layers.{layer_idx}.ffn_norm.weight"].to(dtype)
+        converted[f"transformer.h.{layer_idx}.norm_1.scale"] = state_dict[f"layers.{layer_idx}.attention_norm.weight"].to(dtype)
+        converted[f"transformer.h.{layer_idx}.norm_2.scale"] = state_dict[f"layers.{layer_idx}.ffn_norm.weight"].to(dtype)
     return converted
 
 
 shard_dims = {
     "lm_head.weight": 0,
     "wte.weight": 1,
-    "attn.c_attn.weight": 0,
-    "attn.c_proj.weight": 1,
-    "mlp.c_fc1.weight": 0,
-    "mlp.c_fc2.weight": 0,
-    "mlp.c_proj.weight": 1
+    "attn.attn.weight": 0,
+    "attn.proj.weight": 1,
+    "mlp.fc_1.weight": 0,
+    "mlp.fc_2.weight": 0,
+    "mlp.proj.weight": 1
 }
 
 

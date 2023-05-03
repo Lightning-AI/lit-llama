@@ -58,11 +58,11 @@ def llama_blockwise_quantization(
     # the two mlp fc layers
     # we could automate this with a lot of hooks and another iteration
     submodules_to_process = [
-        "attn.c_attn",
-        "attn.c_proj",
-        "mlp.c_fc1",
-        "mlp.c_fc2",
-        "mlp.c_proj",
+        "attn.attn",
+        "attn.proj",
+        "mlp.fc_1",
+        "mlp.fc_2",
+        "mlp.proj",
     ]
 
     for i, block in enumerate(model.transformer.h):
