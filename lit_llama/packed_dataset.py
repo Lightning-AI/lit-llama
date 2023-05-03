@@ -35,12 +35,13 @@ HDR_SIZE = 24  # bytes
 
 
 class PackedDataset(IterableDataset):
-    def __init__(self, filenames, n_chunks, block_size, seed=12345, shuffle=True, num_processes=1, process_rank=0):
+    def __init__(self, filenames, n_chunks, block_size, seed=12345, shuffle=True, wrap=False, num_processes=1, process_rank=0):
         self._filenames = filenames
         self._n_chunks = n_chunks
         self._block_size = block_size
         self._seed = seed
         self._shuffle = shuffle
+        self._wrap = wrap
         self._num_processes = num_processes
         self._process_rank = process_rank
 
@@ -60,6 +61,7 @@ class PackedDataset(IterableDataset):
             block_size=self._block_size,
             seed=self._seed,
             shuffle=self._shuffle,
+            wrap=self._wrap,
         )
 
 
@@ -133,11 +135,13 @@ class PackedDatasetBuilder(object):
 
 
 class PackedDatasetIterator:
-    def __init__(self, filenames, n_chunks, block_size, seed, shuffle):
+    def __init__(self, filenames, n_chunks, block_size, seed, shuffle, wrap):
         self._seed = seed
         self._shuffle = shuffle
         self._rng = np.random.default_rng(seed) if shuffle else None
         self._block_idxs = None
+
+        self._wrap = wrap
 
         # TODO: instead of filenames, we could have a single text stream
         #       (or text file) with the sequence of all files to be
@@ -178,7 +182,10 @@ class PackedDatasetIterator:
         self._close_mmaps()
 
         if self._n_chunks > len(self._filenames[self._file_idx :]):
-            raise StopIteration
+            if not self._wrap:
+                raise StopIteration
+            else:
+                self._file_idx = 0
 
         for i in range(self._n_chunks):
             filename = self._filenames[self._file_idx + i]
