@@ -88,10 +88,10 @@ def main(
     train_dataloader, val_dataloader = fabric.setup_dataloaders(train_dataloader, val_dataloader)
 
     with fabric.device:
-        torch.set_default_tensor_type(torch.HalfTensor)
-        model = LLaMA(config).bfloat16()
+        torch.set_default_dtype(torch.bfloat16)
+        model = LLaMA(config)
         model.apply(model._init_weights)
-        torch.set_default_tensor_type(torch.FloatTensor)
+        torch.set_default_dtype(torch.float32)
 
     # if compile:
     #     model = torch.compile(model)
@@ -108,7 +108,7 @@ def main(
     process_batch_size = batch_size // devices
     grad_accum_steps = process_batch_size // micro_batch_size
 
-    train(fabric, model, optimizer, train_dataloader, val_dataloader, grad_accum_steps, devices)
+    train(fabric, model, optimizer, train_dataloader, val_dataloader, grad_accum_steps)
 
 
 def train(
@@ -118,7 +118,6 @@ def train(
     train_dataloader: DataLoader,
     val_dataloader: Optional[DataLoader],
     grad_accum_steps: int,
-    devices: int,
 ) -> None:
     """The training loop.
 
