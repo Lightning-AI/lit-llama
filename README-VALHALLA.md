@@ -2,7 +2,7 @@
 
 On alvis I use the env called llama-dev in the parent folder (which is also called llama-dev):
 
-`source llama-dev/bin/activate`
+`source llama-dev/bin/activate` (`virtualenv llama-dev`)
 `cd lit-llama`
 
 ## Set up the weights
