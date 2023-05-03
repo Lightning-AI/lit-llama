@@ -1,10 +1,10 @@
 
 import sys
 import time
-import warnings
+import pandas as pd
 from pathlib import Path
 from typing import Optional
-
+from jsonargparse import CLI
 import lightning as L
 import torch
 
@@ -15,8 +15,9 @@ from generate import generate
 
 
 def main_translate(
-    input_csv: str,
-    max_new_tokens: int = 100,
+    input_csv_file: str,
+    output_csv_file: str,
+    max_new_tokens: int = 128,
     top_k: int = 200,
     temperature: float = 0,
     checkpoint_path: Optional[Path] = None,
@@ -53,6 +54,25 @@ def main_translate(
     tokenizer = Tokenizer(tokenizer_path)
     L.seed_everything(1234)
     #################################################
+    # load the csv with the prompts to generate on
+    df = pd.read_csv(input_csv_file)
+    # generate output for each prompt
+    for i, row in df.iterrows():
+        prompt = row["input"]
+        encoded_prompt = tokenizer.encode(
+            prompt, bos=True, eos=False, device=fabric.device)
+        y = generate(
+            model,
+            encoded_prompt,
+            max_new_tokens,
+            model.config.block_size,  # type: ignore[union-attr,arg-type]
+            temperature=temperature,
+            top_k=top_k,
+        )
 
-    encoded_prompt = tokenizer.encode(
-        prompt, bos=True, eos=False, device=fabric.device)
+        df.loc[i, "mt"] = y
+    df.to_csv(output_csv_file, index=False)
+
+
+if __name__ == "__main__":
+    CLI(main_translate)
