@@ -35,36 +35,44 @@ HDR_SIZE = 24  # bytes
 
 
 class PackedDataset(IterableDataset):
-    def __init__(self, filenames, n_chunks, block_size, seed=12345, shuffle=True):
+    def __init__(self, filenames, n_chunks, block_size, seed=12345, shuffle=True, num_processes=1, process_rank=0):
         self._filenames = filenames
         self._n_chunks = n_chunks
         self._block_size = block_size
         self._seed = seed
         self._shuffle = shuffle
+        self._num_processes = num_processes
+        self._process_rank = process_rank
 
     def __iter__(self):
         worker_info = get_worker_info()
-        if worker_info is None:
-            return PackedDatasetIterator(
-                filenames=self._filenames,
-                n_chunks=self._n_chunks,
-                block_size=self._block_size,
-                seed=self._seed,
-                shuffle=self._shuffle,
-            )
-        else:
-            return PackedDatasetIterator(
-                filenames=[
-                    el
-                    for idx, el in enumerate(self._filenames)
-                    if idx % worker_info.num_workers == worker_info.id
-                ],
-                n_chunks=self._n_chunks,
-                block_size=self._block_size,
-                seed=self._seed,
-                shuffle=self._shuffle,
-            )
+        num_workers = worker_info.num_workers if worker_info is not None else 1
+        worker_id = worker_info.id if worker_info is not None else 0
+        num_shards = num_workers * self._num_processes
+        shard_id = self._process_rank * num_workers + worker_id
+        
+        print(num_shards, shard_id, len(self._filenames))
+        
+        filenames = self._filenames[shard_id::num_shards]
+        # filenames=[
+        #     el
+        #     for idx, el in enumerate(self._filenames)
+        #     if idx % num_shards == shard_id
+        # ]
+        print(shard_id, filenames, len(filenames))
+        return PackedDatasetIterator(
+            filenames=filenames,
+            n_chunks=self._n_chunks,
+            block_size=self._block_size,
+            seed=self._seed,
+            shuffle=self._shuffle,
+        )
 
+
+# 1 ['data/red_pajama/arxiv_sample_0000000000.bin', 'data/red_pajama/arxiv_sample_0000000010.bin', 'data/red_pajama/arxiv_sample_0000000021.bin', 'data/red_pajama/arxiv_sample_0000000023.bin', 'data/red_pajama/arxiv_sample_0000000020.bin', 'data/red_pajama/arxiv_sample_0000000019.bin', 'data/red_pajama/arxiv_sample_0000000026.bin']
+# 3 ['data/red_pajama/arxiv_sample_0000000016.bin', 'data/red_pajama/arxiv_sample_0000000027.bin', 'data/red_pajama/arxiv_sample_0000000001.bin', 'data/red_pajama/arxiv_sample_0000000024.bin', 'data/red_pajama/arxiv_sample_0000000011.bin', 'data/red_pajama/arxiv_sample_0000000007.bin', 'data/red_pajama/arxiv_sample_0000000013.bin']
+# 2 ['data/red_pajama/arxiv_sample_0000000006.bin', 'data/red_pajama/arxiv_sample_0000000003.bin', 'data/red_pajama/arxiv_sample_0000000022.bin', 'data/red_pajama/arxiv_sample_0000000018.bin', 'data/red_pajama/arxiv_sample_0000000012.bin', 'data/red_pajama/arxiv_sample_0000000005.bin', 'data/red_pajama/arxiv_sample_0000000025.bin']
+# 0 ['data/red_pajama/arxiv_sample_0000000002.bin', 'data/red_pajama/arxiv_sample_0000000028.bin', 'data/red_pajama/arxiv_sample_0000000014.bin', 'data/red_pajama/arxiv_sample_0000000004.bin', 'data/red_pajama/arxiv_sample_0000000017.bin', 'data/red_pajama/arxiv_sample_0000000009.bin', 'data/red_pajama/arxiv_sample_0000000008.bin']
 
 class PackedDatasetBuilder(object):
     def __init__(

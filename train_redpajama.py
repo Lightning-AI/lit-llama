@@ -81,6 +81,7 @@ def main(
     train_dataloader, val_dataloader = create_dataloaders(
         batch_size=micro_batch_size,
         block_size=config.block_size,
+        fabric=fabric,
         train_data_dir=train_data_dir,
         val_data_dir=val_data_dir,
         seed=1338,
@@ -226,6 +227,7 @@ def create_dataloader(
     batch_size: int,
     block_size: int,
     data_dir: str,
+    fabric,
     shuffle: bool = True,
     seed: int = 12345,
 ) -> DataLoader:
@@ -233,7 +235,8 @@ def create_dataloader(
     for prefix, _ in data_config:
         filenames = glob.glob(os.path.join(data_dir, prefix + "*"))
         dataset = PackedDataset(
-            filenames, n_chunks=10, block_size=block_size, shuffle=shuffle, seed=seed
+            filenames, n_chunks=10, block_size=block_size, shuffle=shuffle, seed=seed,
+            num_processes=fabric.world_size, process_rank=fabric.global_rank,
         )
         datasets.append(dataset)
 
@@ -254,6 +257,7 @@ def create_dataloader(
 def create_dataloaders(
     batch_size: int,
     block_size: int,
+    fabric,
     train_data_dir: str = "data/red_pajama",
     val_data_dir: str = "data/red_pajama_val",
     seed: int = 12345,
@@ -263,6 +267,7 @@ def create_dataloaders(
     train_dataloader = create_dataloader(
         batch_size=batch_size,
         block_size=effective_block_size,
+        fabric=fabric,
         data_dir=train_data_dir,
         shuffle=True,
         seed=seed,
@@ -271,6 +276,7 @@ def create_dataloaders(
         create_dataloader(
             batch_size=batch_size,
             block_size=effective_block_size,
+            fabric=fabric,
             data_dir=val_data_dir,
             shuffle=False,
             seed=seed,
