@@ -61,11 +61,6 @@ class PackedDataset(IterableDataset):
         )
 
 
-# 1 ['data/red_pajama/arxiv_sample_0000000000.bin', 'data/red_pajama/arxiv_sample_0000000010.bin', 'data/red_pajama/arxiv_sample_0000000021.bin', 'data/red_pajama/arxiv_sample_0000000023.bin', 'data/red_pajama/arxiv_sample_0000000020.bin', 'data/red_pajama/arxiv_sample_0000000019.bin', 'data/red_pajama/arxiv_sample_0000000026.bin']
-# 3 ['data/red_pajama/arxiv_sample_0000000016.bin', 'data/red_pajama/arxiv_sample_0000000027.bin', 'data/red_pajama/arxiv_sample_0000000001.bin', 'data/red_pajama/arxiv_sample_0000000024.bin', 'data/red_pajama/arxiv_sample_0000000011.bin', 'data/red_pajama/arxiv_sample_0000000007.bin', 'data/red_pajama/arxiv_sample_0000000013.bin']
-# 2 ['data/red_pajama/arxiv_sample_0000000006.bin', 'data/red_pajama/arxiv_sample_0000000003.bin', 'data/red_pajama/arxiv_sample_0000000022.bin', 'data/red_pajama/arxiv_sample_0000000018.bin', 'data/red_pajama/arxiv_sample_0000000012.bin', 'data/red_pajama/arxiv_sample_0000000005.bin', 'data/red_pajama/arxiv_sample_0000000025.bin']
-# 0 ['data/red_pajama/arxiv_sample_0000000002.bin', 'data/red_pajama/arxiv_sample_0000000028.bin', 'data/red_pajama/arxiv_sample_0000000014.bin', 'data/red_pajama/arxiv_sample_0000000004.bin', 'data/red_pajama/arxiv_sample_0000000017.bin', 'data/red_pajama/arxiv_sample_0000000009.bin', 'data/red_pajama/arxiv_sample_0000000008.bin']
-
 class PackedDatasetBuilder(object):
     def __init__(
         self,
