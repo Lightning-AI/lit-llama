@@ -1,6 +1,7 @@
-
+import re
 import sys
 import time
+import tqdm
 import pandas as pd
 from pathlib import Path
 from typing import Optional
@@ -15,14 +16,15 @@ from generate import generate
 
 
 def main_translate(
-    input_csv_file: str,
-    output_csv_file: str,
-    max_new_tokens: int = 128,
-    top_k: int = 200,
-    temperature: float = 0,
-    checkpoint_path: Optional[Path] = None,
-    tokenizer_path: Optional[Path] = None,
-):
+        input_csv_file: str = "./mt/data/wmt19_en-de.csv" ,
+        output_csv_file: str = "./mt/data/wmt19_en-de_translation.csv",
+        max_new_tokens: int = 128,
+        top_k: int = 200,
+        temperature: float = 0,
+        checkpoint_path: Optional[Path] = None,
+        tokenizer_path: Optional[Path] = None,
+        quantize: Optional[str] = None,
+    ):
     ##### COPIED FROM main(...) IN generate.py #####
     if not checkpoint_path:
         checkpoint_path = Path(f"./checkpoints/lit-llama/7B/lit-llama.pth")
@@ -55,22 +57,28 @@ def main_translate(
     L.seed_everything(1234)
     #################################################
     # load the csv with the prompts to generate on
-    df = pd.read_csv(input_csv_file)
+    df = pd.read_csv(input_csv_file)[:10]
     # generate output for each prompt
-    for i, row in df.iterrows():
+    for i, row in tqdm.tqdm(df.iterrows(), total=len(df), desc="Translating..."):
         prompt = row["input"]
         encoded_prompt = tokenizer.encode(
             prompt, bos=True, eos=False, device=fabric.device)
         y = generate(
-            model,
-            encoded_prompt,
-            max_new_tokens,
-            model.config.block_size,  # type: ignore[union-attr,arg-type]
+            model = model,
+            idx = encoded_prompt,
+            max_new_tokens=max_new_tokens,
+            max_seq_length=model.config.block_size,  # type: ignore[union-attr,arg-type]
             temperature=temperature,
             top_k=top_k,
+            eos_id = None
+            # eos_id=13 #int(tokenizer.encode("\n")[-1]) # 13 is the token id for \n
         )
-
-        df.loc[i, "mt"] = y
+        # extract just the translation
+        tgt_lang = row["tgt_lang"]
+        src = row["src"]
+        translation_match = re.search(f"{src}\n{tgt_lang}:(.*)\n",tokenizer.decode(y))
+        if translation_match:
+            df.loc[i, "mt"] = translation_match.group(1)
     df.to_csv(output_csv_file, index=False)
 
 

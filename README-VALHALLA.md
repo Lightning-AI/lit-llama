@@ -1,9 +1,6 @@
 ## Environment
 
-On alvis I use the env called llama-dev in the parent folder (which is also called llama-dev):
-
-`source llama-dev/bin/activate` (`virtualenv llama-dev`)
-`cd lit-llama`
+`source .venv/bin/activate` 
 
 ## Set up the weights
 
@@ -26,7 +23,7 @@ TODO: Which I think you have to manually put the tokenizer.model into the lit-ll
 ## Run inference with the `generate.py`
 
 ```bash
-CUDA_VISIBLE_DEVICES=2 python generate.py --prompt "Hello, my name is"
+CUDA_VISIBLE_DEVICES=1 python generate.py --prompt "Hello, my name is"
 ```
 
 So according to the README this loads it in full precision, unless it detects your GPU will choke, that then runs it on bfloat16 and takes 14GB, which checks out (13577MiB).

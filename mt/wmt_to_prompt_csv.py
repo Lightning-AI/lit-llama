@@ -7,7 +7,7 @@ from pandas import DataFrame, Series
 from langchain import PromptTemplate, FewShotPromptTemplate
 
 example_prompt = PromptTemplate(
-    template="{src_lang}: {src}\n{tgt_lang}:{ref}",
+    template="{src_lang}: {src}\n{tgt_lang}: {ref}",
     input_variables = ["src_lang", "src", "tgt_lang", "ref"],
 )
 

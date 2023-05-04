@@ -4,6 +4,7 @@ __pycache__
 *.egg-info
 build
 .venv
+.vscode
 
 # data
 data

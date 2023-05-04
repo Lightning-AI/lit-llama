@@ -11,3 +11,5 @@ zstandard  # prepare_redpajama.py
 ### for mt experiments ###
 datasets
 langchain
+sacrebleu
+unbabel-comet
