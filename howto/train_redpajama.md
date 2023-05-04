@@ -32,12 +32,12 @@ You can download the data using git lfs:
 
 ```bash
 # Make sure you have git-lfs installed (https://git-lfs.com): git lfs install
-git clone https://huggingface.co/datasets/togethercomputer/RedPajama-Data-1T data/RedPajama-1T
+git clone https://huggingface.co/datasets/togethercomputer/RedPajama-Data-1T data/RedPajama-Data-1T
 ```
 
 ```bash
 # Make sure you have git-lfs installed (https://git-lfs.com): git lfs install
-git clone https://huggingface.co/datasets/togethercomputer/RedPajama-Data-1T-Sample data/RedPajama-1T-Sample
+git clone https://huggingface.co/datasets/togethercomputer/RedPajama-Data-1T-Sample data/RedPajama-Data-1T-Sample
 ```
 
 ## Prepare RedPajama for training
@@ -49,13 +49,13 @@ streaming dataset that comes with lit-llama.
 Do to so, run
 
 ```bash
-python prepare_redpajama.py --source_path data/RedPajama-Data-1T --tokenizer_path checkpoints/tokenizer.model --destination_path data/lit-redpajama
+python scripts/prepare_redpajama.py --source_path data/RedPajama-Data-1T --tokenizer_path checkpoints/lit-llama/tokenizer.model --destination_path data/lit-redpajama
 ```
 
 or
 
 ```bash
-python prepare_redpajama.py --source_path data/RedPajama-Data-1T-Sample --tokenizer_path checkpoints/tokenizer.model --destination_path data/lit-redpajama-sample --sample True
+python scripts/prepare_redpajama.py --source_path data/RedPajama-Data-1T-Sample --tokenizer_path checkpoints/lit-llama/tokenizer.model --destination_path data/lit-redpajama-sample --sample True
 ```
 
 for the sample dataset.
