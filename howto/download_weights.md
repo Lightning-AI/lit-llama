@@ -29,7 +29,7 @@ python scripts/convert_checkpoint.py --model_size 7B
 
 ### OpenLLaMA
 
-OpenLM Research has released **Apache 2.0 licensed** weights obtained by training LLaMA on the RedPajama dataset.
+OpenLM Research has released **Apache 2.0 licensed** weights obtained by training LLaMA on the 1.2 trillion token open-source [RedPajama](https://github.com/togethercomputer/RedPajama-Data) dataset.
 
 Weights were released in preview on intermediate number of tokens (200B, 300B at the time of writing). In order to get them do:
 
