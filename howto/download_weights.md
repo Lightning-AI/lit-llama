@@ -41,7 +41,7 @@ git clone https://huggingface.co/openlm-research/open_llama_7b_preview_300bt che
 Or if you don't have `git-lfs` installed:
 
 ```bash
-python scripts/download.py --repo_id https://huggingface.co/openlm-research/open_llama_7b_preview_300bt --local_dir checkpoints/open-llama/7B
+python scripts/download.py --repo_id openlm-research/open_llama_7b_preview_300bt --local_dir checkpoints/open-llama/7B
 ```
 
 Once downloaded, you should have a folder like this:
