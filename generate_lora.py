@@ -21,9 +21,9 @@ lora_dropout = 0.05
 def main(
     prompt: str = "What food do lamas eat?",
     input: str = "",
-    lora_path: Optional[Path] = None,
-    pretrained_path: Optional[Path] = None,
-    tokenizer_path: Optional[Path] = None,
+    lora_path: Path = Path("out/lora/alpaca/lit-llama-lora-finetuned.pth"),
+    pretrained_path: Path = Path("checkpoints/lit-llama/7B/lit-llama.pth"),
+    tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
     quantize: Optional[str] = None,
     dtype: str = "float32",
     max_new_tokens: int = 100,
@@ -50,13 +50,6 @@ def main(
         temperature: A value controlling the randomness of the sampling process. Higher values result in more random
             samples.
     """
-    if not lora_path:
-        lora_path = Path("out/lora/alpaca/lit-llama-lora-finetuned.pth")
-    if not pretrained_path:
-        pretrained_path = Path(f"./checkpoints/lit-llama/7B/lit-llama.pth")
-    if not tokenizer_path:
-        tokenizer_path = Path("./checkpoints/lit-llama/tokenizer.model")
-    
     assert lora_path.is_file()
     assert pretrained_path.is_file()
     assert tokenizer_path.is_file()

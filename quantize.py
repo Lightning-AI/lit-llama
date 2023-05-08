@@ -136,9 +136,9 @@ def llama_blockwise_quantization(
 
 def main(
     *,
-    checkpoint_path: Optional[Path] = None,
+    checkpoint_path: Path = Path("checkpoints/lit-llama/7B/lit-llama.pth"),
     output_path: Optional[Path] = None,
-    tokenizer_path: Optional[Path] = None,
+    tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
     n_samples: int = 128,
     dtype: str = "float32",
     quantize: Optional[str] = None,
@@ -156,10 +156,6 @@ def main(
             ``"gptq.int4"``: GPTQ 4-bit mode.
             Note that ``"llm.int8"```does not need a quantization step.
     """
-    if not checkpoint_path:
-        checkpoint_path = Path(f"./checkpoints/lit-llama/7B/lit-llama.pth")
-    if not tokenizer_path:
-        tokenizer_path = Path("./checkpoints/lit-llama/tokenizer.model")
     assert checkpoint_path.is_file()
     assert tokenizer_path.is_file()
     assert output_path.parent.is_dir() and (
