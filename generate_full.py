@@ -78,7 +78,7 @@ def main(
     top_k: int = 200,
     temperature: float = 0.8,
     checkpoint_path: Optional[Path] = None,
-    tokenizer_path: Optional[Path] = None,
+    tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
     model_size: str = "7B",
     quantize: Optional[str] = None,
 ) -> None:
@@ -99,9 +99,7 @@ def main(
             ``"gptq.int4"``: GPTQ 4-bit mode.
     """
     if not checkpoint_path:
-        checkpoint_path = Path(f"./checkpoints/lit-llama/{model_size}/lit-llama.pth")
-    if not tokenizer_path:
-        tokenizer_path = Path("./checkpoints/lit-llama/tokenizer.model")
+        checkpoint_path = Path(f"checkpoints/lit-llama/{model_size}/lit-llama.pth")
     assert checkpoint_path.is_file(), checkpoint_path
     assert tokenizer_path.is_file(), tokenizer_path
 
