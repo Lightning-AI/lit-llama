@@ -86,7 +86,10 @@ def main(
         val_data_dir=val_data_dir,
         seed=1338,
     )
-    train_dataloader, val_dataloader = fabric.setup_dataloaders(train_dataloader, val_dataloader)
+    if val_dataloader is None:
+        train_dataloader = fabric.setup_dataloaders(train_dataloader)
+    else:
+        train_dataloader, val_dataloader = fabric.setup_dataloaders(train_dataloader, val_dataloader)
 
     with fabric.device:
         torch.set_default_dtype(torch.bfloat16)
