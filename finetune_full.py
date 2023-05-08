@@ -97,7 +97,7 @@ def train(
 
     for iter_num in range(max_iters):
 
-        is_accumulating = (iter_num + 1) % gradient_accumulation_steps == 0
+        is_accumulating = (iter_num + 1) % gradient_accumulation_steps != 0
 
         if step_count <= warmup_steps:
             # linear warmup
