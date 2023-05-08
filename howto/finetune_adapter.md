@@ -19,7 +19,7 @@ The steps here only need to be done once:
    python scripts/prepare_alpaca.py
    ```
 
-   or [prepare your own dataset](#tune-on-your-own-dataset).
+   or [prepare your own dataset](#tune-on-your-dataset).
 
 ## Running the finetuning
 
