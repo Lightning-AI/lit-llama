@@ -46,7 +46,7 @@ def generate(
         # ignore the not-filled-yet tokens
         idx_cond = idx[:t]
         # if the sequence context is growing too long we must crop it at max_seq_length
-        idx_cond = idx_cond if T <= max_seq_length else idx_cond[-max_seq_length:]
+        idx_cond = idx_cond if t <= max_seq_length else idx_cond[-max_seq_length:]
 
         # forward
         logits = model(idx_cond.view(1, -1))
