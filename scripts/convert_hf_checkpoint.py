@@ -62,7 +62,10 @@ def convert_hf_checkpoint(
     model_name: Optional[str] = None,
     dtype: str = "float32",
 ) -> None:
-    check_valid_checkpoint_dir(checkpoint_dir)
+    # This should be validated at the end of conversion of before inference
+    # check_valid_checkpoint_dir(checkpoint_dir) causes error to convert the hf checkpoint weights
+    # as it checks before conversion 
+    # check_valid_checkpoint_dir(checkpoint_dir) 
 
     dt = getattr(torch, dtype, None)
     if not isinstance(dt, torch.dtype):
