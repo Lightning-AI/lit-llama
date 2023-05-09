@@ -56,7 +56,7 @@ def prepare_sample(
         if match and match not in name:
             continue
 
-        filepath = source_path / name
+        filepath = f"{source_path}/{name}"
 
         if not filepath.is_file():
             raise RuntimeError(
@@ -128,7 +128,7 @@ def prepare_full(
         )
 
         for name in filenames:
-            filepath = source_path / name
+            filepath = f"{source_path}/{name}"
 
             print(f"Processing {name}")
 

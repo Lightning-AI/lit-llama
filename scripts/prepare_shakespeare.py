@@ -35,7 +35,7 @@ def prepare(destination_path: Path = Path("data/shakespeare")) -> None:
     destination_path.mkdir(parents=True, exist_ok=True)
 
     # download the tiny shakespeare dataset
-    input_file_path = destination_path / "input.txt"
+    input_file_path = f"{destination_path}/input.txt"
     if not input_file_path.exists():
         data_url = "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"
         with open(input_file_path, "w") as f:
@@ -59,8 +59,8 @@ def prepare(destination_path: Path = Path("data/shakespeare")) -> None:
     # export to bin files
     train_ids = np.array(train_ids, dtype=np.uint16)
     val_ids = np.array(val_ids, dtype=np.uint16)
-    train_ids.tofile(destination_path / "train.bin")
-    val_ids.tofile(destination_path / "val.bin")
+    train_ids.tofile(f"{destination_path}/train.bin")
+    val_ids.tofile(f"{destination_path}/val.bin")
 
 
 if __name__ == "__main__":

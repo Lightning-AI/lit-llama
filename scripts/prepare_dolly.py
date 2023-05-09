@@ -34,7 +34,7 @@ def prepare(
     """
     
     destination_path.mkdir(parents=True, exist_ok=True)
-    file_path = destination_path / DATA_FILE_NAME
+    file_path = f"{destination_path}/{DATA_FILE_NAME}"
     download(file_path)
 
     # TODO: If we don't have the Meta weights, where do we get the tokenizer from?
@@ -61,11 +61,11 @@ def prepare(
 
     print("Processing train split ...")
     train_set = [prepare_sample(sample, tokenizer, max_seq_length, mask_inputs) for sample in tqdm(train_set)]
-    torch.save(train_set, file_path.parent / "train.pt")
+    torch.save(train_set, f"{file_path.parent}/train.pt")
 
     print("Processing test split ...")
     test_set = [prepare_sample(sample, tokenizer, max_seq_length, mask_inputs) for sample in tqdm(test_set)]
-    torch.save(test_set, file_path.parent / "test.pt")
+    torch.save(test_set, f"{file_path.parent}/test.pt")
 
 
 def download(file_path: Path):
