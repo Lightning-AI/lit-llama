@@ -10,6 +10,10 @@ from typing import Optional
 import torch
 from datasets import load_dataset
 
+# support running without installing as a package
+wd = Path(__file__).parent.parent.resolve()
+sys.path.append(str(wd))
+
 from lit_llama import LLaMA, Tokenizer
 from lit_llama.quantization import GPTQQuantizer
 from lit_llama.utils import EmptyInitOnDevice, llama_model_lookup

@@ -2,7 +2,7 @@
 
 Full finetuning updates all layers in the pretrained LLaMA model. This *regular* finetuning procedure is typically considered as the baseline for parameter-efficient alternatives such as Low-Rank Adaptation (LoRA) or LLaMA-Adapter.
 
-The current  [finetune_full.py](../scripts/finetune_full.py) we provide uses 4 A100 GPUs with a fully-sharded data parallel strategy to finetune Lit-LLaMA 7B on [Alpaca](https://github.com/tatsu-lab/stanford_alpaca) dataset. The A100 GPUs have 40 GB each, but it may require less memory to finetune this model.
+The current  [finetune/full.py](../finetune/full.py) we provide uses 4 A100 GPUs with a fully-sharded data parallel strategy to finetune Lit-LLaMA 7B on [Alpaca](https://github.com/tatsu-lab/stanford_alpaca) dataset. The A100 GPUs have 40 GB each, but it may require less memory to finetune this model.
 
 
 
@@ -25,7 +25,7 @@ The steps here only need to be done once:
 ## Running the finetuning
 
 ```bash
-python finetune_full.py
+python finetune/full.py
 ```
 
 
@@ -49,7 +49,7 @@ This script will save checkpoints periodically to the folder `out/`.
 You can test the finetuned model with your own instructions by running:
 
 ```bash
-python generate_full.py \
+python generate/full.py \
     --prompt "Recommend a movie to watch on the weekend." \
     --quantize llm.int8
 ```
@@ -91,10 +91,10 @@ With only a few modifications, you can prepare and train on your own instruction
     python scripts/prepare_mydata.py --destination_path data/mydata/
     ```
 
-5. Run `finetune_full.py` by passing in the location of your data (and optionally other parameters):
+5. Run `finetune/full.py` by passing in the location of your data (and optionally other parameters):
    
     ```bash
-    python finetune_full.py --data_dir data/mydata/ --out_dir out/myexperiment
+    python finetune/full.py --data_dir data/mydata/ --out_dir out/myexperiment
     ```
 
 

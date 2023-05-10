@@ -7,6 +7,10 @@ from typing import Optional
 import lightning as L
 import torch
 
+# support running without installing as a package
+wd = Path(__file__).parent.parent.resolve()
+sys.path.append(str(wd))
+
 from generate import generate
 from lit_llama import Tokenizer
 from lit_llama.adapter import LLaMA
@@ -53,8 +57,7 @@ def main(
 
     print("Loading model ...", file=sys.stderr)
     t0 = time.time()
-    with (lazy_load(pretrained_path) as pretrained_checkpoint,
-          lazy_load(adapter_path) as adapter_checkpoint):
+    with lazy_load(pretrained_path) as pretrained_checkpoint, lazy_load(adapter_path) as adapter_checkpoint:
         name = llama_model_lookup(pretrained_checkpoint)
 
         with EmptyInitOnDevice(

@@ -1,4 +1,5 @@
 import os
+import sys
 import math
 import glob
 import time
@@ -14,6 +15,10 @@ from torch.utils.data import DataLoader
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 
 import numpy as np
+
+# support running without installing as a package
+wd = Path(__file__).parent.parent.resolve()
+sys.path.append(str(wd))
 
 from lit_llama.model import Block, LLaMA, LLaMAConfig
 from lit_llama.packed_dataset import PackedDataset, CombinedDataset
