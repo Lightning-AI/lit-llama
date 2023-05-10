@@ -98,7 +98,7 @@ See `python generate.py --help` for more options.
 You can also use GPTQ-style int4 quantization, but this needs conversions of the weights first:
 
 ```bash
-python quantize.py --checkpoint_path lit-llama.pth --tokenizer_path tokenizer.model --output_path llama-7b-gptq.4bit.pth --dtype bfloat16  --quantize gptq.int4
+python quantize/gptq.py --checkpoint_path lit-llama.pth --tokenizer_path tokenizer.model --output_path llama-7b-gptq.4bit.pth --dtype bfloat16  --quantize gptq.int4
 ```
 
 With the generated quantized checkpoint generation works as usual with `--quantize gptq.int4`, bringing GPU usage to about ~5GB. As only the weights of the Linear layers are quantized, it is useful to use `--dtype bfloat16` even with the quantization enabled.
@@ -118,11 +118,11 @@ We provide a simple training scripts in `finetune_lora.py` and `finetune_adapter
 2. Run the finetuning script
 
    ```bash
-   python finetune_lora.py
+   python finetune/lora.py
    ```
    or 
    ```bash
-   python finetune_adapter.py
+   python finetune/adapter.py
    ```
 
 It is expected that you have downloaded the pretrained weights as described above.
