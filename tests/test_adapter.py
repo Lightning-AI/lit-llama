@@ -1,4 +1,3 @@
-import torch
 from dataclasses import asdict
 import pytest
 import sys

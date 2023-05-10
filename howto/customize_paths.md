@@ -17,7 +17,7 @@ python scripts/convert_checkpoint.py --checkpoint_dir "data/checkpoints/foo"
 Note that this change will need to be passed along to subsequent steps, for example:
 
 ```shell
-python scripts/generate.py \
+python generate.py \
   --checkpoint_path "data/checkpoints/foo/7B/lit-llama.pth" \
   --tokenizer_path "data/checkpoints/foo/tokenizer.model"
 ```
@@ -25,7 +25,7 @@ python scripts/generate.py \
 and
 
 ```shell
-python scripts/quantize.py \
+python quantize/gptq.py \
   --checkpoint_path "data/checkpoints/foo/7B/lit-llama.pth" \
   --tokenizer_path "data/checkpoints/foo/tokenizer.model"
 ```

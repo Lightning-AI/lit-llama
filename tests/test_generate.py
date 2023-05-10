@@ -16,7 +16,7 @@ wd = Path(__file__).parent.parent.absolute()
 def load_generate_script():
     sys.path.append(str(wd))
 
-    import generate
+    import generate as generate
 
     return generate
 

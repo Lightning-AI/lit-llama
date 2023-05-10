@@ -24,7 +24,7 @@ The steps here only need to be done once:
 ## Running the finetuning
 
 ```bash
-python finetune_adapter.py
+python finetune/adapter.py
 ```
 
 The finetuning requires at least one GPU with ~24 GB memory (GTX 3090).
@@ -32,6 +32,7 @@ You can speed up training by setting the `devices` variable in the script to uti
 Depending on the available GPU memory, you can also tune the `micro_batch_size` parameter to utilize the GPU efficiently.
 
 For example, the following settings will let you finetune the model in under 1 hour using DeepSpeed Zero-2:
+
 ```python
 devices = 8
 micro_batch_size = 8
@@ -47,7 +48,7 @@ This script will save checkpoints periodically to the folder `out/`.
 You can test the finetuned model with your own instructions by running:
 
 ```bash
-python generate_adapter.py \
+python generate/adapter.py \
     --prompt "Recommend a movie to watch on the weekend." \
     --quantize llm.int8
 ```
@@ -89,10 +90,10 @@ With only a few modifications, you can prepare and train on your own instruction
     python scripts/prepare_mydata.py --destination_path data/mydata/
     ```
 
-5. Run `finetune_adapter.py` by passing in the location of your data (and optionally other parameters):
+5. Run `finetune/adapter.py` by passing in the location of your data (and optionally other parameters):
    
     ```bash
-    python finetune_adapter.py --data_dir data/mydata/ --out_dir out/myexperiment
+    python finetune/adapter.py --data_dir data/mydata/ --out_dir out/myexperiment
     ```
 
 
