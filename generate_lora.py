@@ -67,8 +67,7 @@ def main(
     print("Loading model ...", file=sys.stderr)
     t0 = time.time()
 
-    with (lazy_load(pretrained_path) as pretrained_checkpoint,
-          lazy_load(lora_path) as lora_checkpoint):
+    with lazy_load(pretrained_path) as pretrained_checkpoint, lazy_load(lora_path) as lora_checkpoint:
         name = llama_model_lookup(pretrained_checkpoint)
 
         with EmptyInitOnDevice(
