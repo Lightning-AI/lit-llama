@@ -76,9 +76,10 @@ def main(
     sample = {"instruction": prompt, "input": input}
     prompt = generate_prompt(sample)
     encoded = tokenizer.encode(prompt, bos=True, eos=False, device=model.device)
+    prompt_length = encoded.size(0)
 
     t0 = time.perf_counter()
-    output = generate(
+    y = generate(
         model,
         idx=encoded,
         max_seq_length=max_new_tokens,
@@ -89,11 +90,12 @@ def main(
     )
     t = time.perf_counter() - t0
 
-    output = tokenizer.decode(output)
+    output = tokenizer.decode(y)
     output = output.split("### Response:")[1].strip()
     print(output)
 
-    print(f"\n\nTime for inference: {t:.02f} sec total, {max_new_tokens / t:.02f} tokens/sec", file=sys.stderr)
+    tokens_generated = y.size(0) - prompt_length
+    print(f"\n\nTime for inference: {t:.02f} sec total, {tokens_generated / t:.02f} tokens/sec", file=sys.stderr)
     if fabric.device.type == "cuda":
         print(f"Memory used: {torch.cuda.max_memory_reserved() / 1e9:.02f} GB", file=sys.stderr)
 

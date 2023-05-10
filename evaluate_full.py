@@ -120,7 +120,6 @@ def main(
                 nlls += nll.item()
 
         print(encoded_text.shape, logits.shape)
-        encoded_text = encoded_text[:, : logits.shape[0]]
         ppl = math.exp(nlls / toks)
         print(f"Perplexity on {dsname}: {ppl:.2f}")
         total_toks += toks
