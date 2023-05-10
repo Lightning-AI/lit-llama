@@ -7,6 +7,10 @@ from typing import Optional
 import lightning as L
 import torch
 
+# support running without installing as a package
+wd = Path(__file__).parent.parent.resolve()
+sys.path.append(str(wd))
+
 from generate import generate
 from lit_llama import Tokenizer, LLaMA
 from lit_llama.lora import lora
