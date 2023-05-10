@@ -69,13 +69,13 @@ The script will take a while to run, so time for :tea:
 Running the pre-training script requires at least 4 GPUs with 40GB+ each (A100).
 
 ```bash
-python train_redpajama.py --devices 4 --train_data_dir data/lit-redpajama
+python pretrain/redpajama.py --devices 4 --train_data_dir data/lit-redpajama
 ```
 
 For running on the sample dataset:
 
 ```bash
-python train_redpajama.py --devices 4 --train_data_dir data/lit-redpajama-sample
+python pretrain/redpajama.py --devices 4 --train_data_dir data/lit-redpajama-sample
 ```
 
 The script will save checkpoints periodically to the folder `out/`.
