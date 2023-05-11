@@ -9,7 +9,7 @@ import torch
 
 from lit_llama import LLaMA, Tokenizer
 from lit_llama.utils import EmptyInitOnDevice
-
+from scripts.prepare_alpaca import generate_prompt
 
 @torch.no_grad()
 def generate(
@@ -121,6 +121,8 @@ def main(
     model = fabric.setup_module(model)
 
     tokenizer = Tokenizer(tokenizer_path)
+    sample = {"instruction": prompt, "input": input}
+    prompt = generate_prompt(sample)
     encoded = tokenizer.encode(prompt, bos=True, eos=False, device=fabric.device)
     prompt_length = encoded.size(0)
 
