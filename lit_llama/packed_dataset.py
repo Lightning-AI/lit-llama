@@ -215,6 +215,7 @@ class PackedDatasetIterator:
     def __del__(self):
         self._close_mmaps()
         del self._mmaps
+        del self._buffers
 
     def __iter__(self):
         return self
