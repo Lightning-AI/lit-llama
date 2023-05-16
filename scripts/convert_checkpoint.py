@@ -66,28 +66,28 @@ shard_dims = {
 def meta_weights_for_nano_model(
     *,
     output_dir: Path = Path("checkpoints/lit-llama"),
-    ckpt_dir: Path = Path("checkpoints/llama/"),
+    checkpoint_dir: Path = Path("checkpoints/llama/"),
     model_size: str = "7B",
     dtype: str = "float32",
 ) -> None:
     output_dir = output_dir / model_size
-    ckpt_dir = ckpt_dir / model_size
+    checkpoint_dir = checkpoint_dir / model_size
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # the tokenizer is the same for all model sizes, so we store it in the parent dir
-    shutil.copy(ckpt_dir.parent / "tokenizer.model", output_dir.parent)
+    shutil.copy(checkpoint_dir.parent / "tokenizer.model", output_dir.parent)
 
     dt = getattr(torch, dtype, None)
     if not isinstance(dt, torch.dtype):
         raise ValueError(f"{dtype} is not a valid dtype.")
     dtype = dt
 
-    checkpoint_files = sorted(ckpt_dir.glob("*.pth"))
+    checkpoint_files = sorted(checkpoint_dir.glob("*.pth"))
     checkpoint_files.sort()
     n_checkpoints = len(checkpoint_files)
 
     if n_checkpoints == 0:
-        raise RuntimeError(f"No checkpoints were found at ckpt_dir {ckpt_dir}. `consolidated.0*.pth` files expected at that location.")
+        raise RuntimeError(f"No checkpoints were found at checkpoint_dir {checkpoint_dir}. `consolidated.0*.pth` files expected at that location.")
 
     # for the bigger models, there are multiple model-parallel checkpoints
     # and we combine them into one single file
