@@ -177,11 +177,13 @@ class PackedDatasetIterator:
     def _close_mmaps(self):
         for mmap in self._mmaps:
             mmap._mmap.close()
+        self._mmaps = []
+        self._buffers = []
 
     def _load_n_chunks(self):
         self._close_mmaps()
 
-        if self._n_chunks > len(self._filenames[self._file_idx :]):
+        if self._n_chunks > len(self._filenames[self._file_idx:]):
             if not self._wrap:
                 raise StopIteration
             else:
@@ -255,4 +257,3 @@ class CombinedDatasetIterator:
     def __next__(self):
         dataset, = self._rng.choices(self._datasets, weights=self._weights, k=1)
         return next(dataset)
-
