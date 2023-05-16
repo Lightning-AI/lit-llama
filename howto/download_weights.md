@@ -60,7 +60,7 @@ checkpoints/open-llama/
 Convert the weights to the Lit-LLaMA format:
 
 ```bash
-python scripts/convert_hf_checkpoint.py --checkpoint_dir checkpoints/open-llama/7B/open_llama_7b_preview_300bt_transformers_weights --model_size 7B
+python scripts/convert_hf_checkpoint.py --ckpt_dir checkpoints/open-llama/7B/open_llama_7b_preview_300bt_transformers_weights --model_size 7B
 ```
 
 > **Note**
