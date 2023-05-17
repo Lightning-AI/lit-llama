@@ -31,11 +31,11 @@ r"""
              ┆         x         ┆
              └───────────────────┘
 
-With LoRA (Low Ranking Adaptation) instead of learning weights of size d*d, we can freeze the pretrained weights and
-instead learn two matrices of size d*r and r*d (they will store weight updates for the pretrained weights): the
-number of parameters in this case will be reduced drastically (depending on the rank of course) yet after
-multiplication of matrices d*r and r*d we will get a matrix d*d which we can sum with frozen pretrained weights and
-thus finetune model.
+With LoRA (Low Ranking Adaptation: https://arxiv.org/abs/2106.09685) instead of learning weights of size d*d,
+we can freeze the pretrained weights and instead learn two matrices of size d*r and r*d (they will store weight updates
+for the pretrained weights): the number of parameters in this case will be reduced drastically (depending on the rank of
+course) yet after multiplication of matrices d*r and r*d we will get a matrix d*d which we can sum with frozen
+pretrained weights and thus finetune the model.
 
 The goal of this approach is to move weight updates into a separete matrix which is decomposed with
 two matrices of a lower rank.
@@ -172,7 +172,7 @@ class MergedLinear(nn.Linear, LoRALayer):
             self.weight.requires_grad = False # (384, 128)
 
             # Compute the indices
-            # Indices are needed to properly pad weight updates with zeros. If we want to finetune queires and values,
+            # Indices are needed to properly pad weight updates with zeros. If we want to finetune queries and values,
             # but not keys, then the weights update should be:
             #
             # [[ΔW,ΔW,ΔW, ..., 0,0,0, ..., ΔW,ΔW,ΔW,],
