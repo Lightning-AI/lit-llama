@@ -83,9 +83,10 @@ def prepare_sample(example: dict, tokenizer: Tokenizer, max_length: int, mask_in
     - output: The response string
 
     This function processes this data to produce a prompt text and a label for
-    supervised training. The prompt text is formed as a single message including both
-    the instruction and the input. The label/target is the same message but with the
-    response attached.
+    supervised training. The input text is formed as a single message including all
+    the instruction, the input (optional) and the response.
+    The label/target is the same message but can optionally have the instruction + input text
+    masked out (mask_inputs=True).
 
     Finally, both the prompt and the label get tokenized. If desired, all tokens
     in the label that correspond to the original input prompt get masked out (default).
