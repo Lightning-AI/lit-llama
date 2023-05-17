@@ -215,7 +215,8 @@ class MergedLinear(nn.Linear, LoRALayer):
     def zero_pad(self, x):
         """Properly pad weight updates with zeros.
 
-        If we want to finetune queires and values, but not keys, then the weights update should be:
+        If, based on `self.enable_lora`, we want to finetune queires and values, but not keys,
+        then the weights update should be:
 
         [[ΔW,ΔW,ΔW, ..., 0,0,0, ..., ΔW,ΔW,ΔW,],
          [....................................],
@@ -224,6 +225,11 @@ class MergedLinear(nn.Linear, LoRALayer):
         ________________________________________
         | query         | key       | value    |
         ----------------------------------------
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            tensor with weights update that will be padded with zeros if necessary
 
         Returns
         -------
