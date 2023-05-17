@@ -7,27 +7,29 @@
 r"""
     Low Ranking Adaptation for LLMs scheme.
 
-            -----------------
-            |       h       |
-            -----------------
-                    ^
-                    |
-                    +
-                 /     \
-    ----------------    -----------          Matrix initialization:
-    |  pretrained  |     \   B    /          B = 0
-    |   weights    |      \ r*d  /           A = N(0, sigma^2)
-    |              |       -----
-    |  W e R^(d*d) |       | r |             r - rank
-    |              |       -----
-    ----------------      /  A  \
-            ^            /  d*r  \
-             \          -----------
-              \         ^
-               \       /
-            -----------------
-            |       x       |
-            -----------------
+             ┌───────────────────┐
+             ┆         h         ┆
+             └───────────────────┘
+                       ▲
+                       |
+                       +
+                    /     \
+    ┌─────────────────┐    ╭───────────────╮     Matrix initialization:
+    ┆                 ┆     \      B      /      B = 0
+    ┆   pretrained    ┆      \    r*d    /       A = N(0, sigma^2)
+    ┆    weights      ┆       ╰─────────╯
+    ┆                 ┆       |    r    |        r - rank
+    ┆   W e R^(d*d)   ┆       | ◀─────▶ |
+    ┆                 ┆       ╭─────────╮
+    └─────────────────┘      /     A     \
+              ▲             /     d*r     \
+               \           ╰───────────────╯
+                \                ▲
+                 \              /
+                  \            /
+             ┌───────────────────┐
+             ┆         x         ┆
+             └───────────────────┘
 
 With LoRA (Low Ranking Adaptation) instead of learning weights of size d*d, we can freeze the pretrained weights and
 instead learn two matrices of size d*r and r*d (they will store weight updates for the pretrained weights): the
