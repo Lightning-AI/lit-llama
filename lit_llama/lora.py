@@ -64,21 +64,16 @@ class LoRALayer():
     ):
         """Store LoRA specific attributes in a class.
 
-        Parameters
-        ----------
-        r : int
-            rank of the weight update matrices. To make sense of using LoRA the rank should be smaller than the rank of
-            the weights of the model.  The rank can be as low as 1: https://arxiv.org/pdf/2106.09685.pdf (section 7.2)
-        lora_alpha : int
-            alpha is needed for scaling updates as alpha/r
-            "This scaling helps to reduce the need to retune hyperparameters when we vary r"
-            https://arxiv.org/pdf/2106.09685.pdf (section 4.1)
-        lora_dropout : float
-            dropout that is applied on the input in the LoRA branch (before multiplying by matrix A)
-        merge_weights : bool
-            whether we want to merge pretrained weights and LoRA weight updates. This is useful if one wants to use
-            finetuned model as a standalone one (without storing LoRA weights separately) plus it helps to reduce
-            overhead during inference.
+        Args:
+            r: rank of the weight update matrices. To make sense of using LoRA the rank should be smaller than the rank of
+                the weights of the model.  The rank can be as low as 1: https://arxiv.org/pdf/2106.09685.pdf (section 7.2)
+            lora_alpha: alpha is needed for scaling updates as alpha/r
+                "This scaling helps to reduce the need to retune hyperparameters when we vary r"
+                https://arxiv.org/pdf/2106.09685.pdf (section 4.1)
+            lora_dropout: dropout that is applied on the input in the LoRA branch (before multiplying by matrix A)
+            merge_weights: whether we want to merge pretrained weights and LoRA weight updates. This is useful if one wants to use
+                finetuned model as a standalone one (without storing LoRA weights separately) plus it helps to reduce
+                overhead during inference.
         """
         self.r = r
         self.lora_alpha = lora_alpha
@@ -116,34 +111,25 @@ class MergedLinear(nn.Linear, LoRALayer):
             3. LoRA B matrix as `self.lora_B`
         Only LoRA's A and B matrices are updated, pretrained weights stay frozen.
 
-        Parameters
-        ----------
-        in_features : int
-            number of input features of the pretrained weights
-        out_features : int
-            number of output features of the pretrained weights
-        r : int, optional
-            rank of the weight update matrices. To make sense of using LoRA the rank should be smaller than the rank of
-            the weights of the model.  The rank can be as low as 1: https://arxiv.org/pdf/2106.09685.pdf (section 7.2)
-        lora_alpha : int
-            alpha is needed for scaling updates as alpha/r
-            "This scaling helps to reduce the need to retune hyperparameters when we vary r"
-            https://arxiv.org/pdf/2106.09685.pdf (section 4.1)
-        lora_dropout : float
-            dropout that is applied on the input in the LoRA branch (before multiplying by matrix A)
-        enable_lora : List[bool], optional
-            MergeLinear class is for attention mechanism where qkv are calculated with a single weight matrix. If we
-            don't want to apply LoRA for all three (query, key and value) we can set it as False. For example if we want
-            to apply LoRA only to `query` and `value` but keep `key` without weight updates we should pass `[True,
-            False, True]`
-        fan_in_fan_out : bool, optional
-            set this to True if the layer to replace stores weight like (fan_in, fan_out).  For example, gpt-2 uses
-            `Conv1D` which stores weights like (fan_in, fan_out) and hence this should be set to `True`
-            https://github.com/huggingface/peft/blob/main/src/peft/tuners/lora.py#LL53C9-L53C112
-        merge_weights : bool
-            whether we want to merge pretrained weights and LoRA weight updates. This is useful if one wants to use
-            finetuned model as a standalone one (without storing LoRA weight separately) plus it helps to reduce
-            overhead during inference.
+        Args:
+            in_features: number of input features of the pretrained weights
+            out_features: number of output features of the pretrained weights
+            r: rank of the weight update matrices. To make sense of using LoRA the rank should be smaller than the rank of
+                the weights of the model.  The rank can be as low as 1: https://arxiv.org/pdf/2106.09685.pdf (section 7.2)
+            lora_alpha: alpha is needed for scaling updates as alpha/r
+                "This scaling helps to reduce the need to retune hyperparameters when we vary r"
+                https://arxiv.org/pdf/2106.09685.pdf (section 4.1)
+            lora_dropout: dropout that is applied on the input in the LoRA branch (before multiplying by matrix A)
+            enable_lora: MergeLinear class is for attention mechanism where qkv are calculated with a single weight matrix. If we
+                don't want to apply LoRA for all three (query, key and value) we can set it as False. For example if we want
+                to apply LoRA only to `query` and `value` but keep `key` without weight updates we should pass `[True,
+                False, True]`
+            fan_in_fan_out: set this to True if the layer to replace stores weight like (fan_in, fan_out).  For example, gpt-2 uses
+                `Conv1D` which stores weights like (fan_in, fan_out) and hence this should be set to `True`
+                https://github.com/huggingface/peft/blob/main/src/peft/tuners/lora.py#LL53C9-L53C112
+            merge_weights: whether we want to merge pretrained weights and LoRA weight updates. This is useful if one wants to use
+                finetuned model as a standalone one (without storing LoRA weight separately) plus it helps to reduce
+                overhead during inference.
         """
         nn.Linear.__init__(self, in_features, out_features, **kwargs)
         LoRALayer.__init__(self, r=r, lora_alpha=lora_alpha, lora_dropout=lora_dropout,
@@ -214,7 +200,7 @@ class MergedLinear(nn.Linear, LoRALayer):
             nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
             nn.init.zeros_(self.lora_B)
 
-    def zero_pad(self, x):
+    def zero_pad(self, x: torch.Tensor) -> torch.Tensor:
         """Properly pad weight updates with zeros.
 
         If, based on `self.enable_lora`, we want to finetune queires and values, but not keys,
@@ -228,15 +214,11 @@ class MergedLinear(nn.Linear, LoRALayer):
         | query         | key       | value    |
         ----------------------------------------
 
-        Parameters
-        ----------
-        x : torch.Tensor
-            tensor with weights update that will be padded with zeros if necessary
+        Args:
+            x: tensor with weights update that will be padded with zeros if necessary
 
-        Returns
-        -------
-        torch.Tensor
-            tensor with weight updates and zeros for diselected q, k or v
+        Returns:
+            A tensor with weight updates and zeros for diselected q, k or v
         """
         # Let's image that:
         # ⚬ intput x has shape (64, 64, 256): (batch_size, sequence_length, embeddings_size)
@@ -265,10 +247,8 @@ class MergedLinear(nn.Linear, LoRALayer):
         For eval mode (train(False)) if weights are not merged we need to add weight updates to pretrained weights in
         order to reduce computational overhead during inference.
 
-        Parameters
-        ----------
-        mode : bool, optional
-            if True the module will be set into train mode (affects Dropout and Batchnorm), if False - eval mode.
+        Args:
+            mode: if True the module will be set into train mode (affects Dropout and Batchnorm), if False - eval mode.
 
         """
         def T(w):
@@ -297,21 +277,17 @@ class MergedLinear(nn.Linear, LoRALayer):
                 self.weight.data += sign * self.zero_pad(T(delta_w * self.scaling)) # (256, 128) after zero_pad (384, 128)
             self.merged = not mode
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Do the forward pass.
 
         If LoRA's weights are merged with pretrained ones then it's a simple matrix multiplication.
         If not, then multiply pretrained weights with input, apply LoRA on input and do summation.
 
-        Parameters
-        ----------
-        x : torch.Tensor
-            input tensor of shape (batch_size, context_length, embedding_size)
+        Args:
+            x: input tensor of shape (batch_size, context_length, embedding_size)
 
-        Returns
-        -------
-        torch.Tensor
-            output tensor of shape (batch_size, context_length, 3 * embedding_size)
+        Returns:
+            Output tensor of shape (batch_size, context_length, 3 * embedding_size)
         """
         def T(w):
             return w.T if self.fan_in_fan_out else w
@@ -351,19 +327,15 @@ class MergedLinear(nn.Linear, LoRALayer):
 def mark_only_lora_as_trainable(model: nn.Module, bias: str = 'none') -> None:
     """Freeze all modules except LoRA's and depending on 'bias' value unfreezes bias weights.
 
-    Parameters
-    ----------
-    model : nn.Module
-        model with LoRA layers
-    bias : str, optional
-        - `none`: all bias weights will be frozen
-        - `lora_only`: only bias weight for LoRA layers will be unfrozen
-        - `all`: all bias weights will be unfrozen
+    Args:
+        model: model with LoRA layers
+        bias: 
+            ``"none"``: all bias weights will be frozen,
+            ``"lora_only"``: only bias weight for LoRA layers will be unfrozen,
+            ``"all"``: all bias weights will be unfrozen.
 
-    Raises
-    ------
-    NotImplementedError
-        raise if `bias` not in ["none", "lora_only", "all"]
+    Raises:
+        NotImplementedError: if `bias` not in ["none", "lora_only", "all"]
     """
     # freeze all layers except LoRA's
     for n, p in model.named_parameters():
@@ -390,24 +362,18 @@ def mark_only_lora_as_trainable(model: nn.Module, bias: str = 'none') -> None:
 def lora_state_dict(model: nn.Module, bias: str = 'none') -> Dict[str, torch.Tensor]:
     """Return state_dict with weights of LoRA's A and B matrices and with biases depending on the `bias` value.
 
-    Parameters
-    ----------
-    model : nn.Module
-        model with LoRA layers
-    bias : str, optional
-        - `none`: state dict will not store bias weights
-        - `lora_only`: state dict will store bias weights only from LoRA layers
-        - `all`: state dict will store all bias weights
+    Args:
+        model: model with LoRA layers
+        bias: 
+            ``"none"``: state dict will not store bias weights,
+            ``"lora_only"``: state dict will store bias weights only from LoRA layers,
+            ``"all"``: state dict will store all bias weights.
 
-    Returns
-    -------
-    Dict[str, torch.Tensor]
-        weights and biases of LoRA layers
+    Returns:
+        Weights and biases of LoRA layers
 
-    Raises
-    ------
-    NotImplementedError
-        raise if `bias` not in ["none", "lora_only", "all"]
+    Raises:
+        NotImplementedError: if `bias` not in ["none", "lora_only", "all"]
     """
     my_state_dict = model.state_dict()
     if bias == 'none':
@@ -444,21 +410,14 @@ class CausalSelfAttention(llama.CausalSelfAttention):
         *Instead of creating multiple heads and concatenating the result (in addition to creating separate matrices for
         query, key and value for each head) we can do this in a single pass with a single weight matrix.
 
-        Parameters
-        ----------
-        config : llama.LLaMAConfig
-            - block_size: int
-                size of the context of the model
-            - vocab_size: int
-                number of unique tokens
-            - padded_vocab_size: Optional[int]
-                padded size of the vocabulary to the nearest multiple of 64 (leads to a greater performance)
-            - n_layer: int
-                number of transformer blocks (self-attention + MLP)
-            - n_head: int
-                number of heads in multihead attention mechanism
-            - n_embd: int
-                size of the embedding: vector representation of each token
+        Args:
+            config: 
+                ``"block_size"``: size of the context of the model,
+                ``"vocab_size"``: number of unique tokens,
+                ``"padded_vocab_size"``: padded size of the vocabulary to the nearest multiple of 64 (leads to a greater performance),
+                ``"n_layer"``: number of transformer blocks (self-attention + MLP),
+                ``"n_head"``: number of heads in multihead attention mechanism,
+                ``"n_embd"``: size of the embedding: vector representation of each token.
         """
         # Skip the parent class __init__ altogether and replace it to avoid
         # useless allocations
@@ -492,19 +451,14 @@ def lora(r, alpha, dropout, enabled: bool = True):
     In a nutshell the code inside this function forces to use LoRA variant of causal self-attention
     instead of the original one (without LoRA).
 
-    Parameters
-    ----------
-    r : int
-        rank of the weight update matrices. To make sense of using LoRA the rank should be smaller than the rank of
-        the weights of the model.  The rank can be as low as 1: https://arxiv.org/pdf/2106.09685.pdf (section 7.2)
-    alpha : int
-        alpha is needed for scaling updates as alpha/r
-        "This scaling helps to reduce the need to retune hyperparameters when we vary r"
-        https://arxiv.org/pdf/2106.09685.pdf (section 4.1)
-    dropout : float
-        dropout that is applied on the input in the LoRA branch (before multiplying by matrix A)
-    enabled : bool
-        enables/disables LoRA
+    Args:
+        r: rank of the weight update matrices. To make sense of using LoRA the rank should be smaller than the rank of
+            the weights of the model.  The rank can be as low as 1: https://arxiv.org/pdf/2106.09685.pdf (section 7.2)
+        alpha: alpha is needed for scaling updates as alpha/r
+            "This scaling helps to reduce the need to retune hyperparameters when we vary r"
+            https://arxiv.org/pdf/2106.09685.pdf (section 4.1)
+        dropout: dropout that is applied on the input in the LoRA branch (before multiplying by matrix A)
+        enabled: enables/disables LoRA
     """
     if not enabled:
         yield
