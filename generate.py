@@ -45,6 +45,11 @@ def generate(
     empty[:T] = idx
     idx = empty
 
+    if idx.device.type == "xla":
+        import torch_xla.core.xla_model as xm
+
+        xm.mark_step()
+
     # generate max_new_tokens tokens
     for t in range(T, T_new):
         # ignore the not-filled-yet tokens
@@ -63,6 +68,9 @@ def generate(
 
         probs = torch.nn.functional.softmax(logits, dim=-1)
         idx_next = torch.multinomial(probs, num_samples=1)
+
+        if idx.device.type == "xla":
+            xm.mark_step()
 
         # concatenate the new generation
         idx[t] = idx_next
