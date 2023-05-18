@@ -22,7 +22,7 @@ Independent implementation of [LLaMA](<https://github.com/facebookresearch/llama
 
 This implementation builds on [nanoGPT](<https://github.com/karpathy/nanoGPT>).
 
-The open-source code in this repository works with the original LLaMA weights are distributed by Meta under a [research-only license](https://github.com/facebookresearch/llama/blob/main/MODEL_CARD.md#model-details).
+The open-source code in this repository works with the original LLaMA weights that are distributed by Meta under a [research-only license](https://github.com/facebookresearch/llama/blob/main/MODEL_CARD.md#model-details).
 
 New Apache 2.0 licensed weights are being released as part of the [Open LLaMA project](https://github.com/openlm-research/open_llama). Both the original research-only weights by Meta and the Open LLaMA weights can be [loaded in Lit-LLaMA](howto/download_weights.md).
 
