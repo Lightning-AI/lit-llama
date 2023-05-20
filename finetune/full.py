@@ -51,7 +51,9 @@ def main(
     data_dir: str = "data/alpaca",
     pretrained_path: str = "checkpoints/lit-llama/7B/lit-llama.pth",
     out_dir: str = "out/full/alpaca",
+    is_instruction_tuning: bool = True
 ):
+    instruction_tuning = is_instruction_tuning
 
     auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
     strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block)

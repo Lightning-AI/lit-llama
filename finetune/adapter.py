@@ -62,7 +62,9 @@ def main(
     data_dir: str = "data/alpaca", 
     pretrained_path: str = "checkpoints/lit-llama/7B/lit-llama.pth",
     out_dir: str = "out/adapter/alpaca",
+    is_instruction_tuning: bool = True,
 ):
+    instruction_tuning = is_instruction_tuning
 
     fabric = L.Fabric(
         accelerator="cuda", 
