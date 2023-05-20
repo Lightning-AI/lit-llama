@@ -1,3 +1,9 @@
+"""
+Utility functions to extend the original LLaMA-Adapter method to LLaMA-Adapter v2,
+based on the paper,
+LLaMA-Adapter V2: Parameter-Efficient Visual Instruction Model
+https://arxiv.org/abs/2304.15010
+"""
 import torch
 from torch import Tensor
 from torch.nn import functional as F
@@ -8,8 +14,10 @@ from lit_llama.adapter import LLaMA
 def adapter_v2_mark_only_adapter_as_trainable(model: LLaMA) -> None:
     """Sets `requires_grad=False` for all non-adapter weights."""
     for name, param in model.named_parameters():
-        for a_name in ("adapter_wte", "gating_factor", "adapter_bias", "adapter_scale"):
-            param.requires_grad  = a_name in name
+        substrings = ("adapter_wte", "gating_factor", "adapter_scale", "adapter_bias", "RMSNorm")
+        if "RMSNorm" in name:
+            print(name)
+        param.requires_grad = any(s in name for s in substrings)
 
 
 def adapter_v2_state_from_state_dict(state_dict: dict) -> dict:

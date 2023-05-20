@@ -1,8 +1,8 @@
 """
-Instruction-tuning with LLaMA-Adapter on the Alpaca dataset following the paper
+Instruction-tuning with LLaMA-Adapter v2 on the Alpaca dataset following the paper
 
-LLaMA-Adapter: Efficient Fine-tuning of Language Models with Zero-init Attention
-https://arxiv.org/abs/2303.16199
+LLaMA-Adapter V2: Parameter-Efficient Visual Instruction Model
+https://arxiv.org/abs/2304.15010
 
 This script runs on a single GPU by default. You can adjust the `micro_batch_size` to fit your GPU memory.
 You can finetune within 1 hour as done in the original paper using DeepSpeed Zero-2 on 8 A100 GPUs by setting the
@@ -39,7 +39,7 @@ from lightning.fabric.strategies import DeepSpeedStrategy
 
 
 eval_interval = 600
-save_interval = 10
+save_interval = 1000
 eval_iters = 100
 log_interval = 1
 devices = 1
@@ -49,12 +49,12 @@ learning_rate = 9e-3
 batch_size = 64 / devices
 micro_batch_size = 4
 gradient_accumulation_steps = batch_size // micro_batch_size
-epoch_size = 10  # train dataset size
+epoch_size = 50000  # train dataset size
 num_epochs = 5
 max_iters = num_epochs * epoch_size // devices
 weight_decay = 0.02
 max_seq_length = 256  # see scripts/prepare_alpaca.py
-warmup_steps = epoch_size * 2 // micro_batch_size // devices  # 2 epochs
+warmup_steps = epoch_size * 2 // micro_batch_size // devices  # 2 epoch
 
 ds_config = {
     "train_micro_batch_size_per_gpu": micro_batch_size,
