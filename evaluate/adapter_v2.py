@@ -87,7 +87,7 @@ def main(
         name = llama_model_lookup(pretrained_checkpoint)
 
         with EmptyInitOnDevice(
-                device=fabric.device, dtype=dtype, quantization_mode=quantize
+            device=fabric.device, dtype=dtype, quantization_mode=quantize
         ):
             model = LLaMA.from_name(name)
             add_adapter_v2_parameters_to_linear_layers(model)
