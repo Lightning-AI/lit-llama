@@ -73,7 +73,8 @@ def generate(
             xm.mark_step()
 
         # concatenate the new generation
-        idx[t] = idx_next.item()
+        # https://github.com/pytorch/pytorch/issues/101936
+        idx[t] = idx_next.item() if idx.device.type == "mps" else idx_next
 
         # if <eos> token is triggered, return the output (stop generation)
         if idx_next == eos_id:
