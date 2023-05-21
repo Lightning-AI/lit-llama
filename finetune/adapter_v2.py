@@ -29,8 +29,8 @@ sys.path.append(str(wd))
 from generate import generate
 from lit_llama.adapter import LLaMA, LLaMAConfig
 from lit_llama.adapter_v2 import (
-    adapter_v2_mark_only_adapter_as_trainable,
-    adapter_v2_linear_with_bias_and_scale,
+    mark_only_adapter_v2_as_trainable,
+    add_adapter_v2_parameters_to_linear_layers,
     adapter_v2_state_from_state_dict
     )
 from lit_llama.tokenizer import Tokenizer
@@ -70,9 +70,9 @@ def main(
 ):
 
     fabric = L.Fabric(
-        accelerator="cuda", 
-        devices=devices, 
-        strategy=(DeepSpeedStrategy(config=ds_config) if devices > 1 else "auto"), 
+        accelerator="cuda",
+        devices=1,
+        strategy=(DeepSpeedStrategy(config=ds_config) if devices > 1 else "auto"),
         precision="bf16-true",
     )
     fabric.launch()
@@ -97,12 +97,8 @@ def main(
         # strict=False because missing keys due to adapter weights not contained in state dict
         model.load_state_dict(checkpoint, strict=False)
 
-        for module in model.modules():
-            if isinstance(module, nn.Linear):
-                adapter_v2_linear_with_bias_and_scale(module)
-
-
-    adapter_v2_mark_only_adapter_as_trainable(model)
+    add_adapter_v2_parameters_to_linear_layers(model)
+    mark_only_adapter_v2_as_trainable(model)
 
     num_params = sum([p.numel() for p in model.parameters() if p.requires_grad])
     print(f"Number of trainable parameters: {num_params}")

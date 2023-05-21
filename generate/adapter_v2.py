@@ -16,7 +16,7 @@ from generate import generate
 from lit_llama import Tokenizer
 from lit_llama.adapter import LLaMA
 from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup
-from lit_llama.adapter_v2 import adapter_v2_linear_with_bias_and_scale
+from lit_llama.adapter_v2 import add_adapter_v2_parameters_to_linear_layers
 from scripts.prepare_alpaca import generate_prompt
 
 
@@ -66,9 +66,7 @@ def main(
                 device=fabric.device, dtype=dtype, quantization_mode=quantize
         ):
             model = LLaMA.from_name(name)
-            for module in model.modules():
-                if isinstance(module, nn.Linear):
-                    adapter_v2_linear_with_bias_and_scale(module)
+            add_adapter_v2_parameters_to_linear_layers(model)
 
         # 1. Load the pretrained weights
         model.load_state_dict(pretrained_checkpoint, strict=False)
