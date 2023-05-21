@@ -49,8 +49,6 @@ def load_eval_data(dataset_name: str) -> str:
 def main(
     datasets: str = "wikitext,ptb,c4",
     *,
-    # compilation fails as it does not support torch.complex64 for RoPE
-    # compile: bool = False,
     accelerator: str = "auto",
     adapter_path: Path = Path("out/adapter_v2/alpaca/lit-llama-adapter-finetuned.pth"),
     checkpoint_path: Path = Path("checkpoints/lit-llama/7B/lit-llama.pth"),
