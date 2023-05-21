@@ -60,7 +60,6 @@ def main(
 
     Args:
         datasets: The datasets to use as a comma separated string
-        # compile: Whether to compile the model.
         accelerator: The hardware to run on. Possible choices are:
             ``"cpu"``, ``"cuda"``, ``"mps"``, ``"gpu"``, ``"tpu"``, ``"auto"``.
         adapter_path: Path to the checkpoint with trained adapter weights, which are the output of
