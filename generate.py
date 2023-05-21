@@ -73,7 +73,7 @@ def generate(
             xm.mark_step()
 
         # concatenate the new generation
-        idx[t] = idx_next
+        idx[t] = idx_next.item()
 
         # if <eos> token is triggered, return the output (stop generation)
         if idx_next == eos_id:
