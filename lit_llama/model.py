@@ -15,7 +15,8 @@ from typing_extensions import Self
 from lit_llama.utils import find_multiple
 
 
-RoPECache = Tuple[torch.Tensor, torch.Tensor]
+MaskCache = torch.Tensor
+RoPECache = torch.Tensor
 KVCache = Tuple[torch.Tensor, torch.Tensor]
 
 
@@ -61,9 +62,8 @@ class LLaMA(nn.Module):
         )
 
         self.rope_cache: Optional[RoPECache] = None
-        self.mask_cache: Optional[torch.Tensor] = None
+        self.mask_cache: Optional[MaskCache] = None
         self.kv_caches: List[KVCache] = []
-
 
     def _init_weights(self, module: nn.Module) -> None:
         if isinstance(module, nn.Linear):
@@ -123,7 +123,7 @@ class LLaMA(nn.Module):
     def from_name(cls, name: str) -> Self:
         return cls(LLaMAConfig.from_name(name))
 
-    def build_rope_cache(self, idx: torch.Tensor) -> KVCache:
+    def build_rope_cache(self, idx: torch.Tensor) -> RoPECache:
         return build_rope_cache(
             seq_len=self.config.block_size,
             n_elem=self.config.n_embd // self.config.n_head,
@@ -131,7 +131,7 @@ class LLaMA(nn.Module):
             device=idx.device,
         )
 
-    def build_mask_cache(self, idx: torch.Tensor) -> torch.Tensor:
+    def build_mask_cache(self, idx: torch.Tensor) -> MaskCache:
         ones = torch.ones((self.config.block_size, self.config.block_size), device=idx.device, dtype=torch.bool)
         return torch.tril(ones).unsqueeze(0).unsqueeze(0)
 
@@ -148,7 +148,7 @@ class Block(nn.Module):
         self,
         x: torch.Tensor,
         rope: RoPECache,
-        mask: torch.Tensor,
+        mask: MaskCache,
         max_seq_length: int,
         input_pos: Optional[torch.Tensor] = None,
         kv_cache: Optional[KVCache] = None,
@@ -177,7 +177,7 @@ class CausalSelfAttention(nn.Module):
         self,
         x: torch.Tensor,
         rope: RoPECache,
-        mask: torch.Tensor,
+        mask: MaskCache,
         max_seq_length: int,
         input_pos: Optional[torch.Tensor] = None,
         kv_cache: Optional[KVCache] = None,
@@ -198,7 +198,6 @@ class CausalSelfAttention(nn.Module):
         k = k.transpose(1, 2)  # (B, nh, T, hs)
         q = q.transpose(1, 2)  # (B, nh, T, hs)
         v = v.transpose(1, 2)  # (B, nh, T, hs)
-
 
         if kv_cache is not None:
             cache_k, cache_v = kv_cache
@@ -269,7 +268,7 @@ class RMSNorm(nn.Module):
         return self.scale * x_normed
 
 
-def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, device: torch.device, base: int = 10000) -> torch.Tensor:
+def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, device: torch.device, base: int = 10000) -> RoPECache:
     """Enhanced Transformer with Rotary Position Embedding.
 
     Derived from: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/
@@ -293,7 +292,7 @@ def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, device: torc
     return cache
 
 
-def apply_rope(x: torch.Tensor, rope_cache: torch.Tensor) -> torch.Tensor:
+def apply_rope(x: torch.Tensor, rope_cache: RoPECache) -> torch.Tensor:
     # truncate to support variable sizes
     T = x.size(1)
     rope_cache = rope_cache[:T]
