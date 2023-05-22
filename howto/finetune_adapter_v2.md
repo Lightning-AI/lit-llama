@@ -1,14 +1,20 @@
-# Finetuning with Adapter
+# Finetuning with Adapter v2
 
-[LLaMA-Adapter](https://arxiv.org/abs/2303.16199) is a form of prefix-tuning that prepends a learnable adaption-prompt to the inputs of the attention blocks in LLaMA. In total, there are only 1.2M parameters to update during finetuning, which significantly reduces the memory footprint and speeds up training.
+[LLaMA-Adapter v2](https://arxiv.org/abs/2304.15010) is a form of prefix-tuning that prepends a learnable adaption-prompt to the inputs of the attention blocks in LLaMA. In total, there are only ~4 M parameters to update during finetuning, which significantly reduces the memory footprint and speeds up training.
 
 We are able to demonstrate instruction-finetuning Lit-LLaMA 7B on the [Alpaca](https://github.com/tatsu-lab/stanford_alpaca) dataset on a **single GTX 3090 (24GB) GPU**. If using 8 GPUs, finetuning can be completed in under 1 hour.
 
 If you are new to LLaMA-Adapter and are interested to learn more about how it works before proceeding with the finetuning guide below, you might find our article [Understanding Parameter-Efficient Finetuning of Large Language Models: From Prefix Tuning to LLaMA-Adapters](https://lightning.ai/pages/community/article/understanding-llama-adapters/) helpful.
 
-## LLaMA-Adapter v2
+## LLaMA-Adapter v1 versus LLaMA-Adapter v2
 
-The LLaMA-Adapter authors developed a newer adapter method called LLaMA-Adapter v2, which is related to this LLaMA-Adapter method but includes more trainable parameters. LLaMA-Adapter v2 is also available via Lit-LLaMA; you can read more about it in [the related how-to doc here](./finetune_adapter_v2.md).
+LLaMA-Adapter v2 extends the original LLaMA-Adapter idea by adding trainable bias and scale parameters to each linear layer in the transformer. Furthermore, LLaMA-Adapter v2 makes the normalization layers trainable. Where the 7B LLaMA model has 1.2M trainable parameters with LLaMA v1, LLaMA-Adapter v2 adds 2.8 M trainable parameters for the bias and scale parameters and ~300k trainable parameters for the normalization layers. So, adapter v2 has ~4.3 M trainable parameters in total.
+
+If you are interested in using the more lightweight LLaMA-Adapter v1 approach, see [the related LLaMA Adapter how-to doc here](./finetune_adapter.md).
+
+While LLaMA-Adapter v2 increases the number of trainable parameters from 1.2 M (from LLaMA-Apdapter v1) to 4.3 M, the inference cost is not significantly impacted. This is because the additional bias and scale parameters are cheap to compute in the forward pass, and the RMSNorm parameters are already included in the base model. In LLaMA-Adapter v1, the RMSNorm parameters are not trainable.
+
+
 
 ## Preparation
 
@@ -28,7 +34,7 @@ The steps here only need to be done once:
 ## Running the finetuning
 
 ```bash
-python finetune/adapter.py
+python finetune/adapter_v2.py
 ```
 
 The finetuning requires at least one GPU with ~24 GB memory (GTX 3090).
@@ -52,7 +58,7 @@ This script will save checkpoints periodically to the folder `out/`.
 You can test the finetuned model with your own instructions by running:
 
 ```bash
-python generate/adapter.py \
+python generate/adapter_v2.py \
     --prompt "Recommend a movie to watch on the weekend." \
     --quantize llm.int8
 ```
@@ -97,7 +103,7 @@ With only a few modifications, you can prepare and train on your own instruction
 5. Run `finetune/adapter.py` by passing in the location of your data (and optionally other parameters):
    
     ```bash
-    python finetune/adapter.py --data_dir data/mydata/ --out_dir out/myexperiment
+    python finetune/adapter_v2.py --data_dir data/mydata/ --out_dir out/myexperiment
     ```
 
 
