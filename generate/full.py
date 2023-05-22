@@ -76,14 +76,7 @@ def main(
     L.seed_everything(1234)
     for i in range(num_samples):
         t0 = time.perf_counter()
-        y = generate(
-            model,
-            encoded,
-            max_new_tokens,
-            model.config.block_size,  # type: ignore[union-attr,arg-type]
-            temperature=temperature,
-            top_k=top_k,
-        )
+        y = generate(model, encoded, max_new_tokens, temperature=temperature, top_k=top_k)
         t = time.perf_counter() - t0
 
         model.reset_cache()
