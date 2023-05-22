@@ -46,6 +46,7 @@ def load_eval_data(dataset_name: str) -> str:
     return testdata
 
 
+@torch.inference_mode()
 def main(
     datasets: str = "wikitext,ptb,c4",
     *,
@@ -126,21 +127,21 @@ def main(
 
         nlls = 0
         toks = 0
-        with torch.inference_mode():
-            block_size = 2048  # this is for compat with gptq, and indeed we get much worse beyond this (https://github.com/facebookresearch/llama/blob/57b0eb62de0636e75af471e49e2f1862d908d9d8/llama/model.py#L30)
-            for i in tqdm.tqdm(range(0, encoded_text.shape[1], block_size)):
-                inp = encoded_text[:, i : i + block_size]
-                logits = model(inp)[0]
-                nll = torch.nn.functional.cross_entropy(
-                    logits[:-1], inp[0, 1:].to(dtype=torch.long), reduction="sum"
-                )
-                toks += inp.size(1) - 1
-                nlls += nll.item()
 
-            print(encoded_text.shape, logits.shape)
-            ppl = math.exp(nlls / toks)
-            print(f"Perplexity on {dsname}: {ppl:.2f}")
-            total_toks += toks
+        block_size = 2048  # this is for compat with gptq, and indeed we get much worse beyond this (https://github.com/facebookresearch/llama/blob/57b0eb62de0636e75af471e49e2f1862d908d9d8/llama/model.py#L30)
+        for i in tqdm.tqdm(range(0, encoded_text.shape[1], block_size)):
+            inp = encoded_text[:, i : i + block_size]
+            logits = model(inp)[0]
+            nll = torch.nn.functional.cross_entropy(
+                logits[:-1], inp[0, 1:].to(dtype=torch.long), reduction="sum"
+            )
+            toks += inp.size(1) - 1
+            nlls += nll.item()
+
+        print(encoded_text.shape, logits.shape)
+        ppl = math.exp(nlls / toks)
+        print(f"Perplexity on {dsname}: {ppl:.2f}")
+        total_toks += toks
 
     t = time.perf_counter() - t0
     print(
