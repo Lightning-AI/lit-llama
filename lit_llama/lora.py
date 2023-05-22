@@ -37,7 +37,7 @@ for the pretrained weights): the number of parameters in this case will be reduc
 course) yet after multiplication of matrices d*r and r*d we will get a matrix d*d which we can sum with frozen
 pretrained weights and thus finetune the model.
 
-The goal of this approach is to move weight updates into a separete matrix which is decomposed with
+The goal of this approach is to move weight updates into a separate matrix which is decomposed with
 two matrices of a lower rank.
 """
 
