@@ -1,5 +1,6 @@
 import torch
 
+
 @torch.no_grad()
 def test_rope(lit_llama, orig_llama) -> None:
     torch.manual_seed(1)
@@ -11,6 +12,6 @@ def test_rope(lit_llama, orig_llama) -> None:
     llama_rope_cache = lit_llama.build_rope_cache(seq_len, n_embed // n_head, dtype=x.dtype, device=x.device)
     torch.testing.assert_close(freqs_cis, torch.view_as_complex(llama_rope_cache))
 
-    llama_x_rope = lit_llama.apply_rope(x.transpose(1, 2), llama_rope_cache).transpose(1, 2)
+    llama_x_rope = lit_llama.apply_rope(x, llama_rope_cache)
     orig_llama_x_rope, _ = orig_llama.apply_rotary_emb(x, x, freqs_cis)
     torch.testing.assert_close(llama_x_rope, orig_llama_x_rope)
