@@ -15,7 +15,6 @@ If you are interested in using the more lightweight LLaMA-Adapter v1 approach, s
 While LLaMA-Adapter v2 increases the number of trainable parameters from 1.2 M (from LLaMA-Apdapter v1) to 4.3 M, the inference cost is not significantly impacted. This is because the additional bias and scale parameters are cheap to compute in the forward pass, and the RMSNorm parameters are already included in the base model. In LLaMA-Adapter v1, the RMSNorm parameters are not trainable.
 
 
-
 ## Preparation
 
 The steps here only need to be done once:
@@ -100,8 +99,8 @@ With only a few modifications, you can prepare and train on your own instruction
     python scripts/prepare_mydata.py --destination_path data/mydata/
     ```
 
-5. Run `finetune/adapter.py` by passing in the location of your data (and optionally other parameters):
-   
+5. Run `finetune/adapter_v2.py` by passing in the location of your data (and optionally other parameters):
+
     ```bash
     python finetune/adapter_v2.py --data_dir data/mydata/ --out_dir out/myexperiment
     ```

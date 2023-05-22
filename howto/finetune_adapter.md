@@ -95,7 +95,7 @@ With only a few modifications, you can prepare and train on your own instruction
     ```
 
 5. Run `finetune/adapter.py` by passing in the location of your data (and optionally other parameters):
-   
+
     ```bash
     python finetune/adapter.py --data_dir data/mydata/ --out_dir out/myexperiment
     ```
