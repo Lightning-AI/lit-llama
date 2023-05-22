@@ -33,7 +33,7 @@ class CausalSelfAttention(nn.Module):
         self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd, bias=False)
         # output projection
         self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=False)
-        
+
         if block_idx >= config.adapter_start_layer:
             # adapter embedding layer
             self.adapter_wte = nn.Embedding(config.adapter_prompt_length, config.n_embd)
@@ -133,7 +133,9 @@ class Block(nn.Module):
         kv_cache: Optional[KVCache] = None,
         adapter_kv_cache: Optional[KVCache] = None,
     ) -> Tuple[torch.Tensor, Optional[KVCache], Optional[KVCache]]:
-        h, new_kv_cache, new_adapter_kv_cache = self.attn(self.rms_1(x), rope, mask, max_seq_length, input_pos, kv_cache, adapter_kv_cache)
+        h, new_kv_cache, new_adapter_kv_cache = self.attn(
+            self.rms_1(x), rope, mask, max_seq_length, input_pos, kv_cache, adapter_kv_cache
+        )
         x = x + h
         x = x + self.mlp(self.rms_2(x))
         return x, new_kv_cache, new_adapter_kv_cache
@@ -213,7 +215,9 @@ class LLaMA(llama.LLaMA):
             if not self.adapter_kv_caches:
                 self.adapter_kv_caches = [None for _ in range(self.config.n_layer)]
             for i, block in enumerate(self.transformer.h):
-                x, self.kv_caches[i], self.adapter_kv_caches[i] = block(x, rope, mask, max_seq_length, input_pos, self.kv_caches[i], self.adapter_kv_caches[i])
+                x, self.kv_caches[i], self.adapter_kv_caches[i] = block(
+                    x, rope, mask, max_seq_length, input_pos, self.kv_caches[i], self.adapter_kv_caches[i]
+                )
 
         x = self.transformer.ln_f(x)
 

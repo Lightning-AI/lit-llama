@@ -271,7 +271,9 @@ class RMSNorm(nn.Module):
         return self.scale * x_normed
 
 
-def build_rope_cache(seq_len: int, n_elem: int, dtype: torch.dtype, device: torch.device, base: int = 10000) -> RoPECache:
+def build_rope_cache(
+    seq_len: int, n_elem: int, dtype: torch.dtype, device: torch.device, base: int = 10000
+) -> RoPECache:
     """Enhanced Transformer with Rotary Position Embedding.
 
     Derived from: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/
@@ -304,9 +306,12 @@ def apply_rope(x: torch.Tensor, rope_cache: RoPECache) -> torch.Tensor:
     xshaped = x.float().reshape(*x.shape[:-1], -1, 2)
     rope_cache = rope_cache.view(1, xshaped.size(1), 1, xshaped.size(3), 2)
     x_out2 = torch.stack(
-        [xshaped[..., 0] * rope_cache[..., 0] - xshaped[..., 1] * rope_cache[..., 1],
-         xshaped[..., 1] * rope_cache[..., 0] + xshaped[..., 0] * rope_cache[..., 1],
-        ], -1)
+        [
+            xshaped[..., 0] * rope_cache[..., 0] - xshaped[..., 1] * rope_cache[..., 1],
+            xshaped[..., 1] * rope_cache[..., 0] + xshaped[..., 0] * rope_cache[..., 1],
+        ],
+        -1,
+    )
 
     x_out2 = x_out2.flatten(3)
     return x_out2.type_as(x)
