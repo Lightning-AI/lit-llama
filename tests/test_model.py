@@ -33,25 +33,30 @@ def copy_weights(llama_model, orig_llama_model) -> None:
 
 
 @torch.no_grad()
-def test_to_orig_llama(lit_llama, orig_llama) -> None:
+@pytest.mark.parametrize("kv_cache", (False, True))
+def test_to_orig_llama(lit_llama, orig_llama, kv_cache) -> None:
     block_size = 64
     vocab_size = 32000
     n_layer = 16
     n_head = 16
     n_embd = 32
+    batch_size = 3
 
     llama_config = lit_llama.LLaMAConfig(
         block_size=block_size, vocab_size=vocab_size, n_layer=n_layer, n_head=n_head, n_embd=n_embd
     )
     orig_llama_config = orig_llama.ModelArgs(
-        dim=n_embd, n_layers=n_layer, n_heads=n_head, vocab_size=vocab_size, norm_eps=1e-5, max_seq_len=block_size
+        dim=n_embd,
+        n_layers=n_layer,
+        n_heads=n_head,
+        vocab_size=vocab_size,
+        norm_eps=1e-5,
+        max_seq_len=block_size,
+        max_batch_size=batch_size,
     )
 
-    batch_size = 3
-
-    token_sample = torch.randint(
-        0, orig_llama_config.vocab_size, size=(batch_size, orig_llama_config.max_seq_len), dtype=torch.int64
-    )
+    seq_len = orig_llama_config.max_seq_len
+    token_sample = torch.randint(0, orig_llama_config.vocab_size, size=(batch_size, seq_len), dtype=torch.int64)
 
     llama_model = lit_llama.LLaMA(llama_config)
     llama_model.apply(llama_model._init_weights)
@@ -63,11 +68,31 @@ def test_to_orig_llama(lit_llama, orig_llama) -> None:
     llama_embed = llama_model.transformer.wte(token_sample)
     assert torch.allclose(orig_llama_embed, llama_embed)
 
-    seq_len = token_sample.shape[1]
-    mask = torch.full((1, 1, seq_len, seq_len), float("-inf"))
-    mask = torch.triu(mask, diagonal=1)
-    orig_llama_block_out = orig_llama_model.layers[0](orig_llama_embed, 0, orig_llama_model.freqs_cis[:seq_len], mask)
-    llama_block_out = llama_model.transformer.h[0](llama_embed)
+    llama_rope = llama_model.build_rope_cache(token_sample)
+    llama_mask = llama_model.build_mask_cache(token_sample)
+    orig_llama_mask = torch.full((1, 1, seq_len, seq_len), float("-inf"))
+    orig_llama_mask = torch.triu(orig_llama_mask, diagonal=1)
+    if kv_cache:
+        orig_llama_block_out = orig_llama_model.layers[0](
+            orig_llama_embed, 0, orig_llama_model.freqs_cis[:seq_len], orig_llama_mask
+        )
+        theirs_k_cache = orig_llama_model.layers[0].attention.cache_k
+        theirs_v_cache = orig_llama_model.layers[0].attention.cache_v
+        head_size = n_embd // n_head
+        kv_cache_shape = (batch_size, n_head, block_size, head_size)
+        ours_kv_cache = torch.zeros(kv_cache_shape), torch.zeros(kv_cache_shape)
+        (llama_block_out, ours_kv_cache) = llama_model.transformer.h[0](
+            llama_embed, llama_rope, llama_mask, seq_len, torch.arange(block_size), ours_kv_cache
+        )
+        ours_k_cache = ours_kv_cache[0].permute(0, 2, 1, 3)
+        ours_v_cache = ours_kv_cache[1].permute(0, 2, 1, 3)
+        torch.testing.assert_close(ours_k_cache, theirs_k_cache)
+        torch.testing.assert_close(ours_v_cache, theirs_v_cache)
+    else:
+        orig_llama_block_out = orig_llama_model.layers[0](
+            orig_llama_embed, 0, orig_llama_model.freqs_cis[:seq_len], orig_llama_mask
+        )
+        (llama_block_out, _) = llama_model.transformer.h[0](llama_embed, llama_rope, llama_mask, seq_len)
     assert torch.allclose(orig_llama_block_out, llama_block_out)
 
     expected = orig_llama_model(token_sample, 0)
@@ -79,6 +104,7 @@ def test_to_orig_llama(lit_llama, orig_llama) -> None:
 @torch.no_grad()
 def test_bfloat16_llama_init(lit_llama, orig_llama) -> None:
     from lit_llama.utils import EmptyInitOnDevice
+
     block_size = 64
     vocab_size = 32000
     n_layer = 16
@@ -86,20 +112,14 @@ def test_bfloat16_llama_init(lit_llama, orig_llama) -> None:
     n_embd = 32
 
     llama_config = lit_llama.LLaMAConfig(
-        block_size=block_size,
-        vocab_size=vocab_size,
-        n_layer=n_layer,
-        n_head=n_head,
-        n_embd=n_embd,
+        block_size=block_size, vocab_size=vocab_size, n_layer=n_layer, n_head=n_head, n_embd=n_embd
     )
     llama_model = lit_llama.LLaMA(llama_config)
     llama_model.apply(llama_model._init_weights)
 
     batch_size = 3
 
-    token_sample = torch.randint(
-        0, vocab_size, size=(batch_size, block_size), dtype=torch.int64
-    )
+    token_sample = torch.randint(0, vocab_size, size=(batch_size, block_size), dtype=torch.int64)
 
     expected = llama_model(token_sample)
 
@@ -140,8 +160,9 @@ def enable_gate(model):
 def test_adapter_parity(orig_llama_adapter):
     """Test parity between our implementation of LLaMA-Adapter and the reference code."""
     import lit_llama.adapter as lit_llama
+
     orig_llama = orig_llama_adapter
-    
+
     block_size = 32
     vocab_size = 100
     n_layer = 2
@@ -151,12 +172,23 @@ def test_adapter_parity(orig_llama_adapter):
     adapter_start_layer: int = 0
 
     llama_config = lit_llama.LLaMAConfig(
-        block_size=block_size, vocab_size=vocab_size, n_layer=n_layer, n_head=n_head, n_embd=n_embd,
-        adapter_prompt_length=adapter_prompt_length, adapter_start_layer=adapter_start_layer,
+        block_size=block_size,
+        vocab_size=vocab_size,
+        n_layer=n_layer,
+        n_head=n_head,
+        n_embd=n_embd,
+        adapter_prompt_length=adapter_prompt_length,
+        adapter_start_layer=adapter_start_layer,
     )
     orig_llama_config = orig_llama.ModelArgs(
-        dim=n_embd, n_layers=n_layer, n_heads=n_head, vocab_size=vocab_size, norm_eps=1e-5, max_seq_len=block_size,
-        adapter_len=adapter_prompt_length, adapter_layer=(n_layer - adapter_start_layer),
+        dim=n_embd,
+        n_layers=n_layer,
+        n_heads=n_head,
+        vocab_size=vocab_size,
+        norm_eps=1e-5,
+        max_seq_len=block_size,
+        adapter_len=adapter_prompt_length,
+        adapter_layer=(n_layer - adapter_start_layer),
     )
 
     batch_size = 3
@@ -183,13 +215,7 @@ def test_adapter_parity(orig_llama_adapter):
 
 @pytest.mark.skipif(sys.platform in ("win32", "darwin"), reason="torch.compile not supported on this platform")
 def test_model_compile(lit_llama):
-    llama_config = lit_llama.LLaMAConfig(
-        block_size=8,
-        vocab_size=8,
-        n_layer=2,
-        n_head=2,
-        n_embd=4,
-    )
+    llama_config = lit_llama.LLaMAConfig(block_size=8, vocab_size=8, n_layer=2, n_head=2, n_embd=4)
     model = lit_llama.LLaMA(llama_config)
     model.apply(model._init_weights)
 

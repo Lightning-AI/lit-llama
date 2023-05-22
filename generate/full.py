@@ -7,68 +7,14 @@ from typing import Optional
 import lightning as L
 import torch
 
+# support running without installing as a package
+wd = Path(__file__).absolute().parent.parent
+sys.path.append(str(wd))
+
 from lit_llama import LLaMA, Tokenizer
 from lit_llama.utils import EmptyInitOnDevice
 from scripts.prepare_alpaca import generate_prompt
-
-@torch.no_grad()
-def generate(
-    model: torch.nn.Module,
-    idx: torch.Tensor,
-    max_new_tokens: int,
-    max_seq_length: int,
-    temperature: float = 1.0,
-    top_k: Optional[int] = None,
-    eos_id: Optional[int] = None,
-) -> torch.Tensor:
-    """Takes a conditioning sequence (prompt) as input and continues to generate as many tokens as requested.
-
-    The implementation of this function is modified from A. Karpathy's nanoGPT.
-
-    Args:
-        model: The model to use.
-        idx: Tensor of shape (T) with indices of the prompt sequence.
-        max_new_tokens: The number of new tokens to generate.
-        max_seq_length: The maximum sequence length allowed.
-        temperature: Scales the predicted logits by 1 / temperature
-        top_k: If specified, only sample among the tokens with the k highest probabilities
-        eos_id: If specified, stop generating any more token once the <eos> token is triggered
-    """
-    # create an empty tensor of the expected final shape and fill in the current tokens
-    T = idx.size(0)
-    T_new = T + max_new_tokens
-    empty = torch.empty(T_new, dtype=idx.dtype, device=idx.device)
-    empty[:T] = idx
-    idx = empty
-
-    # generate max_new_tokens tokens
-    for t in range(T, T_new):
-        # ignore the not-filled-yet tokens
-        idx_cond = idx[:t]
-        # if the sequence context is growing too long we must crop it at max_seq_length
-        idx_cond = idx_cond if t <= max_seq_length else idx_cond[-max_seq_length:]
-
-        # forward
-        logits = model(idx_cond.view(1, -1))
-        logits = logits[0, -1] / temperature
-
-        # optionally crop the logits to only the top k options
-        if top_k is not None:
-            v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
-            logits[logits < v[[-1]]] = -float("Inf")
-
-        probs = torch.nn.functional.softmax(logits, dim=-1)
-        idx_next = torch.multinomial(probs, num_samples=1)
-
-        # concatenate the new generation
-        # https://github.com/pytorch/pytorch/issues/101936
-        idx[t] = idx_next.item() if idx.device.type == "mps" else idx_next
-
-        # if <eos> token is triggered, return the output (stop generation)
-        if idx_next == eos_id:
-            return idx[:t + 1]  # include the EOS token
-
-    return idx
+from generate import generate
 
 
 def main(
@@ -130,16 +76,10 @@ def main(
     L.seed_everything(1234)
     for i in range(num_samples):
         t0 = time.perf_counter()
-        y = generate(
-            model,
-            encoded,
-            max_new_tokens,
-            model.config.block_size,  # type: ignore[union-attr,arg-type]
-            temperature=temperature,
-            top_k=top_k,
-        )
+        y = generate(model, encoded, max_new_tokens, temperature=temperature, top_k=top_k)
         t = time.perf_counter() - t0
 
+        model.reset_cache()
         print(tokenizer.decode(y))
         tokens_generated = y.size(0) - prompt_length
         print(f"Time for inference {i + 1}: {t:.02f} sec total, {tokens_generated / t:.02f} tokens/sec", file=sys.stderr)
