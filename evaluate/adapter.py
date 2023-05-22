@@ -83,22 +83,22 @@ def main(
         raise ValueError(f"{dtype} is not a valid dtype.")
     dtype = dt
 
-    with EmptyInitOnDevice(
-        device=fabric.device, dtype=dtype, quantization_mode=quantize
-    ):
-        print("Loading model ...", file=sys.stderr)
-        t0 = time.time()
-        pretrained_checkpoint = lazy_load(checkpoint_path)
-        adapter_checkpoint = lazy_load(adapter_path)
+    print("Loading model ...", file=sys.stderr)
+    t0 = time.time()
+    with lazy_load(checkpoint_path) as pretrained_checkpoint, lazy_load(adapter_path) as adapter_checkpoint:
         name = llama_model_lookup(pretrained_checkpoint)
-        model = LLaMA.from_name(name)
+
+        with EmptyInitOnDevice(
+                device=fabric.device, dtype=dtype, quantization_mode=quantize
+        ):
+            model = LLaMA.from_name(name)
 
         # 1. Load the pretrained weights
         model.load_state_dict(pretrained_checkpoint, strict=False)
         # 2. Load the fine-tuned adapter weights
         model.load_state_dict(adapter_checkpoint, strict=False)
 
-        print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
+    print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
 

@@ -18,13 +18,13 @@
 </div>
 
 # ⚡ Lit-LLaMA ️
-Independent implementation of [LLaMA](<https://github.com/facebookresearch/llama>) that is fully open source under the **Apache 2.0 license.**
+Independent implementation of [LLaMA](<https://github.com/facebookresearch/llama>) pretraining, finetuning, and inference code that is fully open source under the **Apache 2.0 license.**
 
 This implementation builds on [nanoGPT](<https://github.com/karpathy/nanoGPT>).
 
-The original LLaMA weights are distributed by Meta under a [research-only license](https://github.com/facebookresearch/llama/blob/main/MODEL_CARD.md#model-details).
+The open-source code in this repository works with the original LLaMA weights that are distributed by Meta under a [research-only license](https://github.com/facebookresearch/llama/blob/main/MODEL_CARD.md#model-details).
 
-New Apache 2.0 licensed weights are being released as part of the [Open LLaMA project](https://github.com/openlm-research/open_llama). Both can be [loaded in Lit-LLaMA](howto/download_weights.md).
+New Apache 2.0 licensed weights are being released as part of the [Open LLaMA project](https://github.com/openlm-research/open_llama). Both the original research-only weights by Meta and the Open LLaMA weights can be [loaded in Lit-LLaMA](howto/download_weights.md).
 
 ## Why?
 

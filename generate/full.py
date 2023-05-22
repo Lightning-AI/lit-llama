@@ -61,7 +61,8 @@ def generate(
         idx_next = torch.multinomial(probs, num_samples=1)
 
         # concatenate the new generation
-        idx[t] = idx_next
+        # https://github.com/pytorch/pytorch/issues/101936
+        idx[t] = idx_next.item() if idx.device.type == "mps" else idx_next
 
         # if <eos> token is triggered, return the output (stop generation)
         if idx_next == eos_id:
