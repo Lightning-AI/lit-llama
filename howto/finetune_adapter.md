@@ -6,6 +6,10 @@ We are able to demonstrate instruction-finetuning Lit-LLaMA 7B on the [Alpaca](h
 
 If you are new to LLaMA-Adapter and are interested to learn more about how it works before proceeding with the finetuning guide below, you might find our article [Understanding Parameter-Efficient Finetuning of Large Language Models: From Prefix Tuning to LLaMA-Adapters](https://lightning.ai/pages/community/article/understanding-llama-adapters/) helpful.
 
+## LLaMA-Adapter v2
+
+The LLaMA-Adapter authors developed a newer adapter method called LLaMA-Adapter v2, which is related to this LLaMA-Adapter method but includes more trainable parameters. LLaMA-Adapter v2 is also available via Lit-LLaMA; you can read more about it in [the related how-to doc here](./finetune_adapter_v2.md).
+
 ## Preparation
 
 The steps here only need to be done once:
