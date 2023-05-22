@@ -73,6 +73,7 @@ def main(
             `finetune_lora.py`.
         checkpoint_path: The checkpoint path to load.
         tokenizer_path: The tokenizer path to load.
+        dtype: The tensor dtype for choosing the floating-point precision 
         quantize: Whether to quantize the model and using which method:
             ``"llm.int8"``: LLM.int8() mode,
             ``"gptq.int4"``: GPTQ 4-bit mode.
