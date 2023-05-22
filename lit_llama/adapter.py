@@ -209,7 +209,7 @@ class LLaMA(llama.LLaMA):
                 head_size = self.config.n_embd // self.config.n_head
                 cache_shape = (B, self.config.n_head, max_seq_length, head_size)
                 self.kv_caches = [
-                    (torch.zeros(cache_shape, device=idx.device), torch.zeros(cache_shape, device=idx.device))
+                    (torch.zeros(cache_shape, device=x.device, dtype=x.dtype), torch.zeros(cache_shape, device=x.device, dtype=x.dtype))
                     for _ in range(self.config.n_layer)
                 ]
             if not self.adapter_kv_caches:
