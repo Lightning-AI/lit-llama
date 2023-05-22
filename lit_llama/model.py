@@ -56,7 +56,7 @@ class LLaMA(nn.Module):
         self.transformer = nn.ModuleDict(
             dict(
                 wte=nn.Embedding(config.padded_vocab_size, config.n_embd),
-                h=nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+                h=nn.ModuleList(Block(config) for _ in range(config.n_layer)),
                 ln_f=RMSNorm(config.n_embd),
             )
         )
@@ -134,6 +134,9 @@ class LLaMA(nn.Module):
     def build_mask_cache(self, idx: torch.Tensor) -> MaskCache:
         ones = torch.ones((self.config.block_size, self.config.block_size), device=idx.device, dtype=torch.bool)
         return torch.tril(ones).unsqueeze(0).unsqueeze(0)
+
+    def reset_cache(self) -> None:
+        self.kv_caches.clear()
 
 
 class Block(nn.Module):
