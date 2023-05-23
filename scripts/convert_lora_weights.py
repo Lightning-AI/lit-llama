@@ -16,14 +16,10 @@ from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup
 from lit_llama.lora import lora
 
 def del_lora_state_dict(model: nn.Module):
-    key_to_delete = []
     base_model_dict = model.state_dict()
-    for k in base_model_dict:
-        if "lora_" in k:
-            key_to_delete.append(k)
+    key_to_delete = [k for k in base_model_dict if "lora_" in k]
     for del_key in key_to_delete:
         del base_model_dict[del_key]
-    del model
     return base_model_dict
 
 
@@ -48,6 +44,7 @@ def main(
         lora_path: Path to the checkpoint with trained LoRA weights, which are the output of
             `finetune_lora.py`.
         checkpoint_path: The checkpoint path to load.
+        dtype: `torch.dtype` to work with
     """
     if not lora_path:
         lora_path = Path("out/lora/alpaca/lit-llama-lora-finetuned.pth")
@@ -58,7 +55,6 @@ def main(
     assert checkpoint_path.is_file()
 
     fabric = L.Fabric(accelerator=accelerator, devices=1)
-    fabric.seed_everything(42)
 
     dt = getattr(torch, dtype, None)
     if not isinstance(dt, torch.dtype):
@@ -87,16 +83,13 @@ def main(
 
     model.eval()
     base_model_dict = del_lora_state_dict(model)
-    log_name = str(lora_path).split("/")[-1][:-4] + "-lora-merged-weights.pth"
-    log_path = lora_path.parent
-    save_path = Path(log_path / log_name)
+    save_path = lora_path.with_stem(f"{lora_path.stem}-lora-merged-weights")
     print("Saving LoRA to base model weights ...")
     torch.save(base_model_dict, save_path)
-    print(f"Model saved at {str(save_path)}")
+    print(f"Model saved at {save_path}")
 
 
 if __name__ == "__main__":
     from jsonargparse import CLI
 
-    torch.set_float32_matmul_precision("high")
     CLI(main)
