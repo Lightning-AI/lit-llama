@@ -80,8 +80,8 @@ def main(
 
             # 1. Load the pretrained weights
             model.load_state_dict(pretrained_checkpoint, strict=False)
-            # 2. Load the fine-tuned adapter weights
-            model.load_state_dict(adapter_checkpoint, strict=False)
+            # 2. Load the fine-tuned lora weights
+            model.load_state_dict(lora_checkpoint, strict=False)
 
     print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
