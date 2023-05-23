@@ -170,7 +170,7 @@ class LLaMA(llama.LLaMA):
         return cls(LLaMAConfig.from_name(name))
 
     def reset_cache(self) -> None:
-        self.kv_caches.clear()
+        super().reset_cache()
         self.adapter_kv_caches.clear()
 
     def forward(
