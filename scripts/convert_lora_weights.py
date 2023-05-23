@@ -69,7 +69,7 @@ def main(
     t0 = time.time()
 
     with (lazy_load(checkpoint_path) as pretrained_checkpoint,
-          lazy_load(lora_path) as adapter_checkpoint):
+          lazy_load(lora_path) as lora_checkpoint):
         name = llama_model_lookup(pretrained_checkpoint)
         rank = lora_model_lookup(adapter_checkpoint)
 
