@@ -34,11 +34,11 @@ Since you created a new machine, you'll probably need to download the weights. Y
 Generation works out-of-the-box with TPUs:
 
 ```shell
-python3 generate.py --prompt "Hello, my name is" --num_samples 2
+python3 generate.py --prompt "Hello, my name is" --num_samples 3
 ```
 
-This command will take a long time as XLA needs to compile the graph (~13 min) before running the model.
-In fact, you'll notice that the second sample takes considerable less time (~12 sec).
+This command will take take ~20s for the first generation time as XLA needs to compile the graph.
+You'll notice that afterwards, generation times drop to ~5s.
 
 ## Finetuning
 
