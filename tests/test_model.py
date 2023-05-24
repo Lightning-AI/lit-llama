@@ -50,7 +50,7 @@ def test_to_orig_llama(lit_llama, orig_llama, kv_cache) -> None:
         n_layers=n_layer,
         n_heads=n_head,
         vocab_size=vocab_size,
-        norm_eps=1e-5,
+        norm_eps=1e-6,
         max_seq_len=block_size,
         max_batch_size=batch_size,
     )
@@ -185,7 +185,7 @@ def test_adapter_parity(orig_llama_adapter):
         n_layers=n_layer,
         n_heads=n_head,
         vocab_size=vocab_size,
-        norm_eps=1e-5,
+        norm_eps=1e-6,
         max_seq_len=block_size,
         adapter_len=adapter_prompt_length,
         adapter_layer=(n_layer - adapter_start_layer),
