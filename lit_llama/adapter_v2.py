@@ -2,6 +2,7 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 from torch.nn import functional as F
+from bitsandbytes.nn import SwitchBackLinear, Linear8bitLt
 
 from lit_llama.adapter import LLaMA
 
@@ -26,8 +27,11 @@ def adapter_v2_state_from_state_dict(state_dict: dict) -> dict:
 
 
 def adapter_v2_new_forward(self, input: Tensor) -> Tensor:
+    weight = self.weight
+    if isinstance(self, Linear8bitLt):
+        weight = SwitchBackLinear(self.in_features, self.out_features, dtype=input.dtype, device=input.device).weight
     return self.adapter_scale * (
-        F.linear(input, self.weight, self.bias) + self.adapter_bias
+        F.linear(input, weight, self.bias) + self.adapter_bias
     )
 
 
