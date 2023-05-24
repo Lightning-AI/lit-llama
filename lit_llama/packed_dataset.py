@@ -54,6 +54,13 @@ class PackedDataset(IterableDataset):
 
         max_num_files = len(self._filenames) // num_shards * num_shards
         filenames = self._filenames[shard_id : max_num_files : num_shards]
+        if len(self._filenames) and not len(filenames):
+            raise ValueError(
+                "Can't shard the dataset for multiprocessing/distributed because there aren't enough files"
+                " to distribute. This could be because you are running with too many devices/machines or"
+                " you have a too small dataset. Try to increase the dataset size or reduce the number of devices"
+                " to make effective use of distributed training."
+            )
 
         return PackedDatasetIterator(
             filenames=filenames,
