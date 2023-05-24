@@ -3,7 +3,7 @@
 We demonstrate how to run inference (next token prediction) with the LLaMA base model in the [`generate.py`](generate.py) script:
 
 ```bash
-python generate/generate.py --prompt "Hello, my name is"
+python generate.py --prompt "Hello, my name is"
 ```
 Output:
 ```
