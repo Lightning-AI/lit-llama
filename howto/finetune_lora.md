@@ -7,7 +7,7 @@ We demonstrate this method by instruction-finetuning LLaMA 7B on the [Alpaca](ht
 
 The steps here only need to be done once:
 
-1. Follow the instructions in the [README](README.md) to install the dependencies.
+1. Follow the instructions in the [README](../README.md) to install the dependencies.
 2. Download and convert the weights and save them in the `./checkpoints` folder as described [here](download_weights.md).
 3. Download the data and generate the instruction tuning dataset:
 
