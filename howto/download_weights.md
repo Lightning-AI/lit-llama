@@ -31,17 +31,17 @@ python scripts/convert_checkpoint.py --model_size 7B
 
 OpenLM Research has released **Apache 2.0 licensed** weights obtained by training LLaMA on the 1.2 trillion token open-source [RedPajama](https://github.com/togethercomputer/RedPajama-Data) dataset.
 
-Weights were released in preview on intermediate number of tokens (400B at the time of writing). In order to get them do:
+Weights were released in preview on intermediate number of tokens (700B at the time of writing). In order to get them do:
 
 ```bash
 # Make sure you have git-lfs installed (https://git-lfs.com): git lfs install
-git clone https://huggingface.co/openlm-research/open_llama_7b_400bt_preview checkpoints/open-llama/7B
+git clone https://huggingface.co/openlm-research/open_llama_7b_700bt_preview checkpoints/open-llama/7B
 ```
 
 Or if you don't have `git-lfs` installed:
 
 ```bash
-python scripts/download.py --repo_id openlm-research/open_llama_7b_400bt_preview --local_dir checkpoints/open-llama/7B
+python scripts/download.py --repo_id openlm-research/open_llama_7b_700bt_preview --local_dir checkpoints/open-llama/7B
 ```
 
 Once downloaded, you should have a folder like this:
