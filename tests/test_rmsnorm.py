@@ -10,6 +10,6 @@ def test_rmsnorm(lit_llama, orig_llama) -> None:
 
     eps = 1e-6
     orig_llama_rmsnorm = orig_llama.RMSNorm(vocab_size, eps=eps)(sample)
-    llama_rmsnorm = lit_llama.RMSNorm(vocab_size, eps=eps)(sample)
+    llama_rmsnorm = lit_llama.RMSNorm(vocab_size)(sample)
 
     assert torch.allclose(orig_llama_rmsnorm, llama_rmsnorm)
