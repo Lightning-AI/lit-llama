@@ -65,7 +65,7 @@ def main(
                 device=fabric.device, dtype=dtype, quantization_mode=quantize
         ):
             model = LLaMA.from_name(name)
-            add_adapter_v2_parameters_to_linear_layers(model)
+            add_adapter_v2_parameters_to_linear_layers(model, dtype)
 
         # 1. Load the pretrained weights
         model.load_state_dict(pretrained_checkpoint, strict=False)
