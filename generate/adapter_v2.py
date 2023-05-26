@@ -84,10 +84,17 @@ def main(
     prompt_length = encoded.size(0)
 
     t0 = time.perf_counter()
-    y = generate(model, encoded, max_new_tokens, temperature=temperature, top_k=top_k, eos_id=tokenizer.eos_id)
+    y = generate(
+        model,
+        idx=encoded,
+        max_seq_length=max_new_tokens,
+        max_new_tokens=max_new_tokens,
+        temperature=temperature,
+        top_k=top_k,
+        eos_id=tokenizer.eos_id
+    )
     t = time.perf_counter() - t0
 
-    model.reset_cache()
     output = tokenizer.decode(y)
     output = output.split("### Response:")[1].strip()
     print(output)
