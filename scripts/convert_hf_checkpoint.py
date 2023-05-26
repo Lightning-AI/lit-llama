@@ -1,3 +1,5 @@
+import collections
+import contextlib
 import gc
 import json
 import shutil
@@ -11,7 +13,7 @@ wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 
 from lit_llama.model import LLaMA, LLaMAConfig
-from lit_llama.utils import EmptyInitOnDevice
+from lit_llama.utils import EmptyInitOnDevice, lazy_load, incremental_save
 
 
 @torch.no_grad()
@@ -39,13 +41,14 @@ def convert_hf_checkpoint(
     print("Initializing lit-llama")
     config = LLaMAConfig.from_name(model_size)
 
-    with EmptyInitOnDevice(device="cpu", dtype=dtype):
+    with EmptyInitOnDevice(device="meta", dtype=dtype):
         model = LLaMA(config)
 
     qkv_size = model.transformer.h[0].attn.c_attn.weight.shape[0] // 3
 
     # initialize a new empty state dict to hold our new weights
-    sd = model.state_dict()
+    sd_meta = model.state_dict()
+    sd = {}
 
     # Load the json file containing weight mapping
     pytorch_bin_map_json_path = checkpoint_dir / "pytorch_model.bin.index.json"
@@ -56,6 +59,7 @@ def convert_hf_checkpoint(
 
     def permute(w):
         dim = config.n_embd
+        w = w._load_tensor().to(dtype)
         return (
             w.view(config.n_head, 2, dim // config.n_head // 2, dim)
             .transpose(1, 2)
@@ -74,40 +78,71 @@ def convert_hf_checkpoint(
         "post_attention_layernorm.weight": "rms_2.scale",
         "model.embed_tokens.weight": "transformer.wte.weight",
         "model.norm.weight": "transformer.ln_f.scale",
-        "lm_head.weight": "lm_head.weight"
+        "lm_head.weight": "lm_head.weight",
     }
 
-    for bin_file in bin_files:
-        print("Processing", bin_file)
-
-        hf_weights = torch.load(checkpoint_dir / bin_file, map_location="cpu")
-
-        for name, param in hf_weights.items():
-            param = param.to(dtype=dtype)
-            if "rotary_emb.inv_freq" in name:
-                continue
-            if "model.layers" in name:
-                block_id = int(name.split(".")[2])
-                from_name = ".".join(name.split(".")[3:])
-                to_name = weight_map[from_name]
-
-                if "q_proj" in name:
-                    sd[f"transformer.h.{block_id}.{to_name}"][:qkv_size] = permute(param)
-                elif "k_proj" in name:
-                    sd[f"transformer.h.{block_id}.{to_name}"][qkv_size:-qkv_size] = permute(param)
-                elif "v_proj" in name:
-                    sd[f"transformer.h.{block_id}.{to_name}"][-qkv_size:] = param
-                else:
-                    sd[f"transformer.h.{block_id}.{to_name}"].copy_(param)
-            else:
-                sd[weight_map[name]].copy_(param)
-
-        del hf_weights
-        gc.collect()
-
     print(f"Saving to disk at {output_dir}")
-    torch.save(model.state_dict(), output_dir / "lit-llama.pth")
+    unprocessed_weights = collections.defaultdict(dict)
+    with contextlib.ExitStack() as stack:
+        output_file = stack.enter_context(
+            incremental_save(output_dir / "lit-llama.pth")
+        )
+        for bin_file in bin_files:
+            print("Processing", bin_file)
 
+            hf_weights = stack.enter_context(lazy_load(checkpoint_dir / bin_file))
+
+            for name, param in hf_weights.items():
+                skip = False
+                if "rotary_emb.inv_freq" in name:
+                    continue
+                if "model.layers" in name:
+                    block_id = int(name.split(".")[2])
+                    from_name = ".".join(name.split(".")[3:])
+                    to_name = weight_map[from_name]
+                    sd_key = f"transformer.h.{block_id}.{to_name}"
+
+                    if "q_proj" in name:
+                        unprocessed_weights[sd_key]["q_proj"] = param
+                        skip = True
+                    elif "k_proj" in name:
+                        unprocessed_weights[sd_key]["k_proj"] = param
+                        skip = True
+                    elif "v_proj" in name:
+                        unprocessed_weights[sd_key]["v_proj"] = param
+                        skip = True
+                    else:
+                        sd[sd_key] = param._load_tensor().to(dtype)
+
+                    if skip and len(unprocessed_weights[sd_key]) == 3:
+                        w = torch.empty(
+                            sd_meta[sd_key].shape, dtype=sd_meta[sd_key].dtype
+                        )
+                        w[:qkv_size] = permute(unprocessed_weights[sd_key]["q_proj"])
+                        w[qkv_size:-qkv_size] = permute(
+                            unprocessed_weights[sd_key]["k_proj"]
+                        )
+                        w[-qkv_size:] = (
+                            unprocessed_weights[sd_key]["v_proj"]
+                            ._load_tensor()
+                            .to(dtype)
+                        )
+                        sd[sd_key] = w
+                        del unprocessed_weights[sd_key]
+                        skip = False
+                    else:
+                        sd[sd_key] = param._load_tensor().to(dtype)
+                else:
+                    sd_key = weight_map[name]
+                    sd[sd_key] = param._load_tensor().to(dtype)
+                if not skip:
+                    sd[sd_key] = output_file.store_early(sd[sd_key])
+
+            gc.collect()
+
+        output_file.save(sd)
+
+    assert len(unprocessed_weights) == 0, f"unexpected partial weights {unprocessed_weights.key()}"
     if verify:
         try:
             from transformers import LlamaForCausalLM
