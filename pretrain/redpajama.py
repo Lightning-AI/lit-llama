@@ -37,7 +37,7 @@ log_interval = 1
 learning_rate = 6e-4
 batch_size = 125
 micro_batch_size = 5
-max_iters = 600000  # num_epochs * epoch_size // devices
+max_iters = 600000  # num_epochs * (epoch_size // micro_batch_size) // devices
 weight_decay = 1e-1
 beta1 = 0.9
 beta2 = 0.95
@@ -115,9 +115,9 @@ def main(
     model, optimizer = fabric.setup(model, optimizer)
 
     process_batch_size = batch_size // devices
-    grad_accum_steps = process_batch_size // micro_batch_size
+    gradient_accumulation_iters = process_batch_size // micro_batch_size
 
-    train(fabric, model, optimizer, train_dataloader, val_dataloader, grad_accum_steps, devices)
+    train(fabric, model, optimizer, train_dataloader, val_dataloader, gradient_accumulation_iters, devices)
 
 
 def train(

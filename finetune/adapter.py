@@ -43,17 +43,18 @@ devices = 1
 learning_rate = 9e-3
 batch_size = 64 / devices
 micro_batch_size = 4
-gradient_accumulation_steps = batch_size // micro_batch_size
+gradient_accumulation_iters = batch_size // micro_batch_size
+assert gradient_accumulation_iters > 0
 epoch_size = 50000  # train dataset size
 num_epochs = 5
-max_iters = num_epochs * epoch_size // devices
+max_iters = num_epochs * (epoch_size // micro_batch_size) // devices
 weight_decay = 0.02
 max_seq_length = 256  # see scripts/prepare_alpaca.py
-warmup_steps = epoch_size * 2 // micro_batch_size // devices  # 2 epochs
+warmup_iters = 2 * (epoch_size // micro_batch_size) // devices  # 2 epochs
 
 ds_config = {
     "train_micro_batch_size_per_gpu": micro_batch_size,
-    "gradient_accumulation_steps": gradient_accumulation_steps,
+    "gradient_accumulation_steps": gradient_accumulation_iters,
     "zero_optimization": {"stage": 2},
 }
 
@@ -121,9 +122,9 @@ def train(
 
     for iter_num in range(max_iters):
 
-        if step_count <= warmup_steps:
+        if step_count <= warmup_iters:
             # linear warmup
-            lr = learning_rate * step_count / warmup_steps
+            lr = learning_rate * step_count / warmup_iters
             for param_group in optimizer.param_groups:
                 param_group['lr'] = lr
 
@@ -132,10 +133,10 @@ def train(
         input_ids, targets = get_batch(fabric, train_data)
         logits = model(input_ids)
         loss = loss_fn(logits, targets)
-        with fabric.no_backward_sync(model, enabled=((iter_num + 1) % gradient_accumulation_steps != 0)):
-            fabric.backward(loss / gradient_accumulation_steps)
+        with fabric.no_backward_sync(model, enabled=((iter_num + 1) % gradient_accumulation_iters != 0)):
+            fabric.backward(loss / gradient_accumulation_iters)
 
-        if (iter_num + 1) % gradient_accumulation_steps == 0:
+        if (iter_num + 1) % gradient_accumulation_iters == 0:
             optimizer.step()
             optimizer.zero_grad()
             step_count += 1
