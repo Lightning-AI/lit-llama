@@ -37,13 +37,14 @@ devices = 4
 learning_rate = 3e-5
 batch_size = 128 / devices
 micro_batch_size = 4
-gradient_accumulation_steps = batch_size // micro_batch_size
+gradient_accumulation_iters = batch_size // micro_batch_size
+assert gradient_accumulation_iters > 0
 epoch_size = 50000  # train dataset size
 num_epochs = 5
-max_iters = num_epochs * epoch_size // micro_batch_size // devices
+max_iters = num_epochs * (epoch_size // micro_batch_size) // devices
 weight_decay = 0.0
 block_size = 512
-warmup_steps = 100
+warmup_iters = 100
 
 
 def main(
@@ -103,11 +104,11 @@ def train(
 
     for iter_num in range(max_iters):
 
-        is_accumulating = (iter_num + 1) % gradient_accumulation_steps != 0
+        is_accumulating = (iter_num + 1) % gradient_accumulation_iters != 0
 
-        if step_count <= warmup_steps:
+        if step_count <= warmup_iters:
             # linear warmup
-            lr = learning_rate * step_count / warmup_steps
+            lr = learning_rate * step_count / warmup_iters
             for param_group in optimizer.param_groups:
                 param_group['lr'] = lr
 
