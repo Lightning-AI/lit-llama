@@ -98,6 +98,16 @@ class CausalSelfAttention(nn.Module):
 
         return y
 
+    def _load_from_state_dict(self, state_dict, prefix, *args, **kwargs):
+        """For backward compatibility with old checkpoints that have a single gating value for all heads."""
+        name = prefix + "gating_factor"
+        if name in state_dict:
+            tensor = state_dict[name]
+            # in case we are loading with `utils.lazy_load()`
+            tensor = tensor._load_tensor() if hasattr(tensor, "_load_tensor") else tensor
+            state_dict[name] = tensor.reshape(1, 1, 1, 1).repeat(1, self.n_head, 1, 1)
+        return super()._load_from_state_dict(state_dict, prefix, *args, **kwargs)
+
 
 class Block(nn.Module):
     """The implementation is identical to `lit_llama.model.Block` with the exception that
