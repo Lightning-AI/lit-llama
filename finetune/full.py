@@ -27,6 +27,7 @@ from lit_llama.utils import save_model_checkpoint
 from scripts.prepare_alpaca import generate_prompt
 
 
+instruction_tuning = True
 eval_interval = 1000
 save_interval = 1000
 eval_iters = 100
@@ -141,7 +142,9 @@ def train(
 def generate_response(model, instruction):
     tokenizer = Tokenizer("checkpoints/lit-llama/tokenizer.model")
     sample = {"instruction": instruction, "input": ""}
-    prompt = generate_prompt(sample)
+    prompt = instruction
+    if instruction_tuning:
+        prompt = generate_prompt(sample)
     encoded = tokenizer.encode(prompt, bos=True, eos=False, device=model.device)
 
     output = generate(
