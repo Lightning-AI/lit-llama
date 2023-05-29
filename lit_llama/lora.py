@@ -35,7 +35,7 @@ With LoRA (Low Ranking Adaptation: https://arxiv.org/abs/2106.09685) instead of 
 we can freeze the pretrained weights and instead learn two matrices of size d*r and r*d (they will store weight updates
 for the pretrained weights): the number of parameters in this case will be reduced drastically (depending on the rank of
 course) yet after multiplication of matrices d*r and r*d we will get a matrix d*d which we can sum with frozen
-pretrained weights and thus finetune the model.
+pretrained weights and thus fine-tune the model.
 
 The goal of this approach is to move weight updates into a separate matrix which is decomposed with
 two matrices of a lower rank.
@@ -72,7 +72,7 @@ class LoRALayer():
                 https://arxiv.org/pdf/2106.09685.pdf (section 4.1)
             lora_dropout: dropout that is applied on the input in the LoRA branch (before multiplying by matrix A)
             merge_weights: whether we want to merge pretrained weights and LoRA weight updates. This is useful if one wants to use
-                finetuned model as a standalone one (without storing LoRA weights separately) plus it helps to reduce
+                fine-tuned model as a standalone one (without storing LoRA weights separately) plus it helps to reduce
                 overhead during inference.
         """
         self.r = r
@@ -128,7 +128,7 @@ class MergedLinear(nn.Linear, LoRALayer):
                 `Conv1D` which stores weights like (fan_in, fan_out) and hence this should be set to `True`
                 https://github.com/huggingface/peft/blob/main/src/peft/tuners/lora.py#LL53C9-L53C112
             merge_weights: whether we want to merge pretrained weights and LoRA weight updates. This is useful if one wants to use
-                finetuned model as a standalone one (without storing LoRA weight separately) plus it helps to reduce
+                fine-tuned model as a standalone one (without storing LoRA weight separately) plus it helps to reduce
                 overhead during inference.
         """
         nn.Linear.__init__(self, in_features, out_features, **kwargs)
@@ -172,7 +172,7 @@ class MergedLinear(nn.Linear, LoRALayer):
             self.weight.requires_grad = False # (384, 128)
 
             # Compute the indices
-            # Indices are needed to properly pad weight updates with zeros. If we want to finetune queries and values,
+            # Indices are needed to properly pad weight updates with zeros. If we want to fine-tune queries and values,
             # but not keys, then the weights update should be:
             #
             # [[ΔW,ΔW,ΔW, ..., 0,0,0, ..., ΔW,ΔW,ΔW,],
@@ -203,7 +203,7 @@ class MergedLinear(nn.Linear, LoRALayer):
     def zero_pad(self, x: torch.Tensor) -> torch.Tensor:
         """Properly pad weight updates with zeros.
 
-        If, based on `self.enable_lora`, we want to finetune queries and values, but not keys,
+        If, based on `self.enable_lora`, we want to fine-tune queries and values, but not keys,
         then the weights update should be:
 
         [[ΔW,ΔW,ΔW, ..., 0,0,0, ..., ΔW,ΔW,ΔW,],
@@ -218,10 +218,10 @@ class MergedLinear(nn.Linear, LoRALayer):
             x: tensor with weights update that will be padded with zeros if necessary
 
         Returns:
-            A tensor with weight updates and zeros for diselected q, k or v
+            A tensor with weight updates and zeros for deselected q, k or v
         """
         # Let's image that:
-        # ⚬ intput x has shape (64, 64, 256): (batch_size, sequence_length, embeddings_size)
+        # ⚬ input x has shape (64, 64, 256): (batch_size, sequence_length, embeddings_size)
         # ⚬ embeddings_size: 128
         # ⚬ self.out_features: 384 (3 * embeddings_size)
         # ⚬ enable_lora: [True, False, True]
@@ -248,7 +248,7 @@ class MergedLinear(nn.Linear, LoRALayer):
         order to reduce computational overhead during inference.
 
         Args:
-            mode: if True the module will be set into train mode (affects Dropout and Batchnorm), if False - eval mode.
+            mode: if True the module will be set into train mode (affects Dropout and BatchNorm), if False - eval mode.
 
         """
         def T(w):
@@ -298,7 +298,7 @@ class MergedLinear(nn.Linear, LoRALayer):
         # ⚬ self.lora_A.data: (4, 128)
         # ⚬ self.lora_B.data: (256, 2)
 
-        # the logic here is that the weights are merged only during inferencing
+        # the logic here is that the weights are merged only during inference
         # so if they are merged we don't need to do anything with LoRA's A and B matrices
         # but if the weights are not merged that means that the forward method is called during
         # training and we need to forward pass input through pretrained weights, LoRA A and B matrices
@@ -311,7 +311,7 @@ class MergedLinear(nn.Linear, LoRALayer):
             if self.r > 0:
                 after_A = F.linear(self.lora_dropout(x), self.lora_A)  # (64, 64, 128) @ (4, 128) -> (64, 64, 4)
                 # For F.conv1d:
-                # ⚬ input: input tensor of shape (minibatch, in_channels, iW)
+                # ⚬ input: input tensor of shape (mini-batch, in_channels, iW)
                 # ⚬ weight: filters of shape (out_channels, in_channels/groups, kW)
                 # ⚬ groups: split input into groups, in_channels should be divisible by the number of groups. Default: 1
                 # presumably iW - sequence width/length, kW - kernel width
@@ -405,7 +405,7 @@ class CausalSelfAttention(llama.CausalSelfAttention):
 
     def __init__(self, config: llama.LLaMAConfig) -> None:
         """Causal self-attention with calculating qkv matrices with a single matrix* and Low Ranking Adaptation for
-        paremeter-efficient finetuning.
+        parameter-efficient fine-tuning.
 
         *Instead of creating multiple heads and concatenating the result (in addition to creating separate matrices for
         query, key and value for each head) we can do this in a single pass with a single weight matrix.
@@ -416,7 +416,7 @@ class CausalSelfAttention(llama.CausalSelfAttention):
                 ``"vocab_size"``: number of unique tokens,
                 ``"padded_vocab_size"``: padded size of the vocabulary to the nearest multiple of 64 (leads to a greater performance),
                 ``"n_layer"``: number of transformer blocks (self-attention + MLP),
-                ``"n_head"``: number of heads in multihead attention mechanism,
+                ``"n_head"``: number of heads in multi-head attention mechanism,
                 ``"n_embd"``: size of the embedding: vector representation of each token.
         """
         # Skip the parent class __init__ altogether and replace it to avoid
