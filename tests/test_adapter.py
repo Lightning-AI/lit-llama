@@ -24,7 +24,7 @@ def test_config_identical(model_size, lit_llama):
         assert llama_model.lm_head.weight.shape == adapter_model.lm_head.weight.shape
 
 
-def test_adapter_load_gating_factor():
+def test_adapter_load_gating_factor(lit_llama):
     """Tests backward-compatible loading of checkpoints after the `gating_factor` was extended per-head
     in PR #297.
     """
