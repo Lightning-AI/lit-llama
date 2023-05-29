@@ -21,6 +21,7 @@ from scripts.prepare_alpaca import generate_prompt
 
 from datasets import load_dataset
 
+instruction_tuning = True
 lora_r = 8
 lora_alpha = 16
 lora_dropout = 0.05
@@ -123,8 +124,9 @@ def main(
     for dsname in datasets.split(","):
         test_string = load_eval_data(dsname)
 
-        sample = {"instruction": test_string, "input": input}
-        test_string = generate_prompt(sample)
+        if instruction_tuning:
+            sample = {"instruction": test_string, "input": input}
+            test_string = generate_prompt(sample)
         
         encoded_text = tokenizer.encode(
             test_string, bos=True, eos=False, device=fabric.device
