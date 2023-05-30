@@ -31,13 +31,12 @@ See `python generate.py --help` for more options.
 You can also use GPTQ-style int4 quantization, but this needs conversions of the weights first:
 
 ```bash
-python quantize/gptq.py --checkpoint_path lit-llama.pth --tokenizer_path tokenizer.model --output_path llama-7b-gptq.4bit.pt --dtype bfloat16  --quantize gptq.int4
+python quantize/gptq.py --checkpoint_path lit-llama.pth --tokenizer_path tokenizer.model --output_path llama-7b-gptq.4bit.pt --dtype bfloat16 --quantize gptq.int4
 ```
 
 GPTQ-style int4 quantization brings GPU usage down to about ~5GB. As only the weights of the Linear layers are quantized, it is useful to also use `--dtype bfloat16` even with the quantization enabled.
 
 With the generated quantized checkpoint generation quantization then works as usual with `--quantize gptq.int4` and the newly generated checkpoint file:
-
 
 ```bash
 python generate.py --quantize gptq.int4 --checkpoint_path checkpoints/lit-llama/7B/llama-7b-gptq.4bit.pth

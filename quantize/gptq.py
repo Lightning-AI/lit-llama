@@ -37,25 +37,25 @@ def get_sample_data():
 def llama_blockwise_quantization(
     model, sample_inputs, working_device, *, bits=4, groupsize=-1
 ):
-    # This is the classic post-training quantization
-    # of all linear layers. We quantize in order, i.e.
-    # when observing the inputs, we use the outputs
-    # of the previously quantized layers rather than
-    # doing them all at once.
-
-    print("Getting inputs for first block")
+    """
+    This is the classic post-training quantization of all linear layers.
+    We quantize in order, i.e. when observing the inputs, we use the outputs of the previously quantized layers rather
+    than doing them all at once.
+    """
     print(model)
     print(model.config)
 
+    print("Getting inputs for first block")
     model.transformer.wte.to(working_device)
-    inps = []
-    for batch in sample_inputs:
-        inps.append(model.transformer.wte(batch[None].to(working_device)))
-    inps = torch.cat(inps, dim=0)
+    sample_inputs = sample_inputs.to(working_device)
+    inps = model.transformer.wte(sample_inputs)
     model.transformer.wte.to("cpu")
     torch.cuda.empty_cache()
 
+    model.rope_cache = model.build_rope_cache(sample_inputs)
+    model.mask_cache = model.build_mask_cache(sample_inputs)
     print("Starting to quantize blocks")
+
     outs = torch.zeros_like(inps)
 
     # better than relying on enumeration? originally the code bundled
@@ -87,7 +87,7 @@ def llama_blockwise_quantization(
             )
             handle = module.register_forward_hook(gptq.collect_input_stats)
             for j in range(inps.size(0)):
-                outs[j : j + 1] = block(
+                outs[j : j + 1], _ = block(
                     inps[j : j + 1],
                     rope=model.rope_cache,
                     mask=model.mask_cache,
@@ -112,7 +112,7 @@ def llama_blockwise_quantization(
             print(f"time {int(t1 - t0 + 0.5)}s quantization error {error:.1f}")
 
         for j in range(inps.size(0)):
-            outs[j : j + 1] = block(
+            outs[j : j + 1], _ = block(
                 inps[j : j + 1],
                 rope=model.rope_cache,
                 mask=model.mask_cache,
@@ -160,7 +160,6 @@ def main(
     """Generates text samples based on a pre-trained LLaMA model and tokenizer.
 
     Args:
-        # compile: Whether to compile the model.
         checkpoint_path: The checkpoint path to load.
         output_path: Path to write the quantized model's state dict to.
         tokenizer_path: The tokenizer path to load.
