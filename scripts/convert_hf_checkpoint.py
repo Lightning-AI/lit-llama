@@ -137,7 +137,7 @@ def convert_hf_checkpoint(
 
         output_file.save(sd)
 
-    assert len(unprocessed_weights) == 0, f"unexpected partial weights {unprocessed_weights.key()}"
+    assert len(unprocessed_weights) == 0, f"unexpected partial weights {list(unprocessed_weights)}"
     if verify:
         try:
             from transformers import LlamaForCausalLM
