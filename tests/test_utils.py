@@ -47,19 +47,17 @@ def test_lazy_load_subclass(lit_llama):
                 torch.testing.assert_close(actual._load_tensor(), expected)
 
 
-def test_incremental_write(lit_llama):
+def test_incremental_write(tmp_path, lit_llama):
     import lit_llama.utils
 
     sd = {str(k): torch.randn(5, 10) for k in range(3)}
     sd_expected = {k: v.clone() for k, v in sd.items()}
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        path = pathlib.Path(tmpdirname)
-        fn = str(path / "test.pt")
-        with lit_llama.utils.incremental_save(fn) as f:
-            sd["0"] = f.store_early(sd["0"])
-            sd["2"] = f.store_early(sd["2"])
-            f.save(sd)
-        sd_actual = torch.load(fn)
+    fn = str(tmp_path / "test.pt")
+    with lit_llama.utils.incremental_save(fn) as f:
+        sd["0"] = f.store_early(sd["0"])
+        sd["2"] = f.store_early(sd["2"])
+        f.save(sd)
+    sd_actual = torch.load(fn)
     assert sd_actual.keys() == sd_expected.keys()
     for k, v_expected in sd_expected.items():
         v_actual = sd_actual[k]

@@ -349,7 +349,7 @@ class SavingProxyForStorage:
         )
 
     def __reduce_ex__(self, protocol_version):
-        raise RuntimeError("this should be handled with out of band")
+        assert False, "this should be handled with out of band"
 
 
 class SavingProxyForTensor:
@@ -435,7 +435,7 @@ class incremental_save:
     def __init__(self, name):
         self.name = name
         self.zipfile = torch._C.PyTorchFileWriter(str(name))
-        self.have_saved = False
+        self.has_saved = False
         self.next_key = 0
 
     def __enter__(self):
@@ -447,7 +447,7 @@ class incremental_save:
         raise TypeError(f"can only store tensors early, not {type(tensor)}")
 
     def save(self, obj):
-        if self.have_saved:
+        if self.has_saved:
             raise RuntimeError("have already saved")
         # Write the pickle data for `obj`
         data_buf = BytesIO()
@@ -455,10 +455,10 @@ class incremental_save:
         pickler.dump(obj)
         data_value = data_buf.getvalue()
         self.zipfile.write_record("data.pkl", data_value, len(data_value))
-        self.have_saved = True
+        self.has_saved = True
 
     def _write_storage_and_return_key(self, storage):
-        if self.have_saved:
+        if self.has_saved:
             raise RuntimeError("have already saved")
         key = self.next_key
         self.next_key += 1
