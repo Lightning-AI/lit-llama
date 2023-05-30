@@ -1,4 +1,5 @@
 import collections
+import contextlib
 import gc
 import shutil
 import sys
@@ -80,9 +81,12 @@ def convert_hf_checkpoint(
     unprocessed_weights = collections.defaultdict(dict)
 
     with incremental_save(output_dir / "lit-llama.pth") as saver:
-        for bin_file in bin_files:
-            print("Processing", bin_file)
-            with lazy_load(bin_file) as hf_weights:
+        # for checkpoints that split the QKV across several files, we need to keep all the bin files
+        # open, so we use `ExitStack` to close them all together at the end
+        with contextlib.ExitStack() as stack:
+            for bin_file in bin_files:
+                print("Processing", bin_file)
+                hf_weights = stack.enter_context(lazy_load(bin_file))
                 for name, param in hf_weights.items():
                     skip = False
                     if "rotary_emb.inv_freq" in name:
