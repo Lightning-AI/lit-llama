@@ -50,12 +50,9 @@ def convert_hf_checkpoint(
     sd_meta = model.state_dict()
     sd = {}
 
-    # Load the json file containing weight mapping
-    pytorch_bin_map_json_path = checkpoint_dir / "pytorch_model.bin.index.json"
-    with open(pytorch_bin_map_json_path) as json_map:
-        bin_index = json.load(json_map)
-
-    bin_files = set(el for el in bin_index["weight_map"].values())
+    bin_files = list(checkpoint_dir.glob("*.bin"))
+    if not bin_files:
+        raise ValueError(f"Expected {str(checkpoint_dir)!r} to contain .bin files")
 
     def permute(w):
         dim = config.n_embd
@@ -83,6 +80,7 @@ def convert_hf_checkpoint(
 
     print(f"Saving to disk at {output_dir}")
     unprocessed_weights = collections.defaultdict(dict)
+
     with contextlib.ExitStack() as stack:
         output_file = stack.enter_context(
             incremental_save(output_dir / "lit-llama.pth")
@@ -90,8 +88,8 @@ def convert_hf_checkpoint(
         for bin_file in bin_files:
             print("Processing", bin_file)
 
-            hf_weights = stack.enter_context(lazy_load(checkpoint_dir / bin_file))
-
+            # FIXME: why not close this?
+            hf_weights = stack.enter_context(lazy_load(bin_file))
             for name, param in hf_weights.items():
                 skip = False
                 if "rotary_emb.inv_freq" in name:
@@ -111,9 +109,6 @@ def convert_hf_checkpoint(
                     elif "v_proj" in name:
                         unprocessed_weights[sd_key]["v_proj"] = param
                         skip = True
-                    else:
-                        sd[sd_key] = param._load_tensor().to(dtype)
-
                     if skip and len(unprocessed_weights[sd_key]) == 3:
                         w = torch.empty(
                             sd_meta[sd_key].shape, dtype=sd_meta[sd_key].dtype

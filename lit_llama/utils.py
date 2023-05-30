@@ -1,10 +1,10 @@
 """Utility functions for training and inference."""
 
 import functools
-from pathlib import Path
 import pickle
 import warnings
 from io import BytesIO
+from pathlib import Path
 
 import torch
 import torch.utils._device
@@ -12,7 +12,7 @@ from lightning.fabric.strategies import DeepSpeedStrategy, FSDPStrategy
 from torch.distributed.fsdp import FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import StateDictType
-
+from torch.serialization import normalize_storage_type
 
 llama_model_sizes = {
     4096: "7B",  # 7B n_embd=4096
@@ -327,13 +327,11 @@ class SavingProxyForStorage:
         if isinstance(obj, torch.storage.TypedStorage):
             # PT upstream wants to deprecate this eventually...
             storage = obj._untyped_storage
-            storage_dtype = obj.dtype
             storage_type_str = obj._pickle_storage_type()
             storage_type = getattr(torch, storage_type_str)
             storage_numel = obj._size()
         else:
             storage = obj
-            storage_dtype = torch.uint8
             storage_type = normalize_storage_type(type(obj))
             storage_numel = storage.nbytes()
 
