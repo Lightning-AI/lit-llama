@@ -171,9 +171,9 @@ def main(
     """
     assert checkpoint_path.is_file()
     assert tokenizer_path.is_file()
-    assert output_path.parent.is_dir() and (
-        not output_path.exists() or output_path.is_file()
-    )
+    if output_path is None:
+        output_path = checkpoint_path.parent / "llama-gptq.4bit.pth"
+    assert output_path.parent.is_dir() and (not output_path.exists() or output_path.is_file())
 
     device = "cuda"
 
