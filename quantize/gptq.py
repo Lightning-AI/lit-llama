@@ -87,7 +87,12 @@ def llama_blockwise_quantization(
             )
             handle = module.register_forward_hook(gptq.collect_input_stats)
             for j in range(inps.size(0)):
-                outs[j : j + 1] = block(inps[j : j + 1])
+                outs[j : j + 1] = block(
+                    inps[j : j + 1],
+                    rope=model.rope_cache,
+                    mask=model.mask_cache,
+                    max_seq_length=model.config.block_size
+                )
 
             handle.remove()
 
@@ -107,7 +112,12 @@ def llama_blockwise_quantization(
             print(f"time {int(t1 - t0 + 0.5)}s quantization error {error:.1f}")
 
         for j in range(inps.size(0)):
-            outs[j : j + 1] = block(inps[j : j + 1])
+            outs[j : j + 1] = block(
+                inps[j : j + 1],
+                rope=model.rope_cache,
+                mask=model.mask_cache,
+                max_seq_length=model.config.block_size
+            )
 
         block.cpu()
         gc.collect()
@@ -205,13 +215,11 @@ def main(
     )
     block_size = 2048  # this is for compat with gptq, and indeed we get much worse beyond this (https://github.com/facebookresearch/llama/blob/57b0eb62de0636e75af471e49e2f1862d908d9d8/llama/model.py#L30)
     encoded_text = encoded_text[: n_samples * block_size].reshape(n_samples, block_size)
+
     t0 = time.perf_counter()
-
     llama_blockwise_quantization(model, encoded_text, device, bits=bits)
-
-    torch.save(model.state_dict(), output_path)
-
     t = time.perf_counter() - t0
+
     print(
         f"\n\nTime for quantization: {t:.02f} sec total",
         file=sys.stderr,
@@ -220,6 +228,8 @@ def main(
         f"Memory used: {torch.cuda.max_memory_reserved() / 1e9:.02f} GB",
         file=sys.stderr,
     )
+
+    torch.save(model.state_dict(), output_path)
 
 
 if __name__ == "__main__":
