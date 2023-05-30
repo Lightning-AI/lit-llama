@@ -1,7 +1,5 @@
 import collections
-import contextlib
 import gc
-import json
 import shutil
 import sys
 from pathlib import Path
@@ -81,61 +79,54 @@ def convert_hf_checkpoint(
     print(f"Saving to disk at {output_dir}")
     unprocessed_weights = collections.defaultdict(dict)
 
-    with contextlib.ExitStack() as stack:
-        output_file = stack.enter_context(
-            incremental_save(output_dir / "lit-llama.pth")
-        )
+    with incremental_save(output_dir / "lit-llama.pth") as saver:
         for bin_file in bin_files:
             print("Processing", bin_file)
+            with lazy_load(bin_file) as hf_weights:
+                for name, param in hf_weights.items():
+                    skip = False
+                    if "rotary_emb.inv_freq" in name:
+                        continue
+                    if "model.layers" in name:
+                        block_id = int(name.split(".")[2])
+                        from_name = ".".join(name.split(".")[3:])
+                        to_name = weight_map[from_name]
+                        sd_key = f"transformer.h.{block_id}.{to_name}"
 
-            # FIXME: why not close this?
-            hf_weights = stack.enter_context(lazy_load(bin_file))
-            for name, param in hf_weights.items():
-                skip = False
-                if "rotary_emb.inv_freq" in name:
-                    continue
-                if "model.layers" in name:
-                    block_id = int(name.split(".")[2])
-                    from_name = ".".join(name.split(".")[3:])
-                    to_name = weight_map[from_name]
-                    sd_key = f"transformer.h.{block_id}.{to_name}"
-
-                    if "q_proj" in name:
-                        unprocessed_weights[sd_key]["q_proj"] = param
-                        skip = True
-                    elif "k_proj" in name:
-                        unprocessed_weights[sd_key]["k_proj"] = param
-                        skip = True
-                    elif "v_proj" in name:
-                        unprocessed_weights[sd_key]["v_proj"] = param
-                        skip = True
-                    if skip and len(unprocessed_weights[sd_key]) == 3:
-                        w = torch.empty(
-                            sd_meta[sd_key].shape, dtype=sd_meta[sd_key].dtype
-                        )
-                        w[:qkv_size] = permute(unprocessed_weights[sd_key]["q_proj"])
-                        w[qkv_size:-qkv_size] = permute(
-                            unprocessed_weights[sd_key]["k_proj"]
-                        )
-                        w[-qkv_size:] = (
-                            unprocessed_weights[sd_key]["v_proj"]
-                            ._load_tensor()
-                            .to(dtype)
-                        )
-                        sd[sd_key] = w
-                        del unprocessed_weights[sd_key]
-                        skip = False
+                        if "q_proj" in name:
+                            unprocessed_weights[sd_key]["q_proj"] = param
+                            skip = True
+                        elif "k_proj" in name:
+                            unprocessed_weights[sd_key]["k_proj"] = param
+                            skip = True
+                        elif "v_proj" in name:
+                            unprocessed_weights[sd_key]["v_proj"] = param
+                            skip = True
+                        if skip and len(unprocessed_weights[sd_key]) == 3:
+                            w = torch.empty(
+                                sd_meta[sd_key].shape, dtype=sd_meta[sd_key].dtype
+                            )
+                            w[:qkv_size] = permute(unprocessed_weights[sd_key]["q_proj"])
+                            w[qkv_size:-qkv_size] = permute(
+                                unprocessed_weights[sd_key]["k_proj"]
+                            )
+                            w[-qkv_size:] = (
+                                unprocessed_weights[sd_key]["v_proj"]
+                                ._load_tensor()
+                                .to(dtype)
+                            )
+                            sd[sd_key] = w
+                            del unprocessed_weights[sd_key]
+                            skip = False
+                        else:
+                            sd[sd_key] = param._load_tensor().to(dtype)
                     else:
+                        sd_key = weight_map[name]
                         sd[sd_key] = param._load_tensor().to(dtype)
-                else:
-                    sd_key = weight_map[name]
-                    sd[sd_key] = param._load_tensor().to(dtype)
-                if not skip:
-                    sd[sd_key] = output_file.store_early(sd[sd_key])
-
-            gc.collect()
-
-        output_file.save(sd)
+                    if not skip:
+                        sd[sd_key] = saver.store_early(sd[sd_key])
+                gc.collect()
+        saver.save(sd)
 
     assert len(unprocessed_weights) == 0, f"unexpected partial weights {list(unprocessed_weights)}"
     if verify:
