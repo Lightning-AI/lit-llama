@@ -52,10 +52,10 @@ def llama_blockwise_quantization(
     model.transformer.wte.to("cpu")
     torch.cuda.empty_cache()
 
-    model.rope_cache = model.build_rope_cache(sample_inputs)
-    model.mask_cache = model.build_mask_cache(sample_inputs)
-    print("Starting to quantize blocks")
+    rope_cache = model.build_rope_cache(sample_inputs)
+    mask_cache = model.build_mask_cache(sample_inputs)
 
+    print("Starting to quantize blocks")
     outs = torch.zeros_like(inps)
 
     # better than relying on enumeration? originally the code bundled
@@ -89,8 +89,8 @@ def llama_blockwise_quantization(
             for j in range(inps.size(0)):
                 outs[j : j + 1], _ = block(
                     inps[j : j + 1],
-                    rope=model.rope_cache,
-                    mask=model.mask_cache,
+                    rope=rope_cache,
+                    mask=mask_cache,
                     max_seq_length=model.config.block_size
                 )
 
@@ -114,8 +114,8 @@ def llama_blockwise_quantization(
         for j in range(inps.size(0)):
             outs[j : j + 1], _ = block(
                 inps[j : j + 1],
-                rope=model.rope_cache,
-                mask=model.mask_cache,
+                rope=rope_cache,
+                mask=mask_cache,
                 max_seq_length=model.config.block_size
             )
 
