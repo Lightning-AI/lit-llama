@@ -8,8 +8,7 @@ def test_rmsnorm(lit_llama, orig_llama) -> None:
 
     sample = torch.rand(size=(2, block_size, vocab_size), dtype=torch.float32)
 
-    eps = 1e-6
-    orig_llama_rmsnorm = orig_llama.RMSNorm(vocab_size, eps=eps)(sample)
-    llama_rmsnorm = lit_llama.RMSNorm(vocab_size, eps=eps)(sample)
+    orig_llama_rmsnorm = orig_llama.RMSNorm(vocab_size)(sample)
+    llama_rmsnorm = lit_llama.RMSNorm(vocab_size)(sample)
 
     assert torch.allclose(orig_llama_rmsnorm, llama_rmsnorm)
