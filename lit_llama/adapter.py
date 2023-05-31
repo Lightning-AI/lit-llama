@@ -2,6 +2,9 @@
 
 LLaMA-Adapter: Efficient Fine-tuning of Language Models with Zero-init Attention
 https://arxiv.org/abs/2303.16199
+
+# TODO: put a scheme
+# TODO: put a short description
 """
 # mypy: ignore-errors
 from dataclasses import dataclass
@@ -38,6 +41,7 @@ class CausalSelfAttention(nn.Module):
             # adapter embedding layer
             self.adapter_wte = nn.Embedding(config.adapter_prompt_length, config.n_embd)
             # gate for adaption
+            # TODO: short description of why do we need gating
             self.gating_factor = torch.nn.Parameter(torch.zeros(1, config.n_head, 1, 1))
 
         self.n_head = config.n_head
@@ -57,8 +61,10 @@ class CausalSelfAttention(nn.Module):
         kv_cache: Optional[KVCache] = None,
         adapter_kv_cache: Optional[KVCache] = None,
     ) -> Tuple[torch.Tensor, Optional[KVCache], Optional[KVCache]]:
+        # TODO: put abbreviations meaning
         B, T, C = x.size()  # batch size, sequence length, embedding dimensionality (n_embd)
 
+        # TODO: put shapes
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
         q, k, v = self.c_attn(x).split(self.n_embd, dim=2)
 
@@ -67,6 +73,8 @@ class CausalSelfAttention(nn.Module):
         q = q.view(B, T, self.n_head, head_size)
         v = v.view(B, T, self.n_head, head_size)
 
+        # TODO: tell that we need to apply RoPE for every single layer
+        # TODO: put shapes
         q = apply_rope(q, rope)
         k = apply_rope(k, rope)
 
@@ -75,18 +83,23 @@ class CausalSelfAttention(nn.Module):
         v = v.transpose(1, 2)  # (B, nh, T, hs)
 
         if kv_cache is not None:
+            # TODO: put shapes
             cache_k, cache_v = kv_cache
             # check if reached token limit
+            # TODO: explain what is going on here
             if input_pos[-1] >= max_seq_length:
                 input_pos = torch.tensor(max_seq_length - 1, device=input_pos.device)
                 # shift 1 position to the left
+                # TODO: put shapes
                 cache_k = torch.roll(cache_k, -1, dims=2)
                 cache_v = torch.roll(cache_v, -1, dims=2)
+            # TODO: put shapes
             k = cache_k.index_copy(2, input_pos, k)
             v = cache_v.index_copy(2, input_pos, v)
             kv_cache = k, v
 
         # efficient attention using Flash Attention CUDA kernels
+        # TODO: try to expand matrix multiplications
         y = F.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0)
 
         if self.block_idx >= self.adapter_start_layer:
@@ -95,18 +108,23 @@ class CausalSelfAttention(nn.Module):
             else:
                 prefix = self.adapter_wte.weight.reshape(1, self.adapter_prompt_length, self.n_embd)
                 aT = prefix.size(1)
+                # TODO: shapes
                 _, ak, av = self.c_attn(prefix).split(self.n_embd, dim=2)
+                # TODO: shapes
                 ak = ak.view(1, aT, self.n_head, head_size).repeat(B, 1, 1, 1).transpose(1, 2)
                 av = av.view(1, aT, self.n_head, head_size).repeat(B, 1, 1, 1).transpose(1, 2)
                 adapter_kv_cache = (ak, av)
 
+            # TODO: shapes
             amask = torch.ones(q.shape[-2], ak.shape[-2], dtype=torch.bool, device=x.device)
+            # TODO: try to expand matrix multiplications
             ay = F.scaled_dot_product_attention(q, ak, av, attn_mask=amask, dropout_p=0.0, is_causal=False)
             y = y + self.gating_factor * ay
 
         y = y.transpose(1, 2).contiguous().view(B, T, C)  # re-assemble all head outputs side by side
 
         # output projection
+        # TODO: shapes
         y = self.c_proj(y)
 
         return y, kv_cache, adapter_kv_cache
@@ -195,6 +213,7 @@ class LLaMA(llama.LLaMA):
         assert max_seq_length <= block_size, f"Cannot attend to {max_seq_length}, block size is only {block_size}"
         assert T <= block_size, f"Cannot forward sequence of length {T}, block size is only {block_size}"
 
+        # TODO: shapes
         if self.rope_cache is None:
             self.rope_cache = self.build_rope_cache(idx)
         if self.mask_cache is None:
