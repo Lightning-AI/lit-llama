@@ -65,15 +65,18 @@ def main(
     train_data_dir: Path = "data/lit-redpajama",
     val_data_dir: Optional[Path] = None,
 ) -> None:
-    auto_wrap_policy = partial(
-        transformer_auto_wrap_policy, transformer_layer_cls={Block}
-    )
-    strategy = FSDPStrategy(
-        auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block
-    )
+    # auto_wrap_policy = partial(
+    #     transformer_auto_wrap_policy, transformer_layer_cls={Block}
+    # )
+    # strategy = FSDPStrategy(
+    #     auto_wrap_policy=auto_wrap_policy,
+    #     activation_checkpointing=Block,
+    #     process_group_backend="gloo",
+    # )
+    strategy = DDPStrategy(process_group_backend="gloo")
 
     fabric = L.Fabric(
-        accelerator="cuda", devices=devices, precision="bf16-mixed", strategy=strategy
+        precision="bf16-mixed", strategy=strategy
     )
     fabric.launch()
     fabric.seed_everything(1337)
@@ -81,7 +84,7 @@ def main(
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
 
-    config = LLaMAConfig.from_name("7B")
+    config = LLaMAConfig.from_name("500m")
 
     train_dataloader, val_dataloader = create_dataloaders(
         batch_size=micro_batch_size,

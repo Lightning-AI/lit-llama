@@ -10,7 +10,7 @@ from functools import partial
 from typing import Tuple
 
 import lightning as L
-from lightning.fabric.strategies import FSDPStrategy
+from lightning.fabric.strategies import DDPStrategy, FSDPStrategy
 
 import torch
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
@@ -46,10 +46,11 @@ block_size = 1024
 
 
 def main() -> None:
-    auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
-    strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block)
+    # auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
+    # strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block, process_group_backend="gloo")
+    strategy = DDPStrategy(process_group_backend="gloo")
 
-    fabric = L.Fabric(accelerator="cuda", devices=4, precision="bf16-mixed", strategy=strategy)
+    fabric = L.Fabric(precision="bf16-mixed", strategy=strategy)
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
@@ -58,13 +59,14 @@ def main() -> None:
 
     train_data, val_data = load_datasets()
 
-    config = LLaMAConfig.from_name("7B")
+    config = LLaMAConfig.from_name("500m")
     config.block_size = block_size
     config.vocab_size = 100  # from prepare_shakespeare.py
 
     with fabric.device:
         model = LLaMA(config)
 
+    print("N params:", sum(p.numel() for p in model.parameters() if p.requires_grad))
     # if compile:
     #     model = torch.compile(model)
 
