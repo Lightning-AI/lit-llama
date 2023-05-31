@@ -1,6 +1,7 @@
 import collections
 import contextlib
 import gc
+import json
 import shutil
 import sys
 from pathlib import Path
@@ -49,7 +50,11 @@ def convert_hf_checkpoint(
     sd_meta = model.state_dict()
     sd = {}
 
-    bin_files = list(checkpoint_dir.glob("*.bin"))
+    # Load the json file containing weight mapping
+    pytorch_bin_map_json_path = checkpoint_dir / "pytorch_model.bin.index.json"
+    with open(pytorch_bin_map_json_path) as json_map:
+        bin_index = json.load(json_map)
+    bin_files = set(checkpoint_dir / bin for bin in bin_index["weight_map"].values())
     if not bin_files:
         raise ValueError(f"Expected {str(checkpoint_dir)!r} to contain .bin files")
 
