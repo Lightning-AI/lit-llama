@@ -3,7 +3,27 @@
 LLaMA-Adapter: Efficient Fine-tuning of Language Models with Zero-init Attention
 https://arxiv.org/abs/2303.16199
 
-# TODO: put a scheme
+                                                                             |              Prefix cross-attention
+                                                                             |
+  ┌─────────────────┐                                                        |               ┌──────────────────┐
+  ┆        x        ┆                                                        |               ┆      prefix      ┆
+  └─────────────────┘                                                        |               └──────────────────┘
+           |                                                                 |                         |
+           ▼                                                                 |                         ▼
+  ┌──────────────────┐                                                       |                ┌─────────────────────┐
+  ┆  self-attention  ┆ --------------------------------------------------------------┐        ┆  linear projection  ┆
+  └──────────────────┘                                                       |       |        └─────────────────────┘
+           |                                                                 |       |                 |         \
+           ▼                                                                 |       ▼                 ▼          ▼
+         ╭───╮     ┌────────────────┐ ╭───╮ ┌──────────────────────────┐     |  ┌─────────┐    ┌──────────────┐  ┌────────────────┐
+         ┆ + ┆ ◀── ┆  gating factor ┆-┆ x ┆-┆  prefix cross-attention  ┆     |  ┆  query  ┆    ┆  prefix key  ┆  ┆  prefix value  ┆
+         ╰───╯     └────────────────┘ ╰───╯ └──────────────────────────┘     |  └─────────┘    └──────────────┘  └────────────────┘
+           |                                                                 |          \                /                 /
+           ▼                                                                 |           ▼              ▼                 ▼
+                                                                             |           ┌────────────────────────────────┐
+                                                                             |           ┆  scaled dot-product attention  ┆
+                                                                             |           └────────────────────────────────┘
+
 # TODO: put a short description
 """
 # mypy: ignore-errors
@@ -223,11 +243,10 @@ class LLaMA(llama.LLaMA):
         assert max_seq_length <= block_size, f"Cannot attend to {max_seq_length}, block size is only {block_size}"
         assert T <= block_size, f"Cannot forward sequence of length {T}, block size is only {block_size}"
 
-        # TODO: shapes
         if self.rope_cache is None:
-            self.rope_cache = self.build_rope_cache(idx)
+            self.rope_cache = self.build_rope_cache(idx) # (block_size, head_size / 2, 2)
         if self.mask_cache is None:
-            self.mask_cache = self.build_mask_cache(idx)
+            self.mask_cache = self.build_mask_cache(idx) # (1, 1, block_size, block_size)
 
         if input_pos is not None:
             rope = self.rope_cache.index_select(0, input_pos)
@@ -238,7 +257,7 @@ class LLaMA(llama.LLaMA):
             mask = self.mask_cache[:, :, :T, :T]
 
         # forward the model itself
-        x = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
+        x = self.transformer.wte(idx)  # token embeddings of shape (B, T, n_embd)
 
         if input_pos is None:  # proxy for use_cache=False
             for block in self.transformer.h:
@@ -258,9 +277,9 @@ class LLaMA(llama.LLaMA):
                     x, rope, mask, max_seq_length, input_pos, self.kv_caches[i], self.adapter_kv_caches[i]
                 )
 
-        x = self.transformer.ln_f(x)
+        x = self.transformer.ln_f(x) # (B, T, n_embd)
 
-        logits = self.lm_head(x)  # (b, t, vocab_size)
+        logits = self.lm_head(x)  # (B, T, vocab_size)
 
         return logits
 
