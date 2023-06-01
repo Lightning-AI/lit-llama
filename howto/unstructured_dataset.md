@@ -7,7 +7,7 @@ This guide is only to prepare the finetuning, as either LoRA or Adapter-v1 metho
 ## Preparation
 
 1. Gather your text into an input file named `input.txt`
-2. Prepare it into train and validation sets with the follwoing script.
+2. Divide the data into training and validation sets using the following script:
 
     ```bash
     python scripts/prepare_any_text.py
