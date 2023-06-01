@@ -34,12 +34,22 @@ def test_adapter_load_gating_factor(lit_llama):
     config = llama_adapter.LLaMAConfig(n_head=4, block_size=100, n_embd=16)
     attn = llama_adapter.CausalSelfAttention(config=config, block_idx=3)
 
+    # Old checkpoint format
     state_dict={
         "gating_factor": torch.tensor(0.42),  # in old checkpoints, this was a scalar
         "c_attn.weight": torch.zeros(3 * 16, 16),
         "c_proj.weight": torch.zeros(16, 16),
         "adapter_wte.weight": torch.zeros(10, 16),
     }
+    attn.load_state_dict(state_dict=state_dict)
+    assert torch.equal(attn.gating_factor, torch.full((1, 4, 1, 1), 0.42))
 
+    # New checkpoint format
+    state_dict={
+        "gating_factor": torch.tensor([0.42, 0.42, 0.42, 0.42]).reshape(1, 4, 1, 1),
+        "c_attn.weight": torch.zeros(3 * 16, 16),
+        "c_proj.weight": torch.zeros(16, 16),
+        "adapter_wte.weight": torch.zeros(10, 16),
+    }
     attn.load_state_dict(state_dict=state_dict)
     assert torch.equal(attn.gating_factor, torch.full((1, 4, 1, 1), 0.42))
