@@ -118,7 +118,13 @@ class CausalSelfAttention(nn.Module):
             tensor = state_dict[name]
             # in case we are loading with `utils.lazy_load()`
             tensor = tensor._load_tensor() if hasattr(tensor, "_load_tensor") else tensor
-            state_dict[name] = tensor.reshape(1, 1, 1, 1).repeat(1, self.n_head, 1, 1)
+
+            if len(tensor.shape) < 4:
+                # For old checkpoints with unified gating value
+                state_dict[name] = tensor.reshape(1, 1, 1, 1).repeat(1, self.n_head, 1, 1)
+            else:
+                state_dict[name] = tensor
+
         return super()._load_from_state_dict(state_dict, prefix, *args, **kwargs)
 
 
