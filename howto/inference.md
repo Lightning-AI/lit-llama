@@ -34,7 +34,8 @@ You can also use GPTQ-style int4 quantization, but this needs conversions of the
 python quantize/gptq.py --output_path checkpoints/lit-llama/7B/llama-gptq.4bit.pt --dtype bfloat16 --quantize gptq.int4
 ```
 
-GPTQ-style int4 quantization brings GPU usage down to about ~5GB. As only the weights of the Linear layers are quantized, it is useful to also use `--dtype bfloat16` even with the quantization enabled.
+GPTQ-style int4 quantization brings GPU usage down to about ~5GB.
+As only the weights of the Linear layers are quantized, it is useful to still use bfloat16 precision even with the quantization enabled. This is done automatically.
 
 With the generated quantized checkpoint generation quantization then works as usual with `--quantize gptq.int4` and the newly generated checkpoint file:
 
