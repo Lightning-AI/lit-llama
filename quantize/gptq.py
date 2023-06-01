@@ -37,23 +37,23 @@ def get_sample_data():
 def llama_blockwise_quantization(
     model, sample_inputs, working_device, *, bits=4, groupsize=-1
 ):
-    # This is the classic post-training quantization
-    # of all linear layers. We quantize in order, i.e.
-    # when observing the inputs, we use the outputs
-    # of the previously quantized layers rather than
-    # doing them all at once.
-
-    print("Getting inputs for first block")
+    """
+    This is the classic post-training quantization of all linear layers.
+    We quantize in order, i.e. when observing the inputs, we use the outputs of the previously quantized layers rather
+    than doing them all at once.
+    """
     print(model)
     print(model.config)
 
+    print("Getting inputs for first block")
     model.transformer.wte.to(working_device)
-    inps = []
-    for batch in sample_inputs:
-        inps.append(model.transformer.wte(batch[None].to(working_device)))
-    inps = torch.cat(inps, dim=0)
+    sample_inputs = sample_inputs.to(working_device)
+    inps = model.transformer.wte(sample_inputs)
     model.transformer.wte.to("cpu")
     torch.cuda.empty_cache()
+
+    rope_cache = model.build_rope_cache(sample_inputs)
+    mask_cache = model.build_mask_cache(sample_inputs)
 
     print("Starting to quantize blocks")
     outs = torch.zeros_like(inps)
@@ -87,7 +87,12 @@ def llama_blockwise_quantization(
             )
             handle = module.register_forward_hook(gptq.collect_input_stats)
             for j in range(inps.size(0)):
-                outs[j : j + 1] = block(inps[j : j + 1])
+                outs[j : j + 1], _ = block(
+                    inps[j : j + 1],
+                    rope=rope_cache,
+                    mask=mask_cache,
+                    max_seq_length=model.config.block_size
+                )
 
             handle.remove()
 
@@ -107,7 +112,12 @@ def llama_blockwise_quantization(
             print(f"time {int(t1 - t0 + 0.5)}s quantization error {error:.1f}")
 
         for j in range(inps.size(0)):
-            outs[j : j + 1] = block(inps[j : j + 1])
+            outs[j : j + 1], _ = block(
+                inps[j : j + 1],
+                rope=rope_cache,
+                mask=mask_cache,
+                max_seq_length=model.config.block_size
+            )
 
         block.cpu()
         gc.collect()
@@ -150,7 +160,6 @@ def main(
     """Generates text samples based on a pre-trained LLaMA model and tokenizer.
 
     Args:
-        # compile: Whether to compile the model.
         checkpoint_path: The checkpoint path to load.
         output_path: Path to write the quantized model's state dict to.
         tokenizer_path: The tokenizer path to load.
@@ -162,9 +171,9 @@ def main(
     """
     assert checkpoint_path.is_file()
     assert tokenizer_path.is_file()
-    assert output_path.parent.is_dir() and (
-        not output_path.exists() or output_path.is_file()
-    )
+    if output_path is None:
+        output_path = checkpoint_path.parent / "llama-gptq.4bit.pth"
+    assert output_path.parent.is_dir() and (not output_path.exists() or output_path.is_file())
 
     device = "cuda"
 
@@ -205,13 +214,11 @@ def main(
     )
     block_size = 2048  # this is for compat with gptq, and indeed we get much worse beyond this (https://github.com/facebookresearch/llama/blob/57b0eb62de0636e75af471e49e2f1862d908d9d8/llama/model.py#L30)
     encoded_text = encoded_text[: n_samples * block_size].reshape(n_samples, block_size)
+
     t0 = time.perf_counter()
-
     llama_blockwise_quantization(model, encoded_text, device, bits=bits)
-
-    torch.save(model.state_dict(), output_path)
-
     t = time.perf_counter() - t0
+
     print(
         f"\n\nTime for quantization: {t:.02f} sec total",
         file=sys.stderr,
@@ -220,6 +227,8 @@ def main(
         f"Memory used: {torch.cuda.max_memory_reserved() / 1e9:.02f} GB",
         file=sys.stderr,
     )
+
+    torch.save(model.state_dict(), output_path)
 
 
 if __name__ == "__main__":
