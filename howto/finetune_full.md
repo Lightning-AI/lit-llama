@@ -22,6 +22,8 @@ The steps here only need to be done once:
 
    or [prepare your own dataset](#tune-on-your-own-dataset).
 
+See also: [Finetuning on an unstructured dataset](unstructured_dataset.md)
+
 ## Running the finetuning
 
 ```bash
