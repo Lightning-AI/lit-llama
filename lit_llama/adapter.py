@@ -8,23 +8,35 @@ https://arxiv.org/abs/2303.16199
   ┌─────────────────┐                                                        |               ┌──────────────────┐
   ┆        x        ┆                                                        |               ┆      prefix      ┆
   └─────────────────┘                                                        |               └──────────────────┘
-           |                                                                 |                         |
-           ▼                                                                 |                         ▼
-  ┌──────────────────┐                                                       |                ┌─────────────────────┐
-  ┆  self-attention  ┆ --------------------------------------------------------------┐        ┆  linear projection  ┆
-  └──────────────────┘                                                       |       |        └─────────────────────┘
-           |                                                                 |       |                 |         \
-           ▼                                                                 |       ▼                 ▼          ▼
+           |                                                                 |                        |
+           ▼                                                                 |                        ▼
+  ┌──────────────────┐                                                       |              ┌─────────────────────┐
+  ┆  self-attention  ┆ --------------------------------------------------------------┐      ┆  linear projection  ┆
+  └──────────────────┘                                                       |       ┆      └─────────────────────┘
+           |                                                                 |       ┆                |         \
+           ▼                                                                 |       ▼                ▼          ▼
          ╭───╮     ┌────────────────┐ ╭───╮ ┌──────────────────────────┐     |  ┌─────────┐    ┌──────────────┐  ┌────────────────┐
          ┆ + ┆ ◀── ┆  gating factor ┆-┆ x ┆-┆  prefix cross-attention  ┆     |  ┆  query  ┆    ┆  prefix key  ┆  ┆  prefix value  ┆
          ╰───╯     └────────────────┘ ╰───╯ └──────────────────────────┘     |  └─────────┘    └──────────────┘  └────────────────┘
-           |                                                                 |          \                /                 /
-           ▼                                                                 |           ▼              ▼                 ▼
-                                                                             |           ┌────────────────────────────────┐
-                                                                             |           ┆  scaled dot-product attention  ┆
-                                                                             |           └────────────────────────────────┘
+           |                                                                 |          \             |           /
+           ▼                                                                 |           ▼            ▼          ▼
+                                                                             |         ┌────────────────────────────────┐
+                                                                             |         ┆  scaled dot-product attention  ┆
+                                                                             |         └────────────────────────────────┘
 
-# TODO: put a short description
+
+In order to inject learnable information from the prefix to pretrained weights we need to sum outputs from
+self-attention and prefix cross-attention (times gating factor). For prefix cross-attention we need `query` (from
+self-attention as a result of linear projection), `prefix key` and `prefix value` (from cross-attention as a result of
+linear projection).
+The output of prefix cross-attention is multiplied by gating factor, which is a learnable parameter that is needed to
+avoid potential disruption of pretrained weights caused by incorporating randomly initialized tensors. This factor is
+initialized with zeros to avoid noise from the adaption prompts at the early training stage.
+More about it: https://lightning.ai/pages/community/article/understanding-llama-adapters/
+
+Notes about implementation: as per paper adapter's prefix is concatenated with the input, while here outputs of
+self-attention and prefix cross-attention are summed. Both variants are mathematically equivalent:
+https://github.com/ZrrSkywalker/LLaMA-Adapter/issues/47
 """
 # mypy: ignore-errors
 from dataclasses import dataclass
@@ -84,15 +96,15 @@ class CausalSelfAttention(nn.Module):
         # notation:
         # - B  | batch
         # - T  | time-step (sequence length)
-        # - C  | embeddings size = head size * num heads
+        # - C  | embeddings size (n_embd) = head size * num heads
         # - hs | head size
         # - nh | number of heads
 
         B, T, C = x.size()
 
-        # instead of calculating `query`, `key` and `value` by separately multiplying input `x` and corresponding
-        # weight matrices do it (for all heads) in a single matrix multiplication and then split the result along
-        # `embedding size` dimension
+        # instead of calculating `query`, `key` and `value` by separately multiplying input `x` with corresponding
+        # weight matrices do it (for all heads) in a single multiplication with a matrix of 3x size (concatenated
+        # weights for q, k, v) and then split the result along `embedding size` dimension
         q, k, v = self.c_attn(x).split(self.n_embd, dim=2) # (B, T, C) --> (B, T, 3 * C) --> 3 * (B, T, C)
 
         # in order to move head_size (hs) dimension right after batch (B) dimension, we need to first split
@@ -103,8 +115,8 @@ class CausalSelfAttention(nn.Module):
         v = v.view(B, T, self.n_head, head_size)
 
         # "Unlike standard positional embeddings rotary embeddings must be applied at every layer"
-        q = apply_rope(q, rope) # (B, T, nh, sh)
-        k = apply_rope(k, rope) # (B, T, nh, sh)
+        q = apply_rope(q, rope) # (B, T, nh, hs)
+        k = apply_rope(k, rope) # (B, T, nh, hs)
 
         # now `key`, 'query` and `value` tensors are correctly represented: for each element in a batch (B)
         # there is a number of heads (nh) and for each head there is a sequence of elements (T), each of them is
@@ -118,7 +130,7 @@ class CausalSelfAttention(nn.Module):
             # check if reached token limit
             if input_pos[-1] >= max_seq_length:
                 # if we reached token limit and thus there is no space to put newly calculated `key` and `value`
-                # right next cached ones, we need to rotate cache tensor along seq_length (T) dimension by one
+                # right next to cached ones, we need to rotate cache tensor along `max_seq_length` dimension by one
                 # element to the left: this will free up space for new `key` and `value`
                 input_pos = torch.tensor(max_seq_length - 1, device=input_pos.device)
                 # shift 1 position to the left
@@ -146,7 +158,7 @@ class CausalSelfAttention(nn.Module):
                 adapter_kv_cache = (ak, av)
 
             # Apply cross-attention with `query`, `adapter_key`, `adapter_value` and sum the output with the output
-            # obtained without adapter. This is mathematically equivalent to concatenation of prefix and input as per paper.
+            # obtained from self-attention step. This is mathematically equivalent to concatenation of prefix and input as per paper.
             amask = torch.ones(q.shape[-2], ak.shape[-2], dtype=torch.bool, device=x.device) # (T, aT)
             # ↓ (B, nh, T, hs) @ (B, nh, aT, hs).mT --> (B, nh, T, aT) @ (B, nh, aT, hs) --> (B, nh, T, hs)
             ay = F.scaled_dot_product_attention(q, ak, av, attn_mask=amask, dropout_p=0.0, is_causal=False) # (B, nh, T, hs)
