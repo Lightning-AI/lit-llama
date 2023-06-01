@@ -1,6 +1,6 @@
 # Finetuning on an unstructured dataset
 
-While most scripts were made to finetune on instruction datasets, it is possible to finetune on any dataset, this is useful for experimentation while not being as expensive as training a full model.
+While most scripts were made to finetune on instruction datasets, it is possible to finetune on any dataset. This is useful for experimentation while not being as expensive as training a full model.
 
 This guide is only to prepare the finetuning, as either LoRA or Adapter-v1 methods support this dataset type!
 
