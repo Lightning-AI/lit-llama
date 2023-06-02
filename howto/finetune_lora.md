@@ -15,6 +15,8 @@ The steps here only need to be done once:
    python scripts/prepare_alpaca.py
    ```
 
+See also: [Finetuning on an unstructured dataset](unstructured_dataset.md)
+
 ## Running the finetuning
 
 ```bash
