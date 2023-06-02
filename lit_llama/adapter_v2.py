@@ -2,7 +2,6 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 from torch.nn import functional as F
-from lit_llama.quantization import Linear8bitLt
 
 from lit_llama.adapter import LLaMA
 
@@ -28,8 +27,13 @@ def adapter_v2_state_from_state_dict(state_dict: dict) -> dict:
 
 def adapter_v2_new_forward(self, input: Tensor) -> Tensor:
     weight = self.weight
-    if isinstance(self, Linear8bitLt):
-        weight = self.dequantize(input.dtype)
+
+    try:
+        from lit_llama.quantization import Linear8bitLt
+        if isinstance(self, Linear8bitLt):
+            weight = self.dequantize(input.dtype)
+    except:
+        None
     return self.adapter_scale * (
         F.linear(input, weight, self.bias) + self.adapter_bias
     )
@@ -39,6 +43,7 @@ def adapter_v2_linear_with_bias_and_scale(layer, dtype=None, quantize=False):
     weight = layer.weight
 
     if dtype is not None and quantize:
+        from lit_llama.quantization import Linear8bitLt
         if isinstance(layer, Linear8bitLt):
             weight = layer.dequantize(dtype)
     layer.adapter_bias = torch.nn.Parameter(torch.zeros(weight.shape[0]), requires_grad=True)
