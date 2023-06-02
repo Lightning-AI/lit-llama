@@ -147,10 +147,10 @@ class CausalSelfAttention(nn.Module):
         # "Adapters are applied to the topmost layers to better tune the language
         # representations with higher-level semantics".
         if self.block_idx >= self.adapter_start_layer:
+            aT = self.adapter_prompt_length
             if adapter_kv_cache is not None:
                 ak, av = adapter_kv_cache # 2 * (B, nh, aT, hs)
             else:
-                aT = self.adapter_prompt_length
                 prefix = self.adapter_wte.weight.reshape(1, aT, C)
                 _, ak, av = self.c_attn(prefix).split(C, dim=2) # (1, aT, 3 * C) --> 3 * (1, aT, C)
                 ak = ak.view(1, aT, self.n_head, head_size).repeat(B, 1, 1, 1).transpose(1, 2) # (B, nh, aT, hs)
@@ -159,7 +159,7 @@ class CausalSelfAttention(nn.Module):
 
             # Apply cross-attention with `query`, `adapter_key`, `adapter_value` and sum the output with the output
             # obtained from self-attention step. This is mathematically equivalent to concatenation of prefix and input as per paper.
-            amask = torch.ones(q.shape[-2], ak.shape[-2], dtype=torch.bool, device=x.device) # (T, aT)
+            amask = torch.ones(T, aT, dtype=torch.bool, device=x.device)
             # ↓ (B, nh, T, hs) @ (B, nh, aT, hs).mT --> (B, nh, T, aT) @ (B, nh, aT, hs) --> (B, nh, T, hs)
             ay = F.scaled_dot_product_attention(q, ak, av, attn_mask=amask, dropout_p=0.0, is_causal=False) # (B, nh, T, hs)
             y = y + self.gating_factor * ay
