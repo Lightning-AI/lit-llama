@@ -35,9 +35,10 @@ def adapter_v2_new_forward(self, input: Tensor) -> Tensor:
     )
 
 
-def adapter_v2_linear_with_bias_and_scale(layer, dtype):
+def adapter_v2_linear_with_bias_and_scale(layer, dtype=None):
     weight = layer.weight
-    if isinstance(layer, Linear8bitLt):
+
+    if dtype is not None and isinstance(layer, Linear8bitLt):
         weight = layer.dequantize(dtype)
     layer.adapter_bias = torch.nn.Parameter(torch.zeros(weight.shape[0]), requires_grad=True)
     layer.adapter_scale = torch.nn.Parameter(torch.ones(weight.shape[0]), requires_grad=True)
@@ -46,7 +47,7 @@ def adapter_v2_linear_with_bias_and_scale(layer, dtype):
     return layer
 
 
-def add_adapter_v2_parameters_to_linear_layers(model, dtype):
+def add_adapter_v2_parameters_to_linear_layers(model, dtype=None):
     for module in model.modules():
         if isinstance(module, nn.Linear):
             adapter_v2_linear_with_bias_and_scale(module, dtype)
