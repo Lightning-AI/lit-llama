@@ -223,14 +223,14 @@ class LLaMA(llama.LLaMA):
 
     def __init__(self, config: LLaMAConfig) -> None:
         nn.Module.__init__(self)
-        assert config.vocab_size is not None
+        assert config.padded_vocab_size is not None
         assert config.block_size is not None
         self.config = config
 
-        self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
+        self.lm_head = nn.Linear(config.n_embd, config.padded_vocab_size, bias=False)
         self.transformer = nn.ModuleDict(
             dict(
-                wte=nn.Embedding(config.vocab_size, config.n_embd),
+                wte=nn.Embedding(config.padded_vocab_size, config.n_embd),
                 h=nn.ModuleList(Block(config, i) for i in range(config.n_layer)),
                 ln_f=RMSNorm(config.n_embd),
             )
@@ -297,7 +297,7 @@ class LLaMA(llama.LLaMA):
 
         x = self.transformer.ln_f(x) # (B, T, n_embd)
 
-        logits = self.lm_head(x)  # (B, T, vocab_size)
+        logits = self.lm_head(x)  # (B, T, padded_vocab_size)
 
         return logits
 
