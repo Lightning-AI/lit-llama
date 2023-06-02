@@ -105,7 +105,7 @@ class CausalSelfAttention(nn.Module):
         # instead of calculating `query`, `key` and `value` by separately multiplying input `x` with corresponding
         # weight matrices do it (for all heads) in a single multiplication with a matrix of 3x size (concatenated
         # weights for q, k, v) and then split the result along `embedding size` dimension
-        q, k, v = self.c_attn(x).split(self.n_embd, dim=2) # (B, T, C) --> (B, T, 3 * C) --> 3 * (B, T, C)
+        q, k, v = self.c_attn(x).split(self.n_embd, dim=2) # (B, T, 3 * C) --> 3 * (B, T, C)
 
         # in order to move head_size (hs) dimension right after batch (B) dimension, we need to first split
         # embedding size (C) dimension into num_heads (nh) and head_size (hs)
@@ -152,7 +152,7 @@ class CausalSelfAttention(nn.Module):
             else:
                 prefix = self.adapter_wte.weight.reshape(1, self.adapter_prompt_length, self.n_embd)
                 aT = prefix.size(1)
-                _, ak, av = self.c_attn(prefix).split(self.n_embd, dim=2) # (1, aT, C) --> (1, aT, 3 * C) --> 3 * (1, aT, C)
+                _, ak, av = self.c_attn(prefix).split(self.n_embd, dim=2) # (1, aT, 3 * C) --> 3 * (1, aT, C)
                 ak = ak.view(1, aT, self.n_head, head_size).repeat(B, 1, 1, 1).transpose(1, 2) # (B, nh, aT, hs)
                 av = av.view(1, aT, self.n_head, head_size).repeat(B, 1, 1, 1).transpose(1, 2) # (B, nh, aT, hs)
                 adapter_kv_cache = (ak, av)
