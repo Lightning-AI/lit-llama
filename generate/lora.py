@@ -14,7 +14,7 @@ sys.path.append(str(wd))
 from generate import generate
 from lit_llama import Tokenizer, LLaMA
 from lit_llama.lora import lora
-from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup
+from lit_llama.utils import lazy_load, llama_model_lookup
 from scripts.prepare_alpaca import generate_prompt
 
 lora_r = 8
@@ -29,7 +29,6 @@ def main(
     pretrained_path: Path = Path("checkpoints/lit-llama/7B/lit-llama.pth"),
     tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
     quantize: Optional[str] = None,
-    dtype: str = "float32",
     max_new_tokens: int = 100,
     top_k: int = 200,
     temperature: float = 0.8,
