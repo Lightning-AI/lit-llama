@@ -132,7 +132,7 @@ def main(
     print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
-    model = fabric.setup_module(model)
+    model = fabric.setup(model)
 
     tokenizer = Tokenizer(tokenizer_path)
     encoded = tokenizer.encode(prompt, bos=True, eos=False, device=fabric.device)

@@ -14,7 +14,7 @@ sys.path.append(str(wd))
 from generate import generate
 from lit_llama import Tokenizer
 from lit_llama.adapter import LLaMA
-from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup
+from lit_llama.utils import lazy_load, llama_model_lookup, quantization
 from lit_llama.adapter_v2 import add_adapter_v2_parameters_to_linear_layers
 from scripts.prepare_alpaca import generate_prompt
 
@@ -53,17 +53,15 @@ def main(
     assert pretrained_path.is_file()
     assert tokenizer_path.is_file()
 
-    fabric = L.Fabric(devices=1)
-    dtype = torch.bfloat16 if fabric.device.type == "cuda" and torch.cuda.is_bf16_supported() else torch.float32
+    precision = "bf16-true" if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else "32-true"
+    fabric = L.Fabric(devices=1, precision=precision)
 
     print("Loading model ...", file=sys.stderr)
     t0 = time.time()
     with lazy_load(pretrained_path) as pretrained_checkpoint, lazy_load(adapter_path) as adapter_checkpoint:
         name = llama_model_lookup(pretrained_checkpoint)
 
-        with EmptyInitOnDevice(
-                device=fabric.device, dtype=dtype, quantization_mode=quantize
-        ):
+        with fabric.init_module(empty_weights=True), quantization(mode=quantize):
             model = LLaMA.from_name(name)
             add_adapter_v2_parameters_to_linear_layers(model)
 
@@ -75,7 +73,7 @@ def main(
     print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
-    model = fabric.setup_module(model)
+    model = fabric.setup(model)
 
     tokenizer = Tokenizer(tokenizer_path)
     sample = {"instruction": prompt, "input": input}
