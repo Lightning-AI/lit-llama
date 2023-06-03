@@ -111,7 +111,7 @@ def train(
         with fabric.no_backward_sync(model, enabled=((iter_num + 1) % gradient_accumulation_iters != 0)):
             logits = model(input_ids)
             loss = loss_fn(logits, targets)
-            fabric.backward(loss / gradient_accumulation_iters )
+            fabric.backward(loss / gradient_accumulation_iters)
 
         if (iter_num + 1) % gradient_accumulation_iters == 0:
             optimizer.step()
