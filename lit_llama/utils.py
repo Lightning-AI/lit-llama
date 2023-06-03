@@ -135,11 +135,6 @@ class EmptyInitOnDevice(torch.overrides.TorchFunctionMode):
         return func(*args, **kwargs)
 
 
-
-
-        # if device.type != "cuda":
-        #     raise ValueError("Quantization is only supported on the GPU.")
-
 @contextmanager
 def quantization(mode: str = None):
     quantized_linear_cls = None
@@ -154,7 +149,7 @@ def quantization(mode: str = None):
         quantized_linear_cls = functools.partial(ColBlockQuantizedLinear, bits=8, tile_cols=-1)
     elif mode is not None:
         raise ValueError(f"Unknown quantization mode: {mode}")
-    
+
     enabled = mode is not None
     torch_linear_cls = torch.nn.Linear
     if enabled:

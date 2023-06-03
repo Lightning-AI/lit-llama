@@ -125,6 +125,7 @@ def main(
     t0 = time.time()
     with lazy_load(checkpoint_path) as checkpoint:
         name = llama_model_lookup(checkpoint)
+
         with fabric.init_module(empty_weights=True), quantization(mode=quantize):
             model = LLaMA.from_name(name)
 
