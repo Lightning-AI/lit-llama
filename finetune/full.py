@@ -114,12 +114,12 @@ def train(
                 param_group['lr'] = lr
 
         t0 = time.time()
-
+        
+        input_ids, targets = get_batch(fabric, train_data)
         with fabric.no_backward_sync(model, enabled=is_accumulating):
-            input_ids, targets = get_batch(fabric, train_data)
             logits = model(input_ids)
             loss = loss_fn(logits, targets)
-            fabric.backward(loss)
+            fabric.backward(loss / gradient_accumulation_iters)
 
         if not is_accumulating:
             optimizer.step()
