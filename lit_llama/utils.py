@@ -141,7 +141,7 @@ class EmptyInitOnDevice(torch.overrides.TorchFunctionMode):
         #     raise ValueError("Quantization is only supported on the GPU.")
 
 @contextmanager
-def quantization(mode: str, enabled: bool = True):
+def quantization(mode: str = None):
     quantized_linear_cls = None
     if mode == 'llm.int8':
         from .quantization import Linear8bitLt
@@ -152,9 +152,10 @@ def quantization(mode: str, enabled: bool = True):
     elif mode == 'gptq.int8':
         from .quantization import ColBlockQuantizedLinear
         quantized_linear_cls = functools.partial(ColBlockQuantizedLinear, bits=8, tile_cols=-1)
-    else:
+    elif mode is not None:
         raise ValueError(f"Unknown quantization mode: {mode}")
-
+    
+    enabled = mode is not None
     torch_linear_cls = torch.nn.Linear
     if enabled:
         torch.nn.Linear = quantized_linear_cls
