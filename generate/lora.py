@@ -48,7 +48,6 @@ def main(
         quantize: Whether to quantize the model and using which method:
             ``"llm.int8"``: LLM.int8() mode,
             ``"gptq.int4"``: GPTQ 4-bit mode.
-        dtype: The dtype to use during generation.
         max_new_tokens: The number of generation steps to take.
         top_k: The number of top most probable tokens to consider in the sampling process.
         temperature: A value controlling the randomness of the sampling process. Higher values result in more random
@@ -63,11 +62,6 @@ def main(
 
     precision = "bf16-true" if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else "32-true"
     fabric = L.Fabric(devices=1, precision=precision)
-
-    dt = getattr(torch, dtype, None)
-    if not isinstance(dt, torch.dtype):
-        raise ValueError(f"{dtype} is not a valid dtype.")
-    dtype = dt
 
     print("Loading model ...", file=sys.stderr)
     t0 = time.time()
