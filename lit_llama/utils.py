@@ -5,6 +5,7 @@ import pickle
 import warnings
 from io import BytesIO
 from pathlib import Path
+from contextlib import contextmanager
 
 import torch
 import torch.utils._device
@@ -132,6 +133,34 @@ class EmptyInitOnDevice(torch.overrides.TorchFunctionMode):
         ):
             kwargs["dtype"] = self.dtype
         return func(*args, **kwargs)
+
+
+
+
+        # if device.type != "cuda":
+        #     raise ValueError("Quantization is only supported on the GPU.")
+
+@contextmanager
+def quantization(mode: str, enabled: bool = True):
+    quantized_linear_cls = None
+    if mode == 'llm.int8':
+        from .quantization import Linear8bitLt
+        quantized_linear_cls = Linear8bitLt
+    elif mode == 'gptq.int4':
+        from .quantization import ColBlockQuantizedLinear
+        quantized_linear_cls = functools.partial(ColBlockQuantizedLinear, bits=4, tile_cols=-1)
+    elif mode == 'gptq.int8':
+        from .quantization import ColBlockQuantizedLinear
+        quantized_linear_cls = functools.partial(ColBlockQuantizedLinear, bits=8, tile_cols=-1)
+    else:
+        raise ValueError(f"Unknown quantization mode: {mode}")
+
+    torch_linear_cls = torch.nn.Linear
+    if enabled:
+        torch.nn.Linear = quantized_linear_cls
+    yield
+    if enabled:
+        torch.nn.Linear = torch_linear_cls
 
 
 # this is taken from torchhacks https://github.com/lernapparat/torchhacks

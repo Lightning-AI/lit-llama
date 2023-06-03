@@ -12,7 +12,7 @@ wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 
 from lit_llama import LLaMA, Tokenizer
-from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup
+from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup, quantization
 
 
 @torch.no_grad()
@@ -126,9 +126,10 @@ def main(
     with lazy_load(checkpoint_path) as checkpoint:
         name = llama_model_lookup(checkpoint)
 
-        with EmptyInitOnDevice(
-                device=fabric.device, dtype=dtype, quantization_mode=quantize
-        ):
+        # with EmptyInitOnDevice(
+        #         device=fabric.device, dtype=dtype, quantization_mode=quantize
+        # ):
+        with fabric.init_module(empty_weights=True), quantization(quantize, enabled=(quantize is not None)):
             model = LLaMA.from_name(name)
 
         model.load_state_dict(checkpoint)
