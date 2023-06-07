@@ -68,7 +68,7 @@ def main(
     with lazy_load(pretrained_path) as pretrained_checkpoint, lazy_load(lora_path) as lora_checkpoint:
         name = llama_model_lookup(pretrained_checkpoint)
 
-        with fabric.init_module(empty_weights=True), lora(r=lora_r, alpha=lora_alpha, dropout=lora_dropout, enabled=True):
+        with fabric.init_module(empty_init=True), lora(r=lora_r, alpha=lora_alpha, dropout=lora_dropout, enabled=True):
             model = LLaMA.from_name(name)
 
             # 1. Load the pretrained weights

@@ -61,7 +61,7 @@ def main(
     with lazy_load(pretrained_path) as pretrained_checkpoint, lazy_load(adapter_path) as adapter_checkpoint:
         name = llama_model_lookup(pretrained_checkpoint)
 
-        with fabric.init_module(empty_weights=True), quantization(mode=quantize):
+        with fabric.init_module(empty_init=True), quantization(mode=quantize):
             model = LLaMA.from_name(name)
             add_adapter_v2_parameters_to_linear_layers(model)
 

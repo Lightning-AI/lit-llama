@@ -56,7 +56,7 @@ def main(
     print("Loading model ...", file=sys.stderr)
     t0 = time.time()
     
-    with fabric.init_module(empty_weights=True), quantization(mode=quantize):
+    with fabric.init_module(empty_init=True), quantization(mode=quantize):
         model = LLaMA.from_name(model_size)
 
     checkpoint = torch.load(checkpoint_path)
