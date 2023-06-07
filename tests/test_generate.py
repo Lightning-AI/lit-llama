@@ -1,7 +1,7 @@
 import functools
 import subprocess
 import sys
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stdout
 from io import StringIO
 from pathlib import Path
 from unittest import mock
@@ -65,6 +65,10 @@ def test_main(tmp_path, monkeypatch):
         @property
         def device(self):
             return torch.device("cpu")
+
+        @contextmanager
+        def init_module(self, empty_init):
+            yield
 
     monkeypatch.setattr(generate.L, "Fabric", FabricMock)
     model_mock = Mock()
