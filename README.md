@@ -132,7 +132,7 @@ We provide a simple training scripts in `finetune/lora.py` and `finetune/adapter
    ```
 
 It is expected that you have downloaded the pretrained weights as described above.
-The finetuning requires at least one GPU with ~24 GB memory (GTX 3090). Follow the instructions in the script to efficiently fit your GPU memory.
+The finetuning requires at least one GPU with ~24 GB memory (RTX 3090). Follow the instructions in the script to efficiently fit your GPU memory.
 Note: For some GPU models you might need to set `torch.backends.cuda.enable_flash_sdp(False)` (see comments at the top of the script).
 
 More details about each finetuning method and how you can apply it to your own data can be found in our technical how-to guides.
