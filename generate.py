@@ -12,7 +12,7 @@ wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 
 from lit_llama import LLaMA, Tokenizer
-from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup
+from lit_llama.utils import lazy_load, llama_model_lookup, quantization
 
 
 @torch.no_grad()
@@ -118,24 +118,22 @@ def main(
     assert checkpoint_path.is_file(), checkpoint_path
     assert tokenizer_path.is_file(), tokenizer_path
 
-    fabric = L.Fabric(devices=1)
-    dtype = torch.bfloat16 if fabric.device.type == "cuda" and torch.cuda.is_bf16_supported() else torch.float32
+    precision = "bf16-true" if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else "32-true"
+    fabric = L.Fabric(devices=1, precision=precision)
 
     print("Loading model ...", file=sys.stderr)
     t0 = time.time()
     with lazy_load(checkpoint_path) as checkpoint:
         name = llama_model_lookup(checkpoint)
 
-        with EmptyInitOnDevice(
-                device=fabric.device, dtype=dtype, quantization_mode=quantize
-        ):
+        with fabric.init_module(empty_init=True), quantization(mode=quantize):
             model = LLaMA.from_name(name)
 
         model.load_state_dict(checkpoint)
     print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
-    model = fabric.setup_module(model)
+    model = fabric.setup(model)
 
     tokenizer = Tokenizer(tokenizer_path)
     encoded = tokenizer.encode(prompt, bos=True, eos=False, device=fabric.device)

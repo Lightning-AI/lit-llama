@@ -14,7 +14,7 @@ sys.path.append(str(wd))
 from generate import generate
 from lit_llama import Tokenizer, LLaMA
 from lit_llama.lora import lora
-from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup
+from lit_llama.utils import lazy_load, llama_model_lookup
 from scripts.prepare_alpaca import generate_prompt
 
 lora_r = 8
@@ -29,7 +29,6 @@ def main(
     pretrained_path: Path = Path("checkpoints/lit-llama/7B/lit-llama.pth"),
     tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
     quantize: Optional[str] = None,
-    dtype: str = "float32",
     max_new_tokens: int = 100,
     top_k: int = 200,
     temperature: float = 0.8,
@@ -48,7 +47,6 @@ def main(
         quantize: Whether to quantize the model and using which method:
             ``"llm.int8"``: LLM.int8() mode,
             ``"gptq.int4"``: GPTQ 4-bit mode.
-        dtype: The dtype to use during generation.
         max_new_tokens: The number of generation steps to take.
         top_k: The number of top most probable tokens to consider in the sampling process.
         temperature: A value controlling the randomness of the sampling process. Higher values result in more random
@@ -61,12 +59,8 @@ def main(
     if quantize is not None:
         raise NotImplementedError("Quantization in LoRA is not supported yet")
 
-    fabric = L.Fabric(devices=1)
-
-    dt = getattr(torch, dtype, None)
-    if not isinstance(dt, torch.dtype):
-        raise ValueError(f"{dtype} is not a valid dtype.")
-    dtype = dt
+    precision = "bf16-true" if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else "32-true"
+    fabric = L.Fabric(devices=1, precision=precision)
 
     print("Loading model ...", file=sys.stderr)
     t0 = time.time()
@@ -74,9 +68,7 @@ def main(
     with lazy_load(pretrained_path) as pretrained_checkpoint, lazy_load(lora_path) as lora_checkpoint:
         name = llama_model_lookup(pretrained_checkpoint)
 
-        with EmptyInitOnDevice(
-                device=fabric.device, dtype=dtype, quantization_mode=quantize
-        ), lora(r=lora_r, alpha=lora_alpha, dropout=lora_dropout, enabled=True):
+        with fabric.init_module(empty_init=True), lora(r=lora_r, alpha=lora_alpha, dropout=lora_dropout, enabled=True):
             model = LLaMA.from_name(name)
 
             # 1. Load the pretrained weights
@@ -87,7 +79,7 @@ def main(
     print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
-    model = fabric.setup_module(model)
+    model = fabric.setup(model)
 
     tokenizer = Tokenizer(tokenizer_path)
     sample = {"instruction": prompt, "input": input}
