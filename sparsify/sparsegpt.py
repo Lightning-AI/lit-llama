@@ -12,7 +12,6 @@ from typing import Optional
 import torch
 from datasets import load_dataset
 
-
 wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 
@@ -41,7 +40,7 @@ def llama_blockwise_sparsification(
     sample_inputs, 
     working_device,
     *,
-    sparsity=0,
+    sparsity,
     prunen=0,
     prunem=0,
     
@@ -87,8 +86,8 @@ def llama_blockwise_sparsification(
                 prunen=prunen,
                 prunem=prunem,
             )
-            
-            handle = model.lm_head.register_forward_hook(sparsegpt.collect_input_stats)
+
+            handle = module.register_forward_hook(sparsegpt.collect_input_stats)
            
             for j in range(inps.size(0)):
                 outs[j : j + 1], _ = block(
@@ -100,6 +99,9 @@ def llama_blockwise_sparsification(
 
             handle.remove()
 
+            
+            print("sparsifying", end=" ")
+            sys.stdout.flush()
             error = sparsegpt.sparsify()
 
             del sparsegpt
@@ -155,7 +157,7 @@ def main(
     tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
     n_samples: int = 128,
     dtype: str = "float32",
-    sparsity: int = 0,
+    sparsity: float = 0.1,
     prunem: int = 0,
     prunen: int = 0
 ) -> None:
