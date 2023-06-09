@@ -1,7 +1,7 @@
 # Finetuning with LoRA
 
 [Low-rank adaption (LoRA)](https://arxiv.org/abs/2106.09685) is a technique to approximate the update to the linear layers in a LLM with a low-rank matrix factorization. This significantly reduces the number of trainable parameters and speeds up training with little impact on the final performance of the model.
-We demonstrate this method by instruction-finetuning LLaMA 7B on the [Alpaca](https://github.com/tatsu-lab/stanford_alpaca) dataset on a **single GTX 3090 (24GB) GPU**.
+We demonstrate this method by instruction-finetuning LLaMA 7B on the [Alpaca](https://github.com/tatsu-lab/stanford_alpaca) dataset on a **single RTX 3090 (24GB) GPU**.
 
 ## Preparation
 
@@ -23,7 +23,7 @@ See also: [Finetuning on an unstructured dataset](unstructured_dataset.md)
 python finetune/lora.py
 ```
 
-The finetuning requires at least one GPU with ~24 GB memory (GTX 3090).
+The finetuning requires at least one GPU with ~24 GB memory (RTX 3090).
 
 This script will save checkpoints periodically to the folder `out/`.
 
@@ -78,7 +78,7 @@ With only a few modifications, you can prepare and train on your own instruction
     ```
 
 5. Run `finetune/lora.py` by passing in the location of your data (and optionally other parameters):
-    
+   
     ```bash
     python finetune/lora.py --data_dir data/mydata/ --out_dir out/myexperiment
     ```
