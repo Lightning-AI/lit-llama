@@ -17,22 +17,22 @@ from lit_llama.lora import lora
 from lit_llama.utils import lazy_load, llama_model_lookup
 from scripts.prepare_alpaca import generate_prompt
 
-lora_r = 8
-lora_alpha = 16
+lora_r = 16 # was 8
+lora_alpha = 32 # was 16
 lora_dropout = 0.05
 
 
 def main(
     prompt: str = "What food do lamas eat?",
     input: str = "",
-    lora_path: Path = Path("out/lora/alpaca/lit-llama-lora-finetuned.pth"),
-    pretrained_path: Path = Path("checkpoints/lit-llama/7B/lit-llama.pth"),
-    tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
+    lora_path: Path = Path("/workspace/lit-llama/out/lora/mediform_bookingnegotiation/lit-llama-lora-finetuned.pth"),
+    pretrained_path: Path = Path("/workspace/lit-llama/checkpoints/lit-llama/7B/lit-llama.pth"),
+    tokenizer_path: Path = Path("/workspace/lit-llama/checkpoints/lit-llama/tokenizer.model"),
     quantize: Optional[str] = None,
     max_new_tokens: int = 100,
     top_k: int = 200,
     temperature: float = 0.8,
-) -> None:
+) -> str:
     """Generates a response based on a given instruction and an optional input.
     This script will only work with checkpoints from the instruction-tuned LoRA model.
     See `finetune_lora.py`.
@@ -98,12 +98,13 @@ def main(
     t = time.perf_counter() - t0
 
     output = tokenizer.decode(output)
-    output = output.split("### Response:")[1].strip()
-    print(output)
+    # was output = output.split("### Response:")[1].strip()
+    print(f'Generation: {repr(output)}')
 
     print(f"\n\nTime for inference: {t:.02f} sec total, {max_new_tokens / t:.02f} tokens/sec", file=sys.stderr)
     if fabric.device.type == "cuda":
         print(f"Memory used: {torch.cuda.max_memory_reserved() / 1e9:.02f} GB", file=sys.stderr)
+    return output
 
 
 if __name__ == "__main__":
@@ -112,7 +113,7 @@ if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
     warnings.filterwarnings(
         # Triggered internally at ../aten/src/ATen/EmptyTensor.cpp:31
-        "ignore", 
+        "ignore",
         message="ComplexHalf support is experimental and many operators don't support it yet"
     )
     CLI(main)
