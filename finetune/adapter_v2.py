@@ -22,16 +22,23 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+import clip
+from timm.models.vision_transformer import Block
+
+# Requirements
+# git+https://github.com/openai/CLIP.git
+
+
 # support running without installing as a package
 wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 
 from generate import generate
-from lit_llama.adapter import LLaMA, LLaMAConfig
 from lit_llama.adapter_v2 import (
+    LLaMA, LLaMAConfig,
     mark_only_adapter_v2_as_trainable,
-    add_adapter_v2_parameters_to_linear_layers,
-    adapter_v2_state_from_state_dict
+    # add_adapter_v2_parameters_to_linear_layers,
+    # adapter_v2_state_from_state_dict
     )
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
@@ -47,7 +54,7 @@ devices = 1
 # Hyperparameters
 learning_rate = 9e-3
 batch_size = 64 / devices
-micro_batch_size = 4
+micro_batch_size = 1
 gradient_accumulation_iters = batch_size // micro_batch_size
 assert gradient_accumulation_iters > 0
 epoch_size = 50000  # train dataset size
@@ -93,23 +100,25 @@ def main(
         )
     checkpoint = torch.load(pretrained_path)
 
-    with fabric.init_module():
-        model = LLaMA(config)
-        # strict=False because missing keys due to adapter weights not contained in state dict
-        model.load_state_dict(checkpoint, strict=False)
+    # with fabric.init_module():
+    model = LLaMA(config)
+    # strict=False because missing keys due to adapter weights not contained in state dict
+    model.load_state_dict(checkpoint, strict=False)
 
-    add_adapter_v2_parameters_to_linear_layers(model)
+    # add_adapter_v2_parameters_to_linear_layers(model)
     mark_only_adapter_v2_as_trainable(model)
 
     num_params = sum([p.numel() for p in model.parameters() if p.requires_grad])
     print(f"Number of trainable parameters: {num_params}")
+    for n, p in model.named_parameters():
+        print(n, p.requires_grad)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     model, optimizer = fabric.setup(model, optimizer)
     train(fabric, model, optimizer, train_data, val_data, out_dir)
 
     # Save the final checkpoint at the end of training
-    save_model_checkpoint(fabric, model, os.path.join(out_dir, "lit-llama-adapter-finetuned.pth"))
+    # save_model_checkpoint(fabric, model, os.path.join(out_dir, "lit-llama-adapter-finetuned.pth"))
 
 
 def train(
@@ -137,8 +146,9 @@ def train(
         t0 = time.time()
 
         input_ids, targets = get_batch(fabric, train_data)
+        imgs = torch.rand(input_ids.size(0), 3, 256, 256, device=fabric.device)
         with fabric.no_backward_sync(model, enabled=((iter_num + 1) % gradient_accumulation_iters != 0)):
-            logits = model(input_ids)
+            logits = model(input_ids, imgs)
             loss = loss_fn(logits, targets)
             fabric.backward(loss / gradient_accumulation_iters)
 
@@ -153,9 +163,10 @@ def train(
                 fabric.barrier()
 
             if step_count % save_interval == 0:
-                print(f"Saving adapter weights to {out_dir}")
+                pass
+                # print(f"Saving adapter weights to {out_dir}")
                 # TODO: Provide a function/script to merge the adapter weights with pretrained weights
-                save_model_checkpoint(fabric, model, os.path.join(out_dir, f"iter-{iter_num:06d}.pth"))
+                # save_model_checkpoint(fabric, model, os.path.join(out_dir, f"iter-{iter_num:06d}.pth"))
 
         dt = time.time() - t0
         if iter_num % log_interval == 0:
@@ -233,27 +244,27 @@ def load_datasets(data_dir):
     return train_data, val_data
 
 
-def save_model_checkpoint(fabric, model, file_path):
-    file_path = Path(file_path)
+# def save_model_checkpoint(fabric, model, file_path):
+#     file_path = Path(file_path)
 
-    if isinstance(fabric.strategy, DeepSpeedStrategy):
-        from deepspeed.utils.zero_to_fp32 import get_fp32_state_dict_from_zero_checkpoint
+#     if isinstance(fabric.strategy, DeepSpeedStrategy):
+#         from deepspeed.utils.zero_to_fp32 import get_fp32_state_dict_from_zero_checkpoint
 
-        tmp_path = file_path.with_suffix(".tmp")
-        fabric.save(tmp_path, {"model": model})
-        fabric.barrier()
-        if fabric.global_rank == 0:
-            # Create a consolidated checkpoint with the same name next to the deepspeed checkpoint
-            # and only keep the adapter weights
-            state_dict = get_fp32_state_dict_from_zero_checkpoint(tmp_path)
-            state_dict = adapter_v2_state_from_state_dict(state_dict)
-            torch.save(state_dict, file_path)
-            shutil.rmtree(tmp_path)
-    else:
-        state_dict = adapter_v2_state_from_state_dict(model.state_dict())
-        if fabric.global_rank == 0:
-            torch.save(state_dict, file_path)
-        fabric.barrier()
+#         tmp_path = file_path.with_suffix(".tmp")
+#         fabric.save(tmp_path, {"model": model})
+#         fabric.barrier()
+#         if fabric.global_rank == 0:
+#             # Create a consolidated checkpoint with the same name next to the deepspeed checkpoint
+#             # and only keep the adapter weights
+#             state_dict = get_fp32_state_dict_from_zero_checkpoint(tmp_path)
+#             state_dict = adapter_v2_state_from_state_dict(state_dict)
+#             torch.save(state_dict, file_path)
+#             shutil.rmtree(tmp_path)
+#     else:
+#         state_dict = adapter_v2_state_from_state_dict(model.state_dict())
+#         if fabric.global_rank == 0:
+#             torch.save(state_dict, file_path)
+#         fabric.barrier()
 
 
 if __name__ == "__main__":
