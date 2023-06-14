@@ -69,13 +69,9 @@ class LLaMA(nn.Module):
             )
         )
 
-        # self.visual_encoder = SentenceTransformer("clip-ViT-L-14")
-        # self.visual_proj = AdapterLinear(768, 768)
         v_embed_dim = 768
         v_depth = 8
         v_num_heads = 16
-
-        # self.clip, self.clip_transform = clip.load("ViT-L/14")
 
         clip_dim = 768
         self.clip_proj = nn.Linear(clip_dim, v_embed_dim)
@@ -102,10 +98,8 @@ class LLaMA(nn.Module):
 
         x = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
 
-        # img = Image.open('two-dogs.jpg')
-        # img = self.clip_transform(img).unsqueeze(0).to(x.device)
-        visual_context = self.forward_visual(img_features)
-        # print("visual_context", visual_context.shape)
+        
+        visual_context = self.forward_visual(img_features) if img_features is not None else 0
 
         for block in self.transformer.h:
             x = block(x, visual_context)
@@ -345,20 +339,6 @@ class AdapterLinear(nn.Linear):
         # Note: Paper also adds a scale factor, but we don't add one
 
 
-def get_adapter_substrings():
-    substrings = ["adapter_wte", "gating_factor"]  # regular adapter v1 parameters
-    substrings.extend(["bias"])  # adapter v2: bias tuning
-    substrings.extend(["rms_1", "rms_2", "ln_f"])  # adapter v2: RMSNorm parameters are now trainable
-    substrings.extend(["visual_proj", "visual_blocks", "visual_query"])
-    return substrings
-
-
-def mark_only_adapter_v2_as_trainable(model: LLaMA) -> None:
-    """Sets `requires_grad=False` for all non-adapter weights."""
-    for name, param in model.named_parameters():
-        param.requires_grad = any(s in name for s in get_adapter_substrings())
-
-
 def mark_instruction_adapter_trainable(model: LLaMA) -> None:
     """Sets `requires_grad=False` for all parameters except late adaptation prompts, zero-init gating,
     rms-norm, biases and scale factors."""
@@ -370,6 +350,6 @@ def mark_instruction_adapter_trainable(model: LLaMA) -> None:
 def mark_visual_adapter_trainable(model: LLaMA) -> None:
     """Sets `requires_grad=False` for all parameters except the projection layers and 
     early zero-init attention with gating."""
-    pattern=".*visual_proj.*|.*visual_blocks.*|.*visual_query.*"
+    pattern=".*clip_proj.*|.*visual_proj.*|.*visual_blocks.*|.*visual_query.*"
     for name, param in model.named_parameters():
         param.requires_grad = bool(re.match(pattern, name))

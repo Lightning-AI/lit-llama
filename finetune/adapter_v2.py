@@ -16,6 +16,7 @@ import sys
 import time
 from pathlib import Path
 import shutil
+import random
 
 import lightning as L
 import numpy as np
@@ -32,6 +33,7 @@ from PIL import Image
 import clip
 from timm.models.vision_transformer import Block as ViTBlock
 import torch
+from scripts.prepare_alpaca import prepare_sample
 
 
 # Requirements
@@ -48,8 +50,9 @@ from lit_llama.adapter_v2 import (
     # mark_only_adapter_v2_as_trainable,
     # add_adapter_v2_parameters_to_linear_layers,
     # adapter_v2_state_from_state_dict
-    mark_instruction_adapter_trainable
-    )
+    mark_instruction_adapter_trainable,
+    mark_visual_adapter_trainable,
+)
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
 from lightning.fabric.strategies import DeepSpeedStrategy
@@ -115,10 +118,6 @@ def main(
     # strict=False because missing keys due to adapter weights not contained in state dict
     model.load_state_dict(checkpoint, strict=False)
 
-    # add_adapter_v2_parameters_to_linear_layers(model)
-    # mark_only_adapter_v2_as_trainable(model)
-    mark_instruction_adapter_trainable(model)
-
     clip_model, clip_transform = clip.load("ViT-L/14")
     clip_model = fabric.to_device(clip_model)  # keep in default precision
     coco_dataloader = get_coco_dataloader(clip_transform)
@@ -150,9 +149,9 @@ def train(
 
     Loosely based on the nanoGPT implementation: https://github.com/karpathy/nanoGPT.
     """
-
-    step_count = 0
+    tokenizer = Tokenizer("checkpoints/lit-llama/tokenizer.model")
     coco_iter = iter(coco_dataloader)
+    step_count = 0
 
     for iter_num in range(max_iters):
 
@@ -164,18 +163,29 @@ def train(
 
         t0 = time.time()
 
-        input_ids, targets = get_batch(fabric, train_data)
-        # imgs = torch.rand(input_ids.size(0), 3, 256, 256, device=fabric.device)
-        # img_features = torch.load("features-0.pt", map_location=fabric.device)["clip_feats"]
-        # device = torch.device("cuda", 0)
-        # clip_model.to(device)
-        
-        img, caption = next(coco_iter)
-        # img = img.unsqueeze(0).to(fabric.device)
-        img = img.to(fabric.device)
-        with torch.no_grad(), torch.cuda.amp.autocast():
-            clip_feats = clip_encode_image(clip_model, img)
-        # print(clip_feats.shape)
+
+        if iter_num % 2 == 0:
+            # Instruction tuning
+            mark_instruction_adapter_trainable(model)
+            input_ids, targets = get_batch(fabric, train_data)
+            clip_feats = None
+        else:
+            # Image captioning
+            mark_visual_adapter_trainable(model)
+            img, captions = next(coco_iter)
+            img = img.to(fabric.device)
+            with torch.no_grad(), torch.cuda.amp.autocast():
+                clip_feats = clip_encode_image(clip_model, img)
+                # print(clip_feats.shape)
+            
+            data = []
+            for caption_instances in captions: # Loop over batch of captions
+                caption = random.choice(caption_instances)
+                example = {"instruction": "Describe the image.", "input": "", "output": caption}
+                processed = prepare_sample(example, tokenizer, max_length=max_seq_length, mask_inputs=False)
+                data.append(processed)
+            input_ids, targets = get_batch_2(fabric, data)
+
 
         with fabric.no_backward_sync(model, enabled=((iter_num + 1) % gradient_accumulation_iters != 0)):
             logits = model(input_ids, clip_feats)
@@ -268,6 +278,23 @@ def get_batch(fabric: L.Fabric, data: list):
     return x, y
 
 
+def get_batch_2(fabric: L.Fabric, data: list):
+    input_ids = [item["input_ids"].type(torch.int64) for item in data]
+    labels = [item["labels"].type(torch.int64) for item in data]
+
+    max_len = max(len(s) for s in input_ids)
+
+    def pad_right(x, pad_id):
+        # pad right based on the longest sequence
+        n = max_len - len(x)
+        return torch.cat((x, torch.full((n,), pad_id, dtype=x.dtype)))
+
+    x = torch.stack([pad_right(x, pad_id=0) for x in input_ids])
+    y = torch.stack([pad_right(x, pad_id=-1) for x in labels])
+    x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
+    return x, y
+
+
 def load_datasets(data_dir):
     train_data = torch.load(os.path.join(data_dir, "train.pt"))
     val_data = torch.load(os.path.join(data_dir, "test.pt"))
@@ -278,14 +305,14 @@ def get_coco_dataloader(clip_transform):
     train_captions = CocoCaptions(
         root="/data/shared/datasets/coco/train2014/",
         annFile="/data/shared/datasets/coco/annotations/captions_train2014.json",
-        transform=clip_transform
+        transform=clip_transform,
     )
     val_captions = CocoCaptions(
         root="/data/shared/datasets/coco/val2014/",
         annFile="/data/shared/datasets/coco/annotations/captions_val2014.json",
-        transform=clip_transform
+        transform=clip_transform,
     )
-    dataset = train_captions #  + val_captions
+    dataset = train_captions + val_captions
     print('Number of samples: ', len(dataset))
     return DataLoader(dataset, batch_size=micro_batch_size, shuffle=True, num_workers=0)
 
