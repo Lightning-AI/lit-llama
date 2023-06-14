@@ -18,6 +18,7 @@ from sentence_transformers import SentenceTransformer, util
 from PIL import Image
 import clip
 from timm.models.vision_transformer import Block as ViTBlock
+import re
 
 
 @dataclass
@@ -74,9 +75,9 @@ class LLaMA(nn.Module):
         v_depth = 8
         v_num_heads = 16
 
-        self.clip, self.clip_transform = clip.load("ViT-L/14")
+        # self.clip, self.clip_transform = clip.load("ViT-L/14")
 
-        clip_dim = self.clip.visual.proj.shape[1]
+        clip_dim = 768
         self.clip_proj = nn.Linear(clip_dim, v_embed_dim)
         self.clip_proj_norm = nn.LayerNorm(v_embed_dim)
 
@@ -93,7 +94,7 @@ class LLaMA(nn.Module):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02 / math.sqrt(2 * self.config.n_layer))
 
-    def forward(self, idx, img) -> torch.Tensor:
+    def forward(self, idx, img_features) -> torch.Tensor:
         _, t = idx.size()
         assert (
             t <= self.config.block_size
@@ -101,10 +102,10 @@ class LLaMA(nn.Module):
 
         x = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
 
-        img = Image.open('two-dogs.jpg')
-        img = self.clip_transform(img).unsqueeze(0).to(x.device)
-        visual_context = self.forward_visual(img)
-        print("visual_context", visual_context.shape)
+        # img = Image.open('two-dogs.jpg')
+        # img = self.clip_transform(img).unsqueeze(0).to(x.device)
+        visual_context = self.forward_visual(img_features)
+        # print("visual_context", visual_context.shape)
 
         for block in self.transformer.h:
             x = block(x, visual_context)
@@ -136,12 +137,12 @@ class LLaMA(nn.Module):
 
         return x
 
-    def forward_visual(self, imgs):
-        clip_feats = self.clip_encode_image(imgs)
-        clip_feats = self.clip_proj_norm(self.clip_proj(clip_feats.float()))
+    def forward_visual(self, img_features):
+        # clip_feats = self.clip_encode_image(imgs)
+        batch_size = len(img_features)
+        clip_feats = self.clip_proj_norm(self.clip_proj(img_features.to(self.clip_proj.weight.dtype)))
 
-        visual_query = self.visual_query.weight.unsqueeze(
-            0).repeat(len(imgs), 1, 1)
+        visual_query = self.visual_query.weight.unsqueeze(0).repeat(batch_size, 1, 1)
         visual_query = torch.cat([visual_query, clip_feats], dim=1)
         for block in self.visual_blocks:
             visual_query = block(visual_query)
@@ -233,7 +234,7 @@ class CausalSelfAttention(nn.Module):
 
         if self.block_idx >= self.adapter_start_layer:
             prefix = self.adapter_wte.weight.reshape(1, self.adapter_prompt_length, self.n_embd)
-            print("shapes", prefix.shape, visual_context.shape)
+            # print("shapes", prefix.shape, visual_context.shape)
             prefix = prefix + visual_context
 
             aT = prefix.size(1)
@@ -348,6 +349,7 @@ def get_adapter_substrings():
     substrings = ["adapter_wte", "gating_factor"]  # regular adapter v1 parameters
     substrings.extend(["bias"])  # adapter v2: bias tuning
     substrings.extend(["rms_1", "rms_2", "ln_f"])  # adapter v2: RMSNorm parameters are now trainable
+    substrings.extend(["visual_proj", "visual_blocks", "visual_query"])
     return substrings
 
 
@@ -355,3 +357,19 @@ def mark_only_adapter_v2_as_trainable(model: LLaMA) -> None:
     """Sets `requires_grad=False` for all non-adapter weights."""
     for name, param in model.named_parameters():
         param.requires_grad = any(s in name for s in get_adapter_substrings())
+
+
+def mark_instruction_adapter_trainable(model: LLaMA) -> None:
+    """Sets `requires_grad=False` for all parameters except late adaptation prompts, zero-init gating,
+    rms-norm, biases and scale factors."""
+    pattern = ".*transformer.*adapter_wte|.*transformer.*gating_factor|.*transformer.*bias|.*rms_1.*|.*rms_2.*|.*ln_f.*"
+    for name, param in model.named_parameters():
+        param.requires_grad = bool(re.match(pattern, name))
+
+
+def mark_visual_adapter_trainable(model: LLaMA) -> None:
+    """Sets `requires_grad=False` for all parameters except the projection layers and 
+    early zero-init attention with gating."""
+    pattern=".*visual_proj.*|.*visual_blocks.*|.*visual_query.*"
+    for name, param in model.named_parameters():
+        param.requires_grad = bool(re.match(pattern, name))

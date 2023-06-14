@@ -23,7 +23,16 @@ import torch
 import torch.nn as nn
 
 import clip
-from timm.models.vision_transformer import Block
+from torch.utils.data import DataLoader
+# from timm.models.vision_transformer import Block
+from  torchvision.datasets import CocoCaptions
+import torchvision.transforms as transforms
+from sentence_transformers import SentenceTransformer, util
+from PIL import Image
+import clip
+from timm.models.vision_transformer import Block as ViTBlock
+import torch
+
 
 # Requirements
 # git+https://github.com/openai/CLIP.git
@@ -36,9 +45,10 @@ sys.path.append(str(wd))
 from generate import generate
 from lit_llama.adapter_v2 import (
     LLaMA, LLaMAConfig,
-    mark_only_adapter_v2_as_trainable,
+    # mark_only_adapter_v2_as_trainable,
     # add_adapter_v2_parameters_to_linear_layers,
     # adapter_v2_state_from_state_dict
+    mark_instruction_adapter_trainable
     )
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
@@ -100,13 +110,18 @@ def main(
         )
     checkpoint = torch.load(pretrained_path)
 
-    # with fabric.init_module():
-    model = LLaMA(config)
+    with fabric.init_module():
+        model = LLaMA(config)
     # strict=False because missing keys due to adapter weights not contained in state dict
     model.load_state_dict(checkpoint, strict=False)
 
     # add_adapter_v2_parameters_to_linear_layers(model)
-    mark_only_adapter_v2_as_trainable(model)
+    # mark_only_adapter_v2_as_trainable(model)
+    mark_instruction_adapter_trainable(model)
+
+    clip_model, clip_transform = clip.load("ViT-L/14")
+    clip_model = fabric.to_device(clip_model)  # keep in default precision
+    coco_dataloader = get_coco_dataloader(clip_transform)
 
     num_params = sum([p.numel() for p in model.parameters() if p.requires_grad])
     print(f"Number of trainable parameters: {num_params}")
@@ -115,7 +130,7 @@ def main(
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     model, optimizer = fabric.setup(model, optimizer)
-    train(fabric, model, optimizer, train_data, val_data, out_dir)
+    train(fabric, model, clip_model, optimizer, train_data, val_data, coco_dataloader, out_dir)
 
     # Save the final checkpoint at the end of training
     # save_model_checkpoint(fabric, model, os.path.join(out_dir, "lit-llama-adapter-finetuned.pth"))
@@ -124,16 +139,20 @@ def main(
 def train(
     fabric: L.Fabric,
     model: torch.nn.Module,
+    clip_model,
     optimizer: torch.optim.Optimizer,
     train_data: np.ndarray,
     val_data: np.ndarray,
+    coco_dataloader,
     out_dir: str,
 ) -> None:
     """The training loop.
 
     Loosely based on the nanoGPT implementation: https://github.com/karpathy/nanoGPT.
     """
+
     step_count = 0
+    coco_iter = iter(coco_dataloader)
 
     for iter_num in range(max_iters):
 
@@ -146,9 +165,20 @@ def train(
         t0 = time.time()
 
         input_ids, targets = get_batch(fabric, train_data)
-        imgs = torch.rand(input_ids.size(0), 3, 256, 256, device=fabric.device)
+        # imgs = torch.rand(input_ids.size(0), 3, 256, 256, device=fabric.device)
+        # img_features = torch.load("features-0.pt", map_location=fabric.device)["clip_feats"]
+        # device = torch.device("cuda", 0)
+        # clip_model.to(device)
+        
+        img, caption = next(coco_iter)
+        # img = img.unsqueeze(0).to(fabric.device)
+        img = img.to(fabric.device)
+        with torch.no_grad(), torch.cuda.amp.autocast():
+            clip_feats = clip_encode_image(clip_model, img)
+        # print(clip_feats.shape)
+
         with fabric.no_backward_sync(model, enabled=((iter_num + 1) % gradient_accumulation_iters != 0)):
-            logits = model(input_ids, imgs)
+            logits = model(input_ids, clip_feats)
             loss = loss_fn(logits, targets)
             fabric.backward(loss / gradient_accumulation_iters)
 
@@ -244,6 +274,21 @@ def load_datasets(data_dir):
     return train_data, val_data
 
 
+def get_coco_dataloader(clip_transform):
+    train_captions = CocoCaptions(
+        root="/data/shared/datasets/coco/train2014/",
+        annFile="/data/shared/datasets/coco/annotations/captions_train2014.json",
+        transform=clip_transform
+    )
+    val_captions = CocoCaptions(
+        root="/data/shared/datasets/coco/val2014/",
+        annFile="/data/shared/datasets/coco/annotations/captions_val2014.json",
+        transform=clip_transform
+    )
+    dataset = train_captions #  + val_captions
+    print('Number of samples: ', len(dataset))
+    return DataLoader(dataset, batch_size=micro_batch_size, shuffle=True, num_workers=0)
+
 # def save_model_checkpoint(fabric, model, file_path):
 #     file_path = Path(file_path)
 
@@ -265,6 +310,30 @@ def load_datasets(data_dir):
 #         if fabric.global_rank == 0:
 #             torch.save(state_dict, file_path)
 #         fabric.barrier()
+
+
+
+def clip_encode_image(clip_model, x):
+    # modified from CLIP
+    x = clip_model.visual.conv1(x)  # shape = [*, width, grid, grid]
+    # shape = [*, width, grid ** 2]
+    x = x.reshape(x.shape[0], x.shape[1], -1)
+    x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
+    x = torch.cat([clip_model.visual.class_embedding.to(x.dtype) + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device), x], dim=1)  # shape = [*, grid ** 2 + 1, width]
+    x = x + clip_model.visual.positional_embedding.to(x.dtype)
+    x = clip_model.visual.ln_pre(x)
+
+    x = x.permute(1, 0, 2)  # NLD -> LND
+    x = clip_model.visual.transformer(x)
+    x = x.permute(1, 0, 2)  # LND -> NLD
+
+    # preserve all spatial tokens
+    x = clip_model.visual.ln_post(x[:, :, :])
+
+    if clip_model.visual.proj is not None:
+        x = x @ clip_model.visual.proj
+
+    return x
 
 
 if __name__ == "__main__":
