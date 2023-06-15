@@ -1,0 +1,6 @@
+x = [
+    ('A man is eating hot dogs in his mouth', 'A young boy is on the corner and with his skateboard. ', 'A commercial airplane sitting on the runway with trucks next to it.', 'The girl in shorts is attempting to hit the tennis ball.'), 
+    ('A man is eating two hot dogs without the bun.', 'A boy is skateboarding down an urban sidewalk.', 'A large passenger jet stands on the tarmac to be serviced.', 'a girl is hitting a tennis ball over the net'), 
+    ('A man eating a hot dog out of its bun.', 'A man riding a skateboard next to a blue and white building.', 'a jumbo jet rests on the tarmac with support vehicles around it', 'Girl playing tennis on grass wearing blue shorts.'), 
+    ('A man eats a hot dog in front of a wall.', 'A boy on a street corner playing with a skateboard.', 'A large continental jet sitting on a tarmac at an airport.', 'Woman in white and blue hitting a tennis ball.'), 
+    ('a man sticking two hot dogs into his mouth as he holds the bun in his other hand ', 'a person with one foot on a skateboard while standing in front of a white and blue building', 'The workers are working on the plane at the airport. ', 'The woman is playing a game of tennis on the court. ')]

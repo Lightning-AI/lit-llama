@@ -25,16 +25,13 @@ import torch.nn as nn
 
 import clip
 from torch.utils.data import DataLoader
-# from timm.models.vision_transformer import Block
 from  torchvision.datasets import CocoCaptions
 import torchvision.transforms as transforms
-from sentence_transformers import SentenceTransformer, util
 from PIL import Image
 import clip
-from timm.models.vision_transformer import Block as ViTBlock
 import torch
 from scripts.prepare_alpaca import prepare_sample
-
+import wandb
 
 # Requirements
 # git+https://github.com/openai/CLIP.git
@@ -44,12 +41,10 @@ from scripts.prepare_alpaca import prepare_sample
 wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 
-from generate import generate
+# from generate.adapter_v2 import generate
 from lit_llama.adapter_v2 import (
     LLaMA, LLaMAConfig,
-    # mark_only_adapter_v2_as_trainable,
-    # add_adapter_v2_parameters_to_linear_layers,
-    # adapter_v2_state_from_state_dict
+    adapter_state_from_state_dict,
     mark_instruction_adapter_trainable,
     mark_visual_adapter_trainable,
 )
@@ -58,20 +53,19 @@ from scripts.prepare_alpaca import generate_prompt
 from lightning.fabric.strategies import DeepSpeedStrategy
 
 
-eval_interval = 600
-save_interval = 1000
+eval_interval = 200
+save_interval = 400
 eval_iters = 100
-log_interval = 1
 devices = 1
 
 # Hyperparameters
 learning_rate = 9e-3
 batch_size = 64 / devices
-micro_batch_size = 1
+micro_batch_size = 8
 gradient_accumulation_iters = batch_size // micro_batch_size
 assert gradient_accumulation_iters > 0
 epoch_size = 50000  # train dataset size
-num_epochs = 5
+num_epochs = 1000
 max_iters = num_epochs * (epoch_size // micro_batch_size) // devices
 weight_decay = 0.02
 max_seq_length = 256  # see scripts/prepare_alpaca.py
@@ -87,13 +81,18 @@ ds_config = {
 def main(
     data_dir: str = "data/alpaca", 
     pretrained_path: str = "checkpoints/lit-llama/7B/lit-llama.pth",
-    out_dir: str = "out/adapter_v2/alpaca",
+    out_dir: str = "out/adapter_v2/alpaca-coco",
+    pretrain=True,
 ):
+
+    stage = "pretraining" if pretrain else "finetuning"
+    out_dir = os.path.join(out_dir, stage)
 
     fabric = L.Fabric(
         accelerator="cuda",
-        devices=1,
-        strategy=(DeepSpeedStrategy(config=ds_config) if devices > 1 else "auto"),
+        devices=devices,
+        # strategy=(DeepSpeedStrategy(config=ds_config) if devices > 1 else "auto"),
+        # strategy="ddp",
         precision="bf16-true",
     )
     fabric.launch()
@@ -101,6 +100,8 @@ def main(
 
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
+        wandb.init(project="adapter-v2-multi-modal", name=stage)
+
 
     train_data, val_data = load_datasets(data_dir=data_dir)
 
@@ -132,7 +133,7 @@ def main(
     train(fabric, model, clip_model, optimizer, train_data, val_data, coco_dataloader, out_dir)
 
     # Save the final checkpoint at the end of training
-    # save_model_checkpoint(fabric, model, os.path.join(out_dir, "lit-llama-adapter-finetuned.pth"))
+    save_model_checkpoint(fabric, model, os.path.join(out_dir, f"lit-llama-adapter-v2.pth"))
 
 
 def train(
@@ -153,6 +154,9 @@ def train(
     coco_iter = iter(coco_dataloader)
     step_count = 0
 
+    visual_loss = 10.
+    text_loss = 10.
+
     for iter_num in range(max_iters):
 
         if step_count <= warmup_iters:
@@ -163,8 +167,9 @@ def train(
 
         t0 = time.time()
 
+        is_visual_iteration = iter_num % 2 == 0
 
-        if iter_num % 2 == 0:
+        if not is_visual_iteration:
             # Instruction tuning
             mark_instruction_adapter_trainable(model)
             input_ids, targets = get_batch(fabric, train_data)
@@ -172,15 +177,18 @@ def train(
         else:
             # Image captioning
             mark_visual_adapter_trainable(model)
-            img, captions = next(coco_iter)
+            try:
+                img, captions = next(coco_iter)
+            except StopIteration:
+                coco_iter = iter(coco_dataloader)
+                img, captions = next(coco_iter)
+
             img = img.to(fabric.device)
             with torch.no_grad(), torch.cuda.amp.autocast():
                 clip_feats = clip_encode_image(clip_model, img)
-                # print(clip_feats.shape)
             
             data = []
-            for caption_instances in captions: # Loop over batch of captions
-                caption = random.choice(caption_instances)
+            for caption in captions:  # Loop over batch of captions
                 example = {"instruction": "Describe the image.", "input": "", "output": caption}
                 processed = prepare_sample(example, tokenizer, max_length=max_seq_length, mask_inputs=False)
                 data.append(processed)
@@ -196,24 +204,30 @@ def train(
             optimizer.step()
             optimizer.zero_grad()
             step_count += 1
-                
+
             if step_count % eval_interval == 0:
                 val_loss = validate(fabric, model, val_data)
-                fabric.print(f"step {iter_num}: val loss {val_loss:.4f}")
+                fabric.print(f"iter {iter_num}: val loss {val_loss:.4f}")
                 fabric.barrier()
 
             if step_count % save_interval == 0:
-                pass
-                # print(f"Saving adapter weights to {out_dir}")
+                print(f"Saving adapter weights to {out_dir}")
                 # TODO: Provide a function/script to merge the adapter weights with pretrained weights
-                # save_model_checkpoint(fabric, model, os.path.join(out_dir, f"iter-{iter_num:06d}.pth"))
+                save_model_checkpoint(fabric, model, os.path.join(out_dir, f"iter-{iter_num:06d}.pth"))
 
         dt = time.time() - t0
-        if iter_num % log_interval == 0:
-            fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
+
+        if is_visual_iteration:
+            visual_loss = loss.item()
+        else:
+            text_loss = loss.item()
+        
+        if fabric.global_rank == 0:
+            wandb.log({"iter": iter_num, "text_loss": text_loss, "visual_loss": visual_loss, "step": step_count, "lr": lr})
+            fabric.print(f"iter {iter_num}, step {step_count}: text_loss {text_loss:.4f}, visual loss {visual_loss:.4f}, time: {dt*1000:.2f}ms")
 
 
-def generate_response(model, instruction, input=""):
+def generate_response(model, instruction, input="", image_features=None):
     tokenizer = Tokenizer("checkpoints/lit-llama/tokenizer.model")
     sample = {"instruction": instruction, "input": input}
     prompt = generate_prompt(sample)
@@ -222,13 +236,16 @@ def generate_response(model, instruction, input=""):
     output = generate(
         model,
         idx=encoded,
+        image_features=image_features,
         max_seq_length=max_seq_length,
         max_new_tokens=100,
         temperature=0.8,
     )
     output = tokenizer.decode(output)
-    return output # output.split("### Response:")[1].strip()
+    return output
 
+
+predictions_buffer = []
 
 @torch.no_grad()
 def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> torch.Tensor:
@@ -243,10 +260,27 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     val_loss = losses.mean()
 
     # produce an example:
-    instruction = "Recommend a movie for me to watch during the weekend and explain the reason."
-    output = generate_response(model, instruction)
+    clip_model, clip_transform = clip.load("ViT-L/14")
+    clip_model = fabric.to_device(clip_model)  # keep in default precision
+    
+    # pick a random image
+    test_folder = "/data/shared/datasets/coco/test2014/"
+    file = os.path.join(test_folder, random.choice(os.listdir(test_folder)))
+    img = Image.open(file)
+    img = clip_transform(img)
+    img = img.unsqueeze(0)
+    img = img.to(fabric.device)
+    with torch.no_grad(), torch.cuda.amp.autocast():
+        clip_feats = clip_encode_image(clip_model, img)
+    instruction = "Write a synopsis for a movie inspired by the given image."
+    output = generate_response(model, instruction, image_features=clip_feats)
     fabric.print(instruction)
     fabric.print(output)
+
+    if fabric.global_rank == 0:
+        predictions_buffer.append([wandb.Image(img.cpu()), instruction, output])
+        predictions = wandb.Table(columns=["image", "input", "output"], rows=predictions_buffer)
+        wandb.log({"predictions": predictions})
 
     model.train()
     return val_loss.item()
@@ -257,7 +291,6 @@ def loss_fn(logits, targets):
     targets = targets[..., 1:].contiguous()
     loss = torch.nn.functional.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
     return loss
-    
 
 def get_batch(fabric: L.Fabric, data: list):
     ix = torch.randint(len(data), (micro_batch_size,))
@@ -302,41 +335,45 @@ def load_datasets(data_dir):
 
 
 def get_coco_dataloader(clip_transform):
+    pick_caption = transforms.Lambda(lambda c: random.choice(c))
     train_captions = CocoCaptions(
         root="/data/shared/datasets/coco/train2014/",
         annFile="/data/shared/datasets/coco/annotations/captions_train2014.json",
         transform=clip_transform,
+        target_transform=pick_caption,
     )
     val_captions = CocoCaptions(
         root="/data/shared/datasets/coco/val2014/",
         annFile="/data/shared/datasets/coco/annotations/captions_val2014.json",
         transform=clip_transform,
+        target_transform=pick_caption,
     )
     dataset = train_captions + val_captions
     print('Number of samples: ', len(dataset))
-    return DataLoader(dataset, batch_size=micro_batch_size, shuffle=True, num_workers=0)
+    return DataLoader(dataset, batch_size=micro_batch_size, shuffle=True, num_workers=4)
 
-# def save_model_checkpoint(fabric, model, file_path):
-#     file_path = Path(file_path)
 
-#     if isinstance(fabric.strategy, DeepSpeedStrategy):
-#         from deepspeed.utils.zero_to_fp32 import get_fp32_state_dict_from_zero_checkpoint
+def save_model_checkpoint(fabric, model, file_path):
+    file_path = Path(file_path)
 
-#         tmp_path = file_path.with_suffix(".tmp")
-#         fabric.save(tmp_path, {"model": model})
-#         fabric.barrier()
-#         if fabric.global_rank == 0:
-#             # Create a consolidated checkpoint with the same name next to the deepspeed checkpoint
-#             # and only keep the adapter weights
-#             state_dict = get_fp32_state_dict_from_zero_checkpoint(tmp_path)
-#             state_dict = adapter_v2_state_from_state_dict(state_dict)
-#             torch.save(state_dict, file_path)
-#             shutil.rmtree(tmp_path)
-#     else:
-#         state_dict = adapter_v2_state_from_state_dict(model.state_dict())
-#         if fabric.global_rank == 0:
-#             torch.save(state_dict, file_path)
-#         fabric.barrier()
+    if isinstance(fabric.strategy, DeepSpeedStrategy):
+        from deepspeed.utils.zero_to_fp32 import get_fp32_state_dict_from_zero_checkpoint
+
+        tmp_path = file_path.with_suffix(".tmp")
+        fabric.save(tmp_path, {"model": model})
+        fabric.barrier()
+        if fabric.global_rank == 0:
+            # Create a consolidated checkpoint with the same name next to the deepspeed checkpoint
+            # and only keep the adapter weights
+            state_dict = get_fp32_state_dict_from_zero_checkpoint(tmp_path)
+            state_dict = adapter_state_from_state_dict(state_dict)
+            torch.save(state_dict, file_path)
+            shutil.rmtree(tmp_path)
+    else:
+        state_dict = adapter_state_from_state_dict(model.state_dict())
+        if fabric.global_rank == 0:
+            torch.save(state_dict, file_path)
+        fabric.barrier()
 
 
 
@@ -361,6 +398,68 @@ def clip_encode_image(clip_model, x):
         x = x @ clip_model.visual.proj
 
     return x
+
+
+
+@torch.no_grad()
+def generate(
+    model: torch.nn.Module,
+    idx: torch.Tensor,
+    image_features,
+    max_new_tokens: int,
+    max_seq_length: int,
+    temperature: float = 1.0,
+    top_k=None,
+    eos_id=None,
+) -> torch.Tensor:
+    """Takes a conditioning sequence (prompt) as input and continues to generate as many tokens as requested.
+
+    The implementation of this function is modified from A. Karpathy's nanoGPT.
+
+    Args:
+        model: The model to use.
+        idx: Tensor of shape (T) with indices of the prompt sequence.
+        max_new_tokens: The number of new tokens to generate.
+        max_seq_length: The maximum sequence length allowed.
+        temperature: Scales the predicted logits by 1 / temperature
+        top_k: If specified, only sample among the tokens with the k highest probabilities
+        eos_id: If specified, stop generating any more token once the <eos> token is triggered
+    """
+    # create an empty tensor of the expected final shape and fill in the current tokens
+    T = idx.size(0)
+    T_new = T + max_new_tokens
+    empty = torch.empty(T_new, dtype=idx.dtype, device=idx.device)
+    empty[:T] = idx
+    idx = empty
+
+    # generate max_new_tokens tokens
+    for t in range(T, T_new):
+        # ignore the not-filled-yet tokens
+        idx_cond = idx[:t]
+        # if the sequence context is growing too long we must crop it at max_seq_length
+        idx_cond = idx_cond if t <= max_seq_length else idx_cond[-max_seq_length:]
+
+        # forward
+        logits = model(idx_cond.view(1, -1), image_features)
+        logits = logits[0, -1] / temperature
+
+        # optionally crop the logits to only the top k options
+        if top_k is not None:
+            v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+            logits[logits < v[[-1]]] = -float("Inf")
+
+        probs = torch.nn.functional.softmax(logits, dim=-1)
+        idx_next = torch.multinomial(probs, num_samples=1)
+
+        # concatenate the new generation
+        # https://github.com/pytorch/pytorch/issues/101936
+        idx[t] = idx_next.item() if idx.device.type == "mps" else idx_next
+
+        # if <eos> token is triggered, return the output (stop generation)
+        if idx_next == eos_id:
+            return idx[:t + 1]  # include the EOS token
+
+    return idx
 
 
 if __name__ == "__main__":

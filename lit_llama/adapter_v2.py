@@ -90,7 +90,7 @@ class LLaMA(nn.Module):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02 / math.sqrt(2 * self.config.n_layer))
 
-    def forward(self, idx, img_features) -> torch.Tensor:
+    def forward(self, idx, img_features=None) -> torch.Tensor:
         _, t = idx.size()
         assert (
             t <= self.config.block_size
@@ -230,11 +230,20 @@ class CausalSelfAttention(nn.Module):
             prefix = self.adapter_wte.weight.reshape(1, self.adapter_prompt_length, self.n_embd)
             # print("shapes", prefix.shape, visual_context.shape)
             prefix = prefix + visual_context
+            # print("prefix", prefix.shape)
+            # if isinstance(visual_context, torch.Tensor):
+            #     print("visual", visual_context.shape)
+
+            # print("batch size", B)
+            prefix = prefix.expand(B, -1, -1)
+            # print("prefix after expand", prefix.shape)
+
+            
 
             aT = prefix.size(1)
             _, ak, av = self.c_attn(prefix).split(self.n_embd, dim=2)
-            ak = ak.view(1, aT, self.n_head, head_size).repeat(B, 1, 1, 1).transpose(1, 2)
-            av = av.view(1, aT, self.n_head, head_size).repeat(B, 1, 1, 1).transpose(1, 2)
+            ak = ak.view(-1, aT, self.n_head, head_size).transpose(1, 2)
+            av = av.view(-1, aT, self.n_head, head_size).transpose(1, 2)
 
             amask = torch.ones(q.shape[-2], ak.shape[-2], dtype=torch.bool, device=x.device)
             ay = F.scaled_dot_product_attention(q, ak, av, attn_mask=amask, dropout_p=0.0, is_causal=False)
@@ -339,17 +348,28 @@ class AdapterLinear(nn.Linear):
         # Note: Paper also adds a scale factor, but we don't add one
 
 
+INSTRUCTION_ADAPTER_REGEX = ".*transformer.*adapter_wte|.*transformer.*gating_factor|.*transformer.*bias|.*rms_1.*|.*rms_2.*|.*ln_f.*"
+VISUAL_ADAPTER_REGEX = ".*clip_proj.*|.*visual_proj.*|.*visual_blocks.*|.*visual_query.*"
+
+
 def mark_instruction_adapter_trainable(model: LLaMA) -> None:
     """Sets `requires_grad=False` for all parameters except late adaptation prompts, zero-init gating,
     rms-norm, biases and scale factors."""
-    pattern = ".*transformer.*adapter_wte|.*transformer.*gating_factor|.*transformer.*bias|.*rms_1.*|.*rms_2.*|.*ln_f.*"
     for name, param in model.named_parameters():
-        param.requires_grad = bool(re.match(pattern, name))
+        param.requires_grad = bool(re.match(INSTRUCTION_ADAPTER_REGEX, name))
 
 
 def mark_visual_adapter_trainable(model: LLaMA) -> None:
     """Sets `requires_grad=False` for all parameters except the projection layers and 
     early zero-init attention with gating."""
-    pattern=".*clip_proj.*|.*visual_proj.*|.*visual_blocks.*|.*visual_query.*"
     for name, param in model.named_parameters():
-        param.requires_grad = bool(re.match(pattern, name))
+        param.requires_grad = bool(re.match(VISUAL_ADAPTER_REGEX, name))
+
+
+def adapter_state_from_state_dict(state_dict: dict) -> dict:
+    """Returns the model state dict with only the adapter weights for saving."""
+    return {
+        name: param 
+        for name, param in state_dict.items()
+        if re.match(INSTRUCTION_ADAPTER_REGEX, name) or re.match(VISUAL_ADAPTER_REGEX, name)
+    }
