@@ -53,6 +53,8 @@ from scripts.prepare_alpaca import generate_prompt
 from lightning.fabric.strategies import DeepSpeedStrategy
 
 
+
+
 eval_interval = 200
 save_interval = 400
 eval_iters = 100
@@ -81,7 +83,7 @@ ds_config = {
 def main(
     data_dir: str = "data/alpaca", 
     pretrained_path: str = "checkpoints/lit-llama/7B/lit-llama.pth",
-    out_dir: str = "out/adapter_v2/alpaca-coco",
+    out_dir: str = "out/adapter_v2/image-caption",
 ):
 
     fabric = L.Fabric(
@@ -96,7 +98,7 @@ def main(
 
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
-        wandb.init(project="adapter-v2-multi-modal", name="adapter-v2-multi-modal")
+        wandb.init(project="adapter-v2-multi-modal", name="image-captioning")
 
 
     train_data, val_data = load_datasets(data_dir=data_dir)
@@ -153,6 +155,9 @@ def train(
     visual_loss = 10.
     text_loss = 10.
 
+    # mark_visual_adapter_trainable(model)
+    mark_adapter_trainable(model)
+
     for iter_num in range(max_iters):
 
         if step_count <= warmup_iters:
@@ -163,33 +168,24 @@ def train(
 
         t0 = time.time()
 
-        is_visual_iteration = iter_num % 2 == 0
+        # Image captioning
+        try:
+            img, captions = next(coco_iter)
+        except StopIteration:
+            coco_iter = iter(coco_dataloader)
+            img, captions = next(coco_iter)
 
-        if not is_visual_iteration:
-            # Instruction tuning
-            mark_instruction_adapter_trainable(model)
-            input_ids, targets = get_batch(fabric, train_data)
-            clip_feats = None
-        else:
-            # Image captioning
-            mark_visual_adapter_trainable(model)
-            try:
-                img, captions = next(coco_iter)
-            except StopIteration:
-                coco_iter = iter(coco_dataloader)
-                img, captions = next(coco_iter)
-
-            img = img.to(fabric.device)
-            with torch.no_grad(), torch.cuda.amp.autocast():
-                clip_feats = clip_encode_image(clip_model, img)
-            
-            data = []
-            for caption in captions:  # Loop over batch of captions
-                example = {"instruction": "Describe the image.", "input": "", "output": caption}
-                processed = prepare_sample(example, tokenizer, max_length=max_seq_length, mask_inputs=False)
-                data.append(processed)
-            input_ids, targets = get_batch_2(fabric, data)
-
+        img = img.to(fabric.device)
+        with torch.no_grad(), torch.cuda.amp.autocast():
+            clip_feats = clip_encode_image(clip_model, img)
+        
+        data = []
+        for caption in captions:  # Loop over batch of captions
+            example = {"instruction": "Describe the image.", "input": "", "output": caption}
+            processed = prepare_sample(example, tokenizer, max_length=max_seq_length, mask_inputs=False)
+            data.append(processed)
+        input_ids, targets = get_batch_2(fabric, data)
+       
 
         with fabric.no_backward_sync(model, enabled=((iter_num + 1) % gradient_accumulation_iters != 0)):
             logits = model(input_ids, clip_feats)
@@ -213,10 +209,8 @@ def train(
 
         dt = time.time() - t0
 
-        if is_visual_iteration:
-            visual_loss = loss.item()
-        else:
-            text_loss = loss.item()
+        visual_loss = loss.item()
+ 
         
         if fabric.global_rank == 0:
             wandb.log({"iter": iter_num, "text_loss": text_loss, "visual_loss": visual_loss, "step": step_count, "lr": lr})
@@ -268,7 +262,7 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     img = img.to(fabric.device)
     with torch.no_grad(), torch.cuda.amp.autocast():
         clip_feats = clip_encode_image(clip_model, img)
-    instruction = "Write a synopsis for a movie inspired by the given image."
+    instruction = "Describe the image."
     output = generate_response(model, instruction, image_features=clip_feats)
     fabric.print(instruction)
     fabric.print(output)
@@ -457,6 +451,16 @@ def generate(
 
     return idx
 
+
+import re
+INSTRUCTION_ADAPTER_REGEX = ".*transformer.*adapter_wte|.*transformer.*gating_factor|.*transformer.*bias|.*rms_1.*|.*rms_2.*|.*ln_f.*"
+VISUAL_ADAPTER_REGEX = ".*clip_proj.*|.*visual_proj.*|.*visual_blocks.*|.*visual_query.*"
+
+
+
+def mark_adapter_trainable(model: LLaMA) -> None:
+    for name, param in model.named_parameters():
+        param.requires_grad = bool(re.match(VISUAL_ADAPTER_REGEX, name) or re.match(INSTRUCTION_ADAPTER_REGEX, name))
 
 if __name__ == "__main__":
     # Uncomment this line if you see an error: "Expected is_sm80 to be true, but got false"
