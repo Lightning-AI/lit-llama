@@ -2,6 +2,7 @@
 This script is a placeholder for training LLaMA from scratch.
 Currently, it just trains on the Shakespeare dataset.
 """
+import datetime
 from pathlib import Path
 import sys
 import os
@@ -43,6 +44,95 @@ grad_clip = 1.0
 
 # For shakespeare, choose smaller block size than vanilla LLaMA
 block_size = 1024
+
+
+def print_memory(label: str, fabric: L.Fabric):
+    memory_use = fabric.all_gather(torch.Tensor([
+        torch.cuda.memory_allocated(),
+        torch.cuda.max_memory_allocated(),
+        torch.cuda.memory_reserved(),
+        torch.cuda.max_memory_reserved(),
+    ]) / 1024 ** 3).cpu().t().numpy()
+
+    lines = [f"{label:<20} allocated   (max)  |  reserved   (max)"]
+    for rank, (allocated, max_allocated, reserved, max_reserved) in enumerate(zip(*memory_use)):
+        lines.append(f"  rank:{rank:<13} {allocated:>8.1f} {max_allocated:>8.1f}  : {reserved:>8.1f} {max_reserved:8.1f}")
+    fabric.print("\n".join(lines), "\n")
+
+
+class MemoryProfileTimeline_WithReserved(torch.profiler.profiler.MemoryProfileTimeline):
+
+    def __init__(self, profile):
+        super().__init__(profile._memory_profile())
+        self.event_tree = profile.profiler.kineto_results.experimental_event_tree()
+
+    # Modified: https://github.com/pytorch/pytorch/blob/a60f6dbe69b0cae2e27ac279cdf399c6c16650af/torch/profiler/_memory_profiler.py#L1049-L1101
+    def export_memory_timeline_html(self, path, device, figsize=(20, 12), title=None) -> None:
+        """Exports the memory timeline as an HTML file which contains
+        the memory timeline plot embedded as a PNG file."""
+        from torch.profiler._memory_profiler import _CATEGORY_TO_COLORS, _CATEGORY_TO_INDEX
+
+        # Check if user has matplotlib installed, return gracefully if not.
+        import importlib.util
+        matplotlib_spec = importlib.util.find_spec("matplotlib")
+        if matplotlib_spec is None:
+            print("export_memory_timeline_html failed because matplotlib was not found.")
+            return
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from base64 import b64encode
+        from tempfile import NamedTemporaryFile
+        from os import remove
+
+        mt = self._coalesce_timeline(device)
+        times, sizes = np.array(mt[0]), np.array(mt[1])
+        stacked = np.cumsum(sizes, axis=1) / 1024**3
+
+        # Plot memory timeline as stacked data
+        fig = plt.figure(figsize=figsize, dpi=80)
+        axes = fig.gca()
+        for category, color in _CATEGORY_TO_COLORS.items():
+            i = _CATEGORY_TO_INDEX[category]
+            axes.fill_between(
+                times / 1e3, stacked[:, i], stacked[:, i + 1], color=color, alpha=0.7
+            )
+
+        from torch._C._profiler import _EventType
+        from torch.profiler._utils import traverse_dfs
+        allocations = [e for e in traverse_dfs(self.event_tree) if e.tag == _EventType.Allocation and str(e.extra_fields.device) == device]
+        allocations.sort(key=lambda e: e.start_time_ns)
+        axes.plot(
+            [e.start_time_ns / 1e3 for e in allocations],
+            [e.extra_fields.total_reserved / 1024 ** 3 for e in allocations],
+            color="darkslategrey", linewidth=2,
+        )
+
+        fig.legend(["Unknown" if i is None else i.name for i in _CATEGORY_TO_COLORS] + ["RESERVED"])
+        axes.set_xlabel("Time (us)")
+        axes.set_ylabel("Memory (GB)")
+        title = "\n\n".join(
+            ([title] if title else []) + [f"Max: {stacked[:, -1].max():.2f} GB"]
+        )
+        axes.set_title(title)
+
+        # Embed the memory timeline image into the HTML file
+        tmpfile = NamedTemporaryFile('wb', suffix='.png', delete=False)
+        tmpfile.close()
+        fig.savefig(tmpfile.name, format='png')
+
+        with open(tmpfile.name, 'rb') as tmp:
+            encoded = b64encode(tmp.read()).decode('utf-8')
+            html = """<html>
+    <head><meta charset="utf-8" /><title>GPU Memory Timeline HTML</title></head>
+    <body>
+    <img src=\'data:image/png;base64,{}\'>
+    </body>
+    </html>""".format(encoded)
+
+            with open(path, 'w') as f:
+                f.write(html)
+        remove(tmpfile.name)
 
 
 def main() -> None:
@@ -87,10 +177,25 @@ def train(
 
     Loosely based on the nanoGPT implementation: https://github.com/karpathy/nanoGPT.
     """
-
+    print_memory("Begin", fabric)
     iter_num = 0
 
-    while True:
+    def step():
+        input_ids, targets = get_batch(
+            fabric,
+            train_data,
+            block_size=model.config.block_size,  # type: ignore[union-attr,arg-type]
+        )
+        logits = model(input_ids)
+        loss = torch.nn.functional.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+
+        fabric.backward(loss)
+        optimizer.step()
+        optimizer.zero_grad()
+        return loss
+
+    times = []
+    for _ in range(10):
         # TODO: add learning rate scheduling
 
         # evaluate the loss on train/val sets and write checkpoints
@@ -101,31 +206,37 @@ def train(
             save_model_checkpoint(fabric, model, os.path.join(out_dir, f"iter-{iter_num:06d}-ckpt.pth"))
 
         t0 = time.time()
-
-        input_ids, targets = get_batch(
-            fabric,
-            train_data,
-            block_size=model.config.block_size,  # type: ignore[union-attr,arg-type]
-        )
-        logits = model(input_ids)
-        loss = torch.nn.functional.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
-
-        fabric.backward(loss)
-
-        # TODO: Gradient clipping
-        # if grad_clip != 0.0:
-        #     fabric.clip_gradients(model, optimizer, max_norm=grad_clip)
-
-        optimizer.step()
-        optimizer.zero_grad()
-
+        loss = step()
         dt = time.time() - t0
+        times.append(dt)
         if iter_num % log_interval == 0:
             fabric.print(f"iter {iter_num}: loss {loss.item():.4f}, time: {dt*1000:.2f}ms")
+            print_memory("", fabric)
         iter_num += 1
 
         if iter_num > max_iters:
             break
+
+    with torch.profiler.profile(with_stack=True, record_shapes=True, profile_memory=True) as p:
+        _ = step()
+
+    times = times[1:]  # First step is generally slower due to initialization
+    mean = torch.mean(torch.tensor(times)).item()
+    median = torch.median(torch.tensor(times)).item()
+    fabric.print(f"Times:\n  mean:   {mean}\n  median: {median}\n  {times}")
+    if fabric.global_rank == 0:
+        trace_dir = Path(__file__).parent.parent.joinpath("traces")
+        trace_dir.mkdir(exist_ok=True)
+        now = datetime.datetime.now().strftime("%Y_%m_%d:%H.%M.%S")
+        MemoryProfileTimeline_WithReserved(p).export_memory_timeline_html(
+            path=str(trace_dir.joinpath(f"LLaMA_{now}_with_reserved.html")),
+            device=str(fabric.device),
+        )
+        p.export_memory_timeline(
+            path=str(trace_dir.joinpath(f"LLaMA_{now}.html")),
+            device=str(fabric.device),
+        )
+        p.export_chrome_trace(str(trace_dir.joinpath(f"LLaMA_{now}.pt.trace.json.gz")))
 
 
 @torch.no_grad()

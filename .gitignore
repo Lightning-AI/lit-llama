@@ -9,6 +9,7 @@ data
 checkpoints
 out
 !data/shakespeare/prepare.py
+traces
 wandb
 
 # downloaded by our tests
