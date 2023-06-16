@@ -42,7 +42,6 @@ from lit_llama.adapter_v2 import LLaMA, LLaMAConfig, adapter_state_from_state_di
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
 from lightning.fabric.strategies import DeepSpeedStrategy
-from dataset import get_dataloader
 from generate import generate
 
 import wandb
