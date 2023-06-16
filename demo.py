@@ -24,15 +24,10 @@ tokenizer_path = Path("checkpoints/lit-llama/tokenizer.model")
 
 fabric = L.Fabric(devices=1, precision="bf16-true")
 
+with fabric.init_module(empty_init=True):
+    model = LLaMA.from_name("7B")
 with lazy_load(pretrained_path) as pretrained_checkpoint, lazy_load(adapter_path) as adapter_checkpoint:
-    name = llama_model_lookup(pretrained_checkpoint)
-
-    with fabric.init_module(empty_init=True):
-        model = LLaMA.from_name(name)
-
-    # 1. Load the pretrained weights
     model.load_state_dict(pretrained_checkpoint, strict=False)
-    # 2. Load the fine-tuned adapter weights
     model.load_state_dict(adapter_checkpoint, strict=False)
 
 model.eval()
@@ -70,7 +65,7 @@ def predict(image, prompt, temperature):
 
 
 def create_layout():
-    with gr.Blocks() as main, gr.TabItem("LLaMA Image and Text"):
+    with gr.Blocks(theme="lightdefault") as main, gr.TabItem("LLaMA Image and Text"):
         with gr.Row():
             with gr.Column():
                 image = gr.Image(label="Image", type="filepath")
