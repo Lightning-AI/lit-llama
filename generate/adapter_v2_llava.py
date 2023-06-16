@@ -122,7 +122,7 @@ def main(
     assert pretrained_path.is_file()
     assert tokenizer_path.is_file()
 
-    L.seed_everything(0)
+    L.seed_everything(1)
 
     precision = "bf16-true" if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else "32-true"
     fabric = L.Fabric(devices=1, precision=precision)
@@ -146,7 +146,7 @@ def main(
     model = fabric.setup(model)
 
     tokenizer = Tokenizer(tokenizer_path)
-    sample = {"instruction": prompt, "input": input}
+    sample = {"instruction": prompt, "input": ""}
     prompt = generate_prompt(sample)
     encoded = tokenizer.encode(prompt, bos=True, eos=False, device=model.device)
     prompt_length = encoded.size(0)

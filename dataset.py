@@ -17,7 +17,6 @@ coco_transform = transforms.Compose([
 ])
 
 
-
 class LLaVAInstruct(Dataset):
     def __init__(self, config_path="data/datasets/llava-instruct/llava_instruct_150k.json", coco_root="data/datasets/coco/", max_length=256, img_transform=coco_transform):
         
@@ -35,15 +34,7 @@ class LLaVAInstruct(Dataset):
         image_name = annotation['image']
         question = annotation['conversations'][0]['value']
         answer = annotation['conversations'][1]['value']
-        filename = None
-        for split in ("train2014", "val2014", "test2014"):
-            candidate = os.path.join(self.coco_root, split, f"COCO_{split}_" + image_name)
-            if os.path.exists(candidate):
-                filename = candidate
-                break
-        
-        if filename is None:
-            raise FileNotFoundError(image_name)
+        filename = os.path.join(self.coco_root, "train2014", f"COCO_train2014_" + image_name)
         image = Image.open(filename).convert('RGB')
         image = self.transform(image)
         example = {"instruction": question, "input": "", "output": answer}
@@ -74,7 +65,7 @@ def collate_fn(samples):
     return img, x, y
 
 
-def get_dataloader(batch_size, num_workers, img_transform):
+def get_dataloader(batch_size=1, num_workers=0, img_transform=coco_transform):
     dataset = LLaVAInstruct(img_transform=img_transform)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn, num_workers=num_workers)
     return dataloader
@@ -83,7 +74,7 @@ def get_dataloader(batch_size, num_workers, img_transform):
 if __name__ == "__main__":
     # dataset = LLaVAInstruct()
     dataloader = get_dataloader()
-    batch = next(iter(dataloader))
-    print(batch[0].shape)
-    print(batch[1].shape)
-    print(batch[2].shape)
+    for batch in iter(dataloader):
+        print(batch[0].shape)
+        print(batch[1].shape)
+        print(batch[2].shape)

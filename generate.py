@@ -24,6 +24,7 @@ def generate(
     temperature: float = 1.0,
     top_k: Optional[int] = None,
     eos_id: Optional[int] = None,
+    **kwargs,
 ) -> torch.Tensor:
     """Takes a conditioning sequence (prompt) as input and continues to generate as many tokens as requested.
 
@@ -58,7 +59,7 @@ def generate(
         idx_cond = idx_cond if t <= max_seq_length else idx_cond[-max_seq_length:]
 
         # forward
-        logits = model(idx_cond.view(1, -1))
+        logits = model(idx_cond.view(1, -1), **kwargs)
         logits = logits[0, -1] / temperature
 
         # optionally crop the logits to only the top k options

@@ -83,7 +83,7 @@ ds_config = {
 def main(
     data_dir: str = "data/alpaca", 
     pretrained_path: str = "checkpoints/lit-llama/7B/lit-llama.pth",
-    out_dir: str = "out/adapter_v2/llava",
+    out_dir: str = "out/adapter_v2/llava-debug",
 ):
 
     fabric = L.Fabric(
@@ -116,12 +116,10 @@ def main(
     # strict=False because missing keys due to adapter weights not contained in state dict
     model.load_state_dict(checkpoint, strict=False)
 
-    clip_model, clip_transform = clip.load("ViT-L/14")
+    clip_model, _ = clip.load("ViT-L/14")
     clip_model = fabric.to_device(clip_model)  # keep in default precision
-    # coco_dataloader = get_coco_dataloader(clip_transform)
 
-    dataloader = get_dataloader(batch_size=micro_batch_size, num_workers=2, img_transform=clip_transform)
-
+    dataloader = get_dataloader(batch_size=micro_batch_size, num_workers=2)
 
     num_params = sum([p.numel() for p in model.parameters() if p.requires_grad])
     print(f"Number of trainable parameters: {num_params}")
