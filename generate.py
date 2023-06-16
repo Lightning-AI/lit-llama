@@ -12,19 +12,19 @@ wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 
 from lit_llama import LLaMA, Tokenizer
-from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup
+from lit_llama.utils import lazy_load, llama_model_lookup, quantization
 
 
 @torch.no_grad()
 def generate(
-    model: torch.nn.Module,
+    model: LLaMA,
     idx: torch.Tensor,
     max_new_tokens: int,
-    max_seq_length: int,
+    *,
+    max_seq_length: Optional[int] = None,
     temperature: float = 1.0,
     top_k: Optional[int] = None,
     eos_id: Optional[int] = None,
-    **kwargs,
 ) -> torch.Tensor:
     """Takes a conditioning sequence (prompt) as input and continues to generate as many tokens as requested.
 
@@ -42,9 +42,15 @@ def generate(
     # create an empty tensor of the expected final shape and fill in the current tokens
     T = idx.size(0)
     T_new = T + max_new_tokens
-    empty = torch.empty(T_new, dtype=idx.dtype, device=idx.device)
+    if max_seq_length is None:
+        max_seq_length = min(T_new, model.config.block_size)
+
+    device, dtype = idx.device, idx.dtype
+    # create an empty tensor of the expected final shape and fill in the current tokens
+    empty = torch.empty(T_new, dtype=dtype, device=device)
     empty[:T] = idx
     idx = empty
+    input_pos = torch.arange(0, T, device=device)
 
     if idx.device.type == "xla":
         import torch_xla.core.xla_model as xm
@@ -52,34 +58,33 @@ def generate(
         xm.mark_step()
 
     # generate max_new_tokens tokens
-    for t in range(T, T_new):
-        # ignore the not-filled-yet tokens
-        idx_cond = idx[:t]
-        # if the sequence context is growing too long we must crop it at max_seq_length
-        idx_cond = idx_cond if t <= max_seq_length else idx_cond[-max_seq_length:]
+    for _ in range(max_new_tokens):
+        x = idx.index_select(0, input_pos).view(1, -1)
 
         # forward
-        logits = model(idx_cond.view(1, -1), **kwargs)
+        logits = model(x, max_seq_length, input_pos)
         logits = logits[0, -1] / temperature
 
         # optionally crop the logits to only the top k options
         if top_k is not None:
             v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
-            logits[logits < v[[-1]]] = -float("Inf")
+            logits = torch.where(logits < v[[-1]], -float("Inf"), logits)
 
         probs = torch.nn.functional.softmax(logits, dim=-1)
-        idx_next = torch.multinomial(probs, num_samples=1)
+        idx_next = torch.multinomial(probs, num_samples=1).to(dtype=dtype)
+
+        # advance
+        input_pos = input_pos[-1:] + 1
 
         if idx.device.type == "xla":
             xm.mark_step()
 
         # concatenate the new generation
-        # https://github.com/pytorch/pytorch/issues/101936
-        idx[t] = idx_next.item() if idx.device.type == "mps" else idx_next
+        idx = idx.index_copy(0, input_pos, idx_next)
 
         # if <eos> token is triggered, return the output (stop generation)
         if idx_next == eos_id:
-            return idx[:t + 1]  # include the EOS token
+            return idx[:input_pos]  # include the EOS token
 
     return idx
 
@@ -113,24 +118,22 @@ def main(
     assert checkpoint_path.is_file(), checkpoint_path
     assert tokenizer_path.is_file(), tokenizer_path
 
-    fabric = L.Fabric(devices=1)
-    dtype = torch.bfloat16 if fabric.device.type == "cuda" and torch.cuda.is_bf16_supported() else torch.float32
+    precision = "bf16-true" if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else "32-true"
+    fabric = L.Fabric(devices=1, precision=precision)
 
     print("Loading model ...", file=sys.stderr)
     t0 = time.time()
     with lazy_load(checkpoint_path) as checkpoint:
         name = llama_model_lookup(checkpoint)
 
-        with EmptyInitOnDevice(
-                device=fabric.device, dtype=dtype, quantization_mode=quantize
-        ):
+        with fabric.init_module(empty_init=True), quantization(mode=quantize):
             model = LLaMA.from_name(name)
 
         model.load_state_dict(checkpoint)
     print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
-    model = fabric.setup_module(model)
+    model = fabric.setup(model)
 
     tokenizer = Tokenizer(tokenizer_path)
     encoded = tokenizer.encode(prompt, bos=True, eos=False, device=fabric.device)
@@ -139,16 +142,10 @@ def main(
     L.seed_everything(1234)
     for i in range(num_samples):
         t0 = time.perf_counter()
-        y = generate(
-            model,
-            encoded,
-            max_new_tokens,
-            model.config.block_size,  # type: ignore[union-attr,arg-type]
-            temperature=temperature,
-            top_k=top_k,
-        )
+        y = generate(model, encoded, max_new_tokens, temperature=temperature, top_k=top_k)
         t = time.perf_counter() - t0
 
+        model.reset_cache()
         print(tokenizer.decode(y))
         tokens_generated = y.size(0) - prompt_length
         print(f"Time for inference {i + 1}: {t:.02f} sec total, {tokens_generated / t:.02f} tokens/sec", file=sys.stderr)

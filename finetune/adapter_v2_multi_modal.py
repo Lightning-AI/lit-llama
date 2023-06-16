@@ -10,7 +10,7 @@ devices variable to `devices = 8` and `micro_batch_size = 8` (or higher).
 
 Additional Requirements to install:
 
-pip install git+https://github.com/openai/CLIP.git torchvision
+pip install git+https://github.com/openai/CLIP.git torchvision pillow
 
 """
 import os
