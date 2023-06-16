@@ -141,10 +141,10 @@ def main(
             toks += inp.size(1) - 1
             nlls += nll.item()
 
-            print(encoded_text.shape, logits.shape)
-            ppl = math.exp(nlls / toks)
-            print(f"Perplexity on {dsname}: {ppl:.2f}")
-            total_toks += toks
+        print(encoded_text.shape, logits.shape)
+        ppl = math.exp(nlls / toks)
+        print(f"Perplexity on {dsname}: {ppl:.2f}")
+        total_toks += toks
 
     t = time.perf_counter() - t0
     print(
