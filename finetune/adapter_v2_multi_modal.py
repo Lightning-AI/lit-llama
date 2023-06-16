@@ -10,43 +10,44 @@ devices variable to `devices = 8` and `micro_batch_size = 8` (or higher).
 
 Additional Requirements to install:
 
-pip install git+https://github.com/openai/CLIP.git torchvision pillow
+pip install git+https://github.com/openai/CLIP.git torchvision pillow timm
 
 """
 import os
 import sys
+from pathlib import Path
+
 # support running without installing as a package
 wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 
-import time
-from pathlib import Path
-import shutil
+import json
 import random
-
-import lightning as L
-import torch
+import shutil
+import time
 
 import clip
-from scripts.prepare_alpaca import prepare_sample
-from torch.utils.data import Dataset
-import json
-from lit_llama.tokenizer import Tokenizer
-from PIL import Image
+import lightning as L
+import torch
 import torchvision.transforms as transforms
-from torchvision.transforms import InterpolationMode
-from torch.utils.data import DataLoader
-
-from lit_llama.utils import cycle_dataloader
-from lit_llama.adapter_v2 import LLaMA, LLaMAConfig, adapter_state_from_state_dict, mark_only_adapter_trainable
-from lit_llama.tokenizer import Tokenizer
-from scripts.prepare_alpaca import generate_prompt
 from lightning.fabric.strategies import DeepSpeedStrategy
-from generate import generate
+from PIL import Image
+from torch.utils.data import DataLoader, Dataset
+from torchvision.transforms import InterpolationMode
 
 import wandb
+from lit_llama.adapter_v2_multi_modal import (
+    LLaMA,
+    LLaMAConfig,
+    adapter_state_from_state_dict,
+    generate,
+    mark_only_adapter_trainable,
+)
+from lit_llama.tokenizer import Tokenizer
+from lit_llama.utils import cycle_dataloader
+from scripts.prepare_alpaca import generate_prompt, prepare_sample
 
-eval_interval = 200
+eval_interval = 10
 save_interval = 400
 eval_iters = 100
 devices = 1
@@ -57,12 +58,11 @@ batch_size = 64 / devices
 micro_batch_size = 8
 gradient_accumulation_iters = batch_size // micro_batch_size
 assert gradient_accumulation_iters > 0
-epoch_size = 50000  # train dataset size
 num_epochs = 1000
-max_iters = num_epochs * (epoch_size // micro_batch_size) // devices
+max_iters = 1000000  # infinite
 weight_decay = 0.02
 max_seq_length = 256  # see scripts/prepare_alpaca.py
-warmup_iters = 2 * (epoch_size // micro_batch_size) // devices  # 2 epoch
+warmup_steps = (20000 // batch_size) // devices
 
 ds_config = {
     "train_micro_batch_size_per_gpu": micro_batch_size,
@@ -88,7 +88,7 @@ def main(
 
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
-        wandb.init(project="adapter-v2-multi-modal", name="llava-clip-transform")
+        wandb.init(project="adapter-v2-multi-modal", name="llava-rerun")
 
     config = LLaMAConfig(block_size=max_seq_length)
 
@@ -125,7 +125,6 @@ def main(
 def train(
     fabric: L.Fabric,
     model: torch.nn.Module,
-    clip_model,
     optimizer: torch.optim.Optimizer,
     dataloader,
     out_dir: str,
@@ -142,9 +141,9 @@ def train(
 
     for iter_num in range(max_iters):
 
-        if step_count <= warmup_iters:
+        if step_count <= warmup_steps:
             # linear warmup
-            lr = learning_rate * step_count / warmup_iters
+            lr = learning_rate * step_count / warmup_steps
             for param_group in optimizer.param_groups:
                 param_group['lr'] = lr
 
@@ -166,8 +165,7 @@ def train(
             step_count += 1
 
             if step_count % eval_interval == 0:
-                val_loss = validate(fabric, model, dataloader)
-                # fabric.print(f"iter {iter_num}: val loss {val_loss:.4f}")
+                generate_samples(fabric, model, clip_model, clip_transform, dataloader)
                 fabric.barrier()
 
             if step_count % save_interval == 0:
@@ -193,7 +191,7 @@ def generate_response(model, instruction, input="", image_features=None):
     output = generate(
         model,
         idx=encoded,
-        image_features=image_features,
+        img_features=image_features,
         max_seq_length=max_seq_length,
         max_new_tokens=100,
         temperature=0.8,
@@ -205,14 +203,10 @@ def generate_response(model, instruction, input="", image_features=None):
 predictions_buffer = []
 
 @torch.no_grad()
-def validate(fabric: L.Fabric, model: torch.nn.Module, dataloader) -> torch.Tensor:
-    fabric.print("Validating ...")
+def generate_samples(fabric, model, clip_model, clip_transform, dataloader) -> torch.Tensor:
+    fabric.print("Generating test samples ...")
     model.eval()
 
-    # produce an example:
-    clip_model, clip_transform = clip.load("ViT-L/14")
-    clip_model = fabric.to_device(clip_model)  # keep in default precision
-    
     # pick a random image
     test_folder = "/data/shared/datasets/coco/test2014/"
     file = os.path.join(test_folder, random.choice(os.listdir(test_folder)))
@@ -222,7 +216,7 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, dataloader) -> torch.Tens
     img = img.to(fabric.device)
     with torch.no_grad(), torch.cuda.amp.autocast():
         clip_feats = encode_image(clip_model, img)
-    instruction = "Describe the contents of the image."
+    instruction = "Describe the image."
     output = generate_response(model, instruction, image_features=clip_feats)
     fabric.print(instruction)
     fabric.print(output)
@@ -247,7 +241,8 @@ def save_model_checkpoint(fabric, model, file_path):
     file_path = Path(file_path)
 
     if isinstance(fabric.strategy, DeepSpeedStrategy):
-        from deepspeed.utils.zero_to_fp32 import get_fp32_state_dict_from_zero_checkpoint
+        from deepspeed.utils.zero_to_fp32 import \
+            get_fp32_state_dict_from_zero_checkpoint
 
         tmp_path = file_path.with_suffix(".tmp")
         fabric.save(tmp_path, {"model": model})

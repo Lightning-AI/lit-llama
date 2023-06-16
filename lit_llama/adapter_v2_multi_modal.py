@@ -1,24 +1,15 @@
-import torch
-from torch import Tensor
-import torch.nn as nn
-from torch.nn import functional as F
-
 import math
+import re
 from dataclasses import dataclass
 from typing import Optional
 
 import torch
 import torch.nn as nn
+from timm.models.vision_transformer import Block as ViTBlock
 from torch.nn import functional as F
 from typing_extensions import Self
 
 from lit_llama.utils import find_multiple
-
-from sentence_transformers import SentenceTransformer, util
-from PIL import Image
-import clip
-from timm.models.vision_transformer import Block as ViTBlock
-import re
 
 
 @dataclass
@@ -72,12 +63,10 @@ class LLaMA(nn.Module):
         v_embed_dim = 768
         v_depth = 8
         v_num_heads = 16
-
         clip_dim = 768
         self.clip_proj = nn.Linear(clip_dim, v_embed_dim)
         self.clip_proj_norm = nn.LayerNorm(v_embed_dim)
 
-        # 2. visual query, blocks and projector
         self.visual_query = nn.Embedding(config.adapter_prompt_length, v_embed_dim)
         self.visual_blocks = nn.ModuleList([ViTBlock(v_embed_dim, v_num_heads, mlp_ratio=4.0, qkv_bias=True) for _ in range(v_depth)])
         self.visual_proj = nn.Linear(v_embed_dim, config.n_embd)
@@ -99,7 +88,7 @@ class LLaMA(nn.Module):
         x = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
 
         
-        visual_context = self.forward_visual(img_features) if img_features is not None else 0
+        visual_context = self.encode_image_context(img_features) if img_features is not None else 0
 
         for block in self.transformer.h:
             x = block(x, visual_context)
@@ -109,42 +98,16 @@ class LLaMA(nn.Module):
 
         return logits
 
-    def clip_encode_image(self, x):
-        # modified from CLIP
-        x = self.clip.visual.conv1(x)  # shape = [*, width, grid, grid]
-        # shape = [*, width, grid ** 2]
-        x = x.reshape(x.shape[0], x.shape[1], -1)
-        x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
-        x = torch.cat([self.clip.visual.class_embedding.to(x.dtype) + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device), x], dim=1)  # shape = [*, grid ** 2 + 1, width]
-        x = x + self.clip.visual.positional_embedding.to(x.dtype)
-        x = self.clip.visual.ln_pre(x)
-
-        x = x.permute(1, 0, 2)  # NLD -> LND
-        x = self.clip.visual.transformer(x)
-        x = x.permute(1, 0, 2)  # LND -> NLD
-
-        # preserve all spatial tokens
-        x = self.clip.visual.ln_post(x[:, :, :])
-
-        if self.clip.visual.proj is not None:
-            x = x @ self.clip.visual.proj
-
-        return x
-
-    def forward_visual(self, img_features):
-        # clip_feats = self.clip_encode_image(imgs)
+    def encode_image_context(self, img_features):
         batch_size = len(img_features)
         clip_feats = self.clip_proj_norm(self.clip_proj(img_features.to(self.clip_proj.weight.dtype)))
-
         visual_query = self.visual_query.weight.unsqueeze(0).repeat(batch_size, 1, 1)
         visual_query = torch.cat([visual_query, clip_feats], dim=1)
         for block in self.visual_blocks:
             visual_query = block(visual_query)
-
         visual_query = visual_query[:, :self.config.adapter_prompt_length, :]
         visual_query = self.visual_proj(visual_query)
         visual_query = self.visual_proj_norm(visual_query)
-
         return visual_query
 
     @classmethod
@@ -228,17 +191,8 @@ class CausalSelfAttention(nn.Module):
 
         if self.block_idx >= self.adapter_start_layer:
             prefix = self.adapter_wte.weight.reshape(1, self.adapter_prompt_length, self.n_embd)
-            # print("shapes", prefix.shape, visual_context.shape)
             prefix = prefix + visual_context
-            # print("prefix", prefix.shape)
-            # if isinstance(visual_context, torch.Tensor):
-            #     print("visual", visual_context.shape)
-
-            # print("batch size", B)
             prefix = prefix.expand(B, -1, -1)
-            # print("prefix after expand", prefix.shape)
-
-            
 
             aT = prefix.size(1)
             _, ak, av = self.c_attn(prefix).split(self.n_embd, dim=2)
@@ -352,20 +306,6 @@ INSTRUCTION_ADAPTER_REGEX = ".*transformer.*adapter_wte|.*transformer.*gating_fa
 VISUAL_ADAPTER_REGEX = ".*clip_proj.*|.*visual_proj.*|.*visual_blocks.*|.*visual_query.*"
 
 
-def mark_instruction_adapter_trainable(model: LLaMA) -> None:
-    """Sets `requires_grad=False` for all parameters except late adaptation prompts, zero-init gating,
-    rms-norm, biases and scale factors."""
-    for name, param in model.named_parameters():
-        param.requires_grad = bool(re.match(INSTRUCTION_ADAPTER_REGEX, name))
-
-
-def mark_visual_adapter_trainable(model: LLaMA) -> None:
-    """Sets `requires_grad=False` for all parameters except the projection layers and 
-    early zero-init attention with gating."""
-    for name, param in model.named_parameters():
-        param.requires_grad = bool(re.match(VISUAL_ADAPTER_REGEX, name))
-
-
 def mark_only_adapter_trainable(model: LLaMA) -> None:
     for name, param in model.named_parameters():
         param.requires_grad = bool(re.match(VISUAL_ADAPTER_REGEX, name) or re.match(INSTRUCTION_ADAPTER_REGEX, name))
@@ -378,3 +318,52 @@ def adapter_state_from_state_dict(state_dict: dict) -> dict:
         for name, param in state_dict.items()
         if re.match(INSTRUCTION_ADAPTER_REGEX, name) or re.match(VISUAL_ADAPTER_REGEX, name)
     }
+
+
+@torch.no_grad()
+def generate(
+    model: torch.nn.Module,
+    idx: torch.Tensor,
+    max_new_tokens: int,
+    max_seq_length: int,
+    temperature: float = 1.0,
+    top_k = None,
+    eos_id = None,
+    **kwargs,
+) -> torch.Tensor:
+
+    # create an empty tensor of the expected final shape and fill in the current tokens
+    T = idx.size(0)
+    T_new = T + max_new_tokens
+    empty = torch.empty(T_new, dtype=idx.dtype, device=idx.device)
+    empty[:T] = idx
+    idx = empty
+
+    # generate max_new_tokens tokens
+    for t in range(T, T_new):
+        # ignore the not-filled-yet tokens
+        idx_cond = idx[:t]
+        # if the sequence context is growing too long we must crop it at max_seq_length
+        idx_cond = idx_cond if t <= max_seq_length else idx_cond[-max_seq_length:]
+
+        # forward
+        logits = model(idx_cond.view(1, -1), **kwargs)
+        logits = logits[0, -1] / temperature
+
+        # optionally crop the logits to only the top k options
+        if top_k is not None:
+            v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+            logits[logits < v[[-1]]] = -float("Inf")
+
+        probs = torch.nn.functional.softmax(logits, dim=-1)
+        idx_next = torch.multinomial(probs, num_samples=1)
+
+        # concatenate the new generation
+        # https://github.com/pytorch/pytorch/issues/101936
+        idx[t] = idx_next.item() if idx.device.type == "mps" else idx_next
+
+        # if <eos> token is triggered, return the output (stop generation)
+        if idx_next == eos_id:
+            return idx[:t + 1]  # include the EOS token
+
+    return idx
