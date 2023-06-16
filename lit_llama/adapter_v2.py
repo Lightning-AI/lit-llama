@@ -366,6 +366,11 @@ def mark_visual_adapter_trainable(model: LLaMA) -> None:
         param.requires_grad = bool(re.match(VISUAL_ADAPTER_REGEX, name))
 
 
+def mark_only_adapter_trainable(model: LLaMA) -> None:
+    for name, param in model.named_parameters():
+        param.requires_grad = bool(re.match(VISUAL_ADAPTER_REGEX, name) or re.match(INSTRUCTION_ADAPTER_REGEX, name))
+
+
 def adapter_state_from_state_dict(state_dict: dict) -> dict:
     """Returns the model state dict with only the adapter weights for saving."""
     return {

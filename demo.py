@@ -11,7 +11,7 @@ import lightning as L
 import torch
 from PIL import Image
 
-from finetune.adapter_v2_llava import clip_encode_image
+from finetune.adapter_v2_multi_modal import encode_image
 from generate import generate
 from lit_llama.adapter_v2 import LLaMA
 from lit_llama.tokenizer import Tokenizer
@@ -46,7 +46,7 @@ def predict(image, prompt, temperature):
     image = clip_transform(image)
     image = fabric.to_device(image).unsqueeze(0)
     with torch.no_grad(), torch.cuda.amp.autocast():
-        img_features = clip_encode_image(clip_model, image)
+        img_features = encode_image(clip_model, image)
 
     output = generate(
         model,

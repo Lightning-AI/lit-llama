@@ -23,7 +23,7 @@ from dataset import get_dataloader
 from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup
 from PIL import Image
 import clip
-from finetune.adapter_v2_llava import clip_encode_image
+from finetune.adapter_v2_multi_modal import encode_image
 
 
 @torch.no_grad()
@@ -157,7 +157,7 @@ def main(
     image = clip_transform(image)
     image = fabric.to_device(image).unsqueeze(0)
     with torch.no_grad(), torch.cuda.amp.autocast(): 
-        image_features = clip_encode_image(clip_model, image)
+        image_features = encode_image(clip_model, image)
 
     t0 = time.perf_counter()
     y = generate(model, encoded, image_features, max_new_tokens=max_new_tokens, max_seq_length=max_seq_length, temperature=temperature, top_k=top_k, eos_id=tokenizer.eos_id)
