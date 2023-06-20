@@ -159,17 +159,12 @@ def main() -> None:
     #     model = torch.compile(model)
 
     model = fabric.setup_module(model)
-
-    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2), foreach=False)
-    optimizer = fabric.setup_optimizers(optimizer)
-
-    train(fabric, model, optimizer, train_data, val_data)
+    train(fabric, model, train_data, val_data)
 
 
 def train(
     fabric: L.Fabric,
     model: torch.nn.Module,
-    optimizer: torch.optim.Optimizer,
     train_data: np.ndarray,
     val_data: np.ndarray,
 ) -> None:
@@ -180,6 +175,28 @@ def train(
     print_memory("Begin", fabric)
     iter_num = 0
 
+    optimizer_kwargs = dict(lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2), foreach=False)
+
+    if os.getenv("OPTIMIZER_IN_BACKWARD") not in (None, "", "0", "False"):
+        from lightning.fabric.strategies.fsdp import fsdp_overlap_step_with_backward
+
+        optimizers = [torch.optim.AdamW([p], **optimizer_kwargs) for p in model.parameters()]
+        optimizers = fabric.setup_optimizers(*optimizers)
+
+        def backward_and_step(loss):
+            with fsdp_overlap_step_with_backward(optimizers, model):
+                fabric.backward(loss)
+
+    else:
+        optimizer = torch.optim.AdamW(model.parameters(), **optimizer_kwargs)
+        optimizer = fabric.setup_optimizers(optimizer)
+
+        def backward_and_step(loss):
+            fabric.backward(loss)
+            optimizer.step()
+            optimizer.zero_grad()
+
+
     def step():
         input_ids, targets = get_batch(
             fabric,
@@ -188,10 +205,7 @@ def train(
         )
         logits = model(input_ids)
         loss = torch.nn.functional.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
-
-        fabric.backward(loss)
-        optimizer.step()
-        optimizer.zero_grad()
+        backward_and_step(loss)
         return loss
 
     times = []
