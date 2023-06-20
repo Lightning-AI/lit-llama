@@ -23,7 +23,7 @@ wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 
 from lit_llama.model import Block, LLaMA, LLaMAConfig
-from lit_llama.utils import save_model_checkpoint
+from lit_llama.utils import save_model_checkpoint, EmptyInitOnDevice
 
 
 out_dir = "out/training"
@@ -137,11 +137,9 @@ class MemoryProfileTimeline_WithReserved(torch.profiler.profiler.MemoryProfileTi
 
 def main() -> None:
     auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
+    strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block, limit_all_gathers=True)
 
-    from torch.distributed.fsdp import BackwardPrefetch
-    strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block, limit_all_gathers=True, backward_prefetch=BackwardPrefetch.BACKWARD_POST)
-
-    fabric = L.Fabric(accelerator="cuda", devices=4, precision="bf16-mixed", strategy=strategy)
+    fabric = L.Fabric(accelerator="cuda", devices=8, precision="bf16-mixed", strategy=strategy)
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
@@ -150,11 +148,11 @@ def main() -> None:
 
     train_data, val_data = load_datasets()
 
-    config = LLaMAConfig.from_name("7B")
+    config = LLaMAConfig.from_name("13B")
     config.block_size = block_size
     config.vocab_size = 100  # from prepare_shakespeare.py
 
-    with fabric.device:
+    with EmptyInitOnDevice():
         model = LLaMA(config)
 
     # if compile:
