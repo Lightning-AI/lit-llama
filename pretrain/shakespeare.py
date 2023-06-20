@@ -137,7 +137,9 @@ class MemoryProfileTimeline_WithReserved(torch.profiler.profiler.MemoryProfileTi
 
 def main() -> None:
     auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
-    strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block, limit_all_gathers=True)
+
+    from torch.distributed.fsdp import BackwardPrefetch
+    strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block, limit_all_gathers=True, backward_prefetch=BackwardPrefetch.BACKWARD_POST)
 
     fabric = L.Fabric(accelerator="cuda", devices=4, precision="bf16-mixed", strategy=strategy)
     fabric.launch()
