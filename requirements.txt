@@ -7,4 +7,3 @@ jsonargparse[signatures]  # generate.py, convert_checkpoint.py CLI
 bitsandbytes  # quantization.py
 datasets  # evaluate.py
 zstandard  # prepare_redpajama.py
-transformers

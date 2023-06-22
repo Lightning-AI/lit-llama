@@ -207,7 +207,7 @@ def get_batch(fabric: L.Fabric, data: list):
     return x, y
 
 
-class LlamaDataset(Dataset):
+class InstructionDataset(Dataset):
     def __init__(self, data: list):
         self._data = data
 
@@ -226,7 +226,7 @@ def get_dataloader(
     micro_batch_size: int,
     group_by_length: bool,
 ):
-    from transformers.trainer_pt_utils import LengthGroupedSampler
+    from length_grouped_sampler import LengthGroupedSampler
 
     def collate_fn(batch):
         x, y = zip(*batch)
@@ -234,7 +234,7 @@ def get_dataloader(
         batch_y = pad_sequence(y, batch_first=True, padding_value=-1)
         return batch_x, batch_y
 
-    dataset = LlamaDataset(data)
+    dataset = InstructionDataset(data)
     sampler = LengthGroupedSampler(micro_batch_size, lengths=[len(x) for x, _ in dataset]) if group_by_length else None
     loader = DataLoader(
         dataset,
