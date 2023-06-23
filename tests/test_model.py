@@ -50,7 +50,7 @@ def test_to_orig_llama(lit_llama, orig_llama, kv_cache) -> None:
         n_layers=n_layer,
         n_heads=n_head,
         vocab_size=vocab_size,
-        norm_eps=1e-5,
+        norm_eps=1e-6,
         max_seq_len=block_size,
         max_batch_size=batch_size,
     )
@@ -66,7 +66,7 @@ def test_to_orig_llama(lit_llama, orig_llama, kv_cache) -> None:
 
     orig_llama_embed = orig_llama_model.tok_embeddings(token_sample)
     llama_embed = llama_model.transformer.wte(token_sample)
-    assert torch.allclose(orig_llama_embed, llama_embed)
+    torch.testing.assert_close(orig_llama_embed, llama_embed)
 
     llama_rope = llama_model.build_rope_cache(token_sample)
     llama_mask = llama_model.build_mask_cache(token_sample)
@@ -93,11 +93,11 @@ def test_to_orig_llama(lit_llama, orig_llama, kv_cache) -> None:
             orig_llama_embed, 0, orig_llama_model.freqs_cis[:seq_len], orig_llama_mask
         )
         (llama_block_out, _) = llama_model.transformer.h[0](llama_embed, llama_rope, llama_mask, seq_len)
-    assert torch.allclose(orig_llama_block_out, llama_block_out)
+    torch.testing.assert_close(orig_llama_block_out, llama_block_out)
 
     expected = orig_llama_model(token_sample, 0)
     out = llama_model(token_sample)
-    assert torch.allclose(out, expected)
+    torch.testing.assert_close(out, expected)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Requires CUDA")
@@ -185,7 +185,7 @@ def test_adapter_parity(orig_llama_adapter):
         n_layers=n_layer,
         n_heads=n_head,
         vocab_size=vocab_size,
-        norm_eps=1e-5,
+        norm_eps=1e-6,
         max_seq_len=block_size,
         adapter_len=adapter_prompt_length,
         adapter_layer=(n_layer - adapter_start_layer),

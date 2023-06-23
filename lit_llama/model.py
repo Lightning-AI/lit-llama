@@ -259,7 +259,7 @@ class RMSNorm(nn.Module):
     https://github.com/bzhangGo/rmsnorm/blob/master/LICENSE.
     """
 
-    def __init__(self, size: int, dim: int = -1, eps: float = 1e-5) -> None:
+    def __init__(self, size: int, dim: int = -1, eps: float = 1e-6) -> None:
         super().__init__()
         self.scale = nn.Parameter(torch.ones(size))
         self.eps = eps
