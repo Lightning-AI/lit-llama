@@ -24,7 +24,7 @@ This implementation builds on [nanoGPT](<https://github.com/karpathy/nanoGPT>).
 
 The open-source code in this repository works with the original LLaMA weights that are distributed by Meta under a [research-only license](https://github.com/facebookresearch/llama/blob/main/MODEL_CARD.md#model-details).
 
-New Apache 2.0 licensed weights are being released as part of the [Open LLaMA project](https://github.com/openlm-research/open_llama). To use the Open LLaMA weights or other llama-like alternatives like Vicuna, check out the [Lit-GPT repository](https://github.com/Lightning-AI/lit-gpt).
+New Apache 2.0 licensed weights are being released as part of the [Open LLaMA project](https://github.com/openlm-research/open_llama). To use the Open LLaMA weights or other LLaMA-like checkpoints such as Vicuna, check out the [Lit-GPT repository](https://github.com/Lightning-AI/lit-gpt).
 
 ## Why?
 
