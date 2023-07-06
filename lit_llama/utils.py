@@ -494,3 +494,13 @@ class incremental_save:
 
     def __exit__(self, type, value, traceback):
         self.zipfile.write_end_of_file()
+
+
+def cycle_dataloader(dataloader):
+    iterator = iter(dataloader)
+    while True:
+        try:
+            yield next(iterator)
+        except StopIteration:
+            iterator = iter(dataloader)
+            yield next(iterator)
