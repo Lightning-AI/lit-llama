@@ -72,7 +72,7 @@ def main(
 
     fabric = L.Fabric(
         accelerator="cuda",
-        devices=1,
+        devices=devices,
         strategy=(DeepSpeedStrategy(config=ds_config) if devices > 1 else "auto"),
         precision="bf16-true",
     )
