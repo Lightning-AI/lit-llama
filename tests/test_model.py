@@ -184,7 +184,7 @@ def test_adapter_parity(orig_llama_adapter):
         dim=n_embd,
         n_layers=n_layer,
         n_heads=n_head,
-        vocab_size=vocab_size,
+        vocab_size=llama_config.padded_vocab_size,
         norm_eps=1e-5,
         max_seq_len=block_size,
         adapter_len=adapter_prompt_length,
