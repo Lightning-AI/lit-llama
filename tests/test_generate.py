@@ -16,9 +16,9 @@ wd = Path(__file__).parent.parent.absolute()
 def load_generate_script():
     sys.path.append(str(wd))
 
-    import generate as generate
+    from generate import full
 
-    return generate
+    return full
 
 
 def test_generate():
@@ -111,7 +111,7 @@ def test_main(tmp_path, monkeypatch):
 
 
 def test_cli():
-    cli_path = wd / "generate.py"
+    cli_path = wd / "generate/full.py"
     output = subprocess.check_output([sys.executable, cli_path, "-h"])
     output = str(output.decode())
     assert "Generates text samples" in output

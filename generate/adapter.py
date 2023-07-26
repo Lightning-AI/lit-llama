@@ -11,7 +11,7 @@ import torch
 wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 
-from generate import generate
+from generate.generate_utils import generate
 from lit_llama import Tokenizer
 from lit_llama.adapter import LLaMA
 from lit_llama.utils import lazy_load, llama_model_lookup, quantization

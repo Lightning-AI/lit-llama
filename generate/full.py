@@ -12,10 +12,9 @@ wd = Path(__file__).absolute().parent.parent
 sys.path.append(str(wd))
 
 from lit_llama import LLaMA, Tokenizer
-from lit_llama.utils import quantization
+from lit_llama.utils import quantization, lazy_load, llama_model_lookup
 from scripts.prepare_alpaca import generate_prompt
-from generate import generate
-
+from generate.generate_utils import generate
 
 def main(
     prompt: str = "Hello, my name is",
@@ -28,6 +27,7 @@ def main(
     tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
     model_size: str = "7B",
     quantize: Optional[str] = None,
+    instruction_tuning: Optional[bool] = False
 ) -> None:
     """Generates text samples based on a pre-trained LLaMA model and tokenizer.
 
@@ -44,6 +44,7 @@ def main(
         quantize: Whether to quantize the model and using which method:
             ``"llm.int8"``: LLM.int8() mode,
             ``"gptq.int4"``: GPTQ 4-bit mode.
+        instruction_tuning: Whether to regenerate sample in instruction turning format.
     """
     if not checkpoint_path:
         checkpoint_path = Path(f"checkpoints/lit-llama/{model_size}/lit-llama.pth")
@@ -56,19 +57,23 @@ def main(
     print("Loading model ...", file=sys.stderr)
     t0 = time.time()
     
-    with fabric.init_module(empty_init=True), quantization(mode=quantize):
-        model = LLaMA.from_name(model_size)
+    with lazy_load(checkpoint_path) as checkpoint:
+        name = llama_model_lookup(checkpoint)
 
-    checkpoint = torch.load(checkpoint_path)
-    model.load_state_dict(checkpoint)
+        with fabric.init_module(empty_init=True), quantization(mode=quantize):
+            model = LLaMA.from_name(name)
+
+        model.load_state_dict(checkpoint)
     print(f"Time to load model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
     model = fabric.setup(model)
 
     tokenizer = Tokenizer(tokenizer_path)
-    sample = {"instruction": prompt, "input": input}
-    prompt = generate_prompt(sample)
+
+    if instruction_tuning:
+        sample = {"instruction": prompt, "input": input}
+        prompt = generate_prompt(sample)
     encoded = tokenizer.encode(prompt, bos=True, eos=False, device=fabric.device)
     prompt_length = encoded.size(0)
 
