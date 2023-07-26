@@ -11,10 +11,10 @@ import torch
 wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 
-from generate import generate
 from lit_llama import Tokenizer, LLaMA
 from lit_llama.lora import lora
 from lit_llama.utils import lazy_load, llama_model_lookup
+from generate.generate_utils import generate
 from scripts.prepare_alpaca import generate_prompt
 
 lora_r = 8
