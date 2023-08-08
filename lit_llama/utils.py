@@ -7,6 +7,7 @@ import pickle
 import warnings
 from io import BytesIO
 from pathlib import Path
+from packaging.version import parse as version_parse
 from contextlib import contextmanager
 
 import torch
@@ -496,3 +497,48 @@ class incremental_save:
 
     def __exit__(self, type, value, traceback):
         self.zipfile.write_end_of_file()
+
+
+def get_packages(pkgs):
+    versions = []
+    for p in pkgs:
+        try:
+            imported = __import__(p)
+            try:
+                versions.append(imported.__version__)
+            except AttributeError:
+                try:
+                    versions.append(imported.version)
+                except AttributeError:
+                    try:
+                        versions.append(imported.version_info)
+                    except AttributeError:
+                        versions.append('0.0')
+        except ImportError:
+            print(f'[FAIL]: {p} is not installed and/or cannot be imported.')
+            versions.append('N/A')
+    return versions
+
+
+def check_python_packages():
+
+    d = {
+        'torch': '2.0.0',
+        'lightning': '2.1.0.dev0',
+    }
+
+    versions = get_packages(d.keys())
+
+    wrong_package_triggered = False
+    for (pkg_name, suggested_ver), actual_ver in zip(d.items(), versions):
+        if actual_ver == 'N/A':
+            continue
+        actual_ver, suggested_ver = version_parse(actual_ver), version_parse(suggested_ver)
+        if actual_ver < suggested_ver:
+            print(f'[FAIL] {pkg_name} {actual_ver}, please upgrade to {suggested_ver}')
+            wrong_package_triggered = True
+        else:
+            print(f'[OK] {pkg_name} {actual_ver}')
+
+    if wrong_package_triggered:
+        raise ImportError("Wrong package version(s) installed.")
