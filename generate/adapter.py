@@ -14,7 +14,7 @@ sys.path.append(str(wd))
 from generate import generate
 from lit_llama import Tokenizer
 from lit_llama.adapter import LLaMA
-from lit_llama.utils import lazy_load, llama_model_lookup, quantization
+from lit_llama.utils import lazy_load, llama_model_lookup, quantization, check_python_packages
 from scripts.prepare_alpaca import generate_prompt
 
 
@@ -51,6 +51,8 @@ def main(
     assert adapter_path.is_file()
     assert pretrained_path.is_file()
     assert tokenizer_path.is_file()
+
+    check_python_packages()
 
     precision = "bf16-true" if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else "32-true"
     fabric = L.Fabric(devices=1, precision=precision)
