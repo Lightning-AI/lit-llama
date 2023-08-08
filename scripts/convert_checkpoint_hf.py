@@ -36,8 +36,8 @@ except ImportError as e:
 Sample usage:
 
 ```
-python src/transformers/models/llama/convert_llama_weights_to_hf.py \
-    --input_dir /path/to/downloaded/llama/weights --model_size 7B --output_dir /output/path
+python scripts/convert_checkpoint_hf.py \
+    --input_dir /path/to/training_checkpoint --model_size 7B --output_dir /output/path
 ```
 
 Thereafter, models can be loaded via:
@@ -71,6 +71,13 @@ NUM_SHARDS = {
     "70Bf": 8,
 }
 
+PARAMS = {
+    "7B": {"dim": 4096, "multiple_of": 256, "n_heads": 32, "n_layers": 32, "norm_eps": 1e-06, "vocab_size": -1},
+    "13B": {"dim": 5120, "multiple_of": 256, "n_heads": 40, "n_layers": 40, "norm_eps": 1e-06, "vocab_size": -1},
+    "30B": {"dim": 6656, "multiple_of": 256, "n_heads": 52, "n_layers": 60, "norm_eps": 1e-06, "vocab_size": -1},
+    "65B": {"dim": 8192, "multiple_of": 256, "n_heads": 64, "n_layers": 80, "norm_eps": 1e-05, "vocab_size": -1},
+}
+
 
 def compute_intermediate_size(n, ffn_dim_multiplier=1, multiple_of=256):
     return multiple_of * ((int(ffn_dim_multiplier * int(8 * n / 3)) + multiple_of - 1) // multiple_of)
@@ -86,12 +93,12 @@ def write_json(text, path):
         json.dump(text, f)
 
 
-def write_model(model_path, input_base_path, model_size, safe_serialization=True):
+def write_model(model_path, input_path, model_size, safe_serialization=True):
     os.makedirs(model_path, exist_ok=True)
     tmp_model_path = os.path.join(model_path, "tmp")
     os.makedirs(tmp_model_path, exist_ok=True)
 
-    params = read_json(os.path.join(input_base_path, "params.json"))
+    params = PARAMS[model_size]
     num_shards = NUM_SHARDS[model_size]
     n_layers = params["n_layers"]
     n_heads = params["n_heads"]
@@ -114,11 +121,13 @@ def write_model(model_path, input_base_path, model_size, safe_serialization=True
     def permute(w, n_heads=n_heads, dim1=dim, dim2=dim):
         return w.view(n_heads, dim1 // n_heads // 2, 2, dim2).transpose(1, 2).reshape(dim1, dim2)
 
-    print(f"Fetching all parameters from the checkpoint at {input_base_path}.")
+    print(f"Fetching all parameters from the checkpoint at {input_path}.")
 
     # Not sharded
     # (The sharded implementation would also work, but this is simpler.)
-    loaded = torch.load(os.path.join(input_base_path, "consolidated.00.pth"), map_location="cpu")
+    # loaded = torch.load(os.path.join(input_path, "consolidated.00.pth"), map_location="cpu")
+    loaded = torch.load(input_path, map_location="cpu") 
+
 
     param_count = 0
     index_dict = {"weight_map": {}}
@@ -221,12 +230,12 @@ def main():
     if args.model_size != "tokenizer_only":
         write_model(
             model_path=args.output_dir,
-            input_base_path=os.path.join(args.input_dir, args.model_size),
+            input_path=args.input_dir,#os.path.join(args.input_dir, args.model_size),
             model_size=args.model_size,
             safe_serialization=args.safe_serialization,
         )
-    spm_path = os.path.join(args.input_dir, "tokenizer.model")
-    write_tokenizer(args.output_dir, spm_path)
+    # spm_path = os.path.join(args.input_dir, "tokenizer.model")
+    # write_tokenizer(args.output_dir, spm_path)
 
 
 if __name__ == "__main__":
