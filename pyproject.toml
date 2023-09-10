@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lit-llama"
+description = "Implementation of the LLaMA language model"
+version = "0.1.0"
+license = {text = "Apache-2.0"}
+authors = [
+    { name = "Lightning AI", email = "community@lightning.ai" }
+]
+readme = "README.rst"
+requires-python = ">=3.8"
+dependencies = [
+    "torch>=2.0.0",
+    "lightning @ git+https://github.com/Lightning-AI/lightning@master",
+    "sentencepiece",
+    "bitsandbytes",
+]
+classifiers = [
+    "Topic :: Text Processing"
+]
+
+[project.optional-dependencies]
+dev = [
+    "tqdm",  # convert_checkpoint.py
+    "numpy",  # train.py dataset memmap
+    "jsonargparse[signatures]",  # generate.py, convert_checkpoint.py CLI
+    "datasets",  # evaluate.py
+    "zstandard",  # prepare_redpajama.py"
+]

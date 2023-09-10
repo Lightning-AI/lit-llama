@@ -35,12 +35,12 @@ jobs:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
         cache-dependency-path: |
-          requirements.txt
+          pyproject.toml
           setup.py
 
     - name: Run tests without the package installed
       run: |
-        pip install pytest -r requirements.txt
+        pip install ".[dev]" pytest
         pip list
 
         pytest --disable-pytest-warnings --strict-markers --color=yes

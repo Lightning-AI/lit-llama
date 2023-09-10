@@ -67,7 +67,7 @@ cd lit-llama
 install dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -e ".[dev]"
 ```
 
 You are all set! 🎉
