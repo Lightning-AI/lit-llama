@@ -10,7 +10,7 @@ The current  [finetune/full.py](../finetune/full.py) we provide uses 4 A100 GPUs
 
 The steps here only need to be done once:
 
-1. Follow the instructions in the [README](README.md) to install the dependencies.
+1. Follow the instructions in the [README](../README.md) to install the dependencies.
 
 2. Download and convert the weights and save them in the `./checkpoints` folder as described [here](download_weights.md).
 
