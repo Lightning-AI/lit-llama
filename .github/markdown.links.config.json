@@ -1,7 +1,7 @@
 {
   "ignorePatterns": [
     {
-      "pattern": ".*https://dev.azure.com/Lightning-AI/lightning/_apis/build/status/.*"
+      "pattern": ".*https://dev.azure.com/Lightning-AI/lit%20Models/_apis/build/status.*"
     }
   ],
   "httpHeaders": [
