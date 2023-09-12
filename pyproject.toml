@@ -24,7 +24,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = [
+all = [
     "tqdm",  # convert_checkpoint.py
     "numpy",  # train.py dataset memmap
     "jsonargparse[signatures]",  # generate.py, convert_checkpoint.py CLI

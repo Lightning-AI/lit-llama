@@ -67,7 +67,7 @@ cd lit-llama
 install dependencies
 
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[all]"
 ```
 
 You are all set! 🎉

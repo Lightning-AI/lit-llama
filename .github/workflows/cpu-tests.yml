@@ -40,7 +40,7 @@ jobs:
 
     - name: Run tests without the package installed
       run: |
-        pip install ".[dev]" pytest
+        pip install ".[all]" pytest
         pip list
 
         pytest --disable-pytest-warnings --strict-markers --color=yes
