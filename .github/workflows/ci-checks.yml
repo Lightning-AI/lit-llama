@@ -1,0 +1,40 @@
+name: General checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  #check-code:
+  #  uses: Lightning-AI/utilities/.github/workflows/check-code.yml@v0.9.0
+  #  with:
+  #    actions-ref: main
+  #    extra-typing: typing
+
+  check-schema:
+    uses: Lightning-AI/utilities/.github/workflows/check-schema.yml@v0.9.0
+    with:
+      azure-dir: ""
+
+
+  #check-package:
+  #  if: github.event.pull_request.draft == false
+  #  uses: Lightning-AI/utilities/.github/workflows/check-package.yml@v0.9.0
+  #  with:
+  #    actions-ref: main
+  #    artifact-name: dist-packages-${{ github.sha }}
+  #    import-name: "torchmetrics"
+  #    testing-matrix: |
+  #      {
+  #        "os": ["ubuntu-20.04", "macos-11", "windows-2022"],
+  #        "python-version": ["3.8", "3.10"]
+  #      }
+
+  check-md-links:
+    uses: Lightning-AI/utilities/.github/workflows/check-md-links.yml@v0.9.0
