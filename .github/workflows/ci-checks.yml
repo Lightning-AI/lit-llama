@@ -22,20 +22,6 @@ jobs:
     with:
       azure-dir: ""
 
-
-  #check-package:
-  #  if: github.event.pull_request.draft == false
-  #  uses: Lightning-AI/utilities/.github/workflows/check-package.yml@v0.9.0
-  #  with:
-  #    actions-ref: main
-  #    artifact-name: dist-packages-${{ github.sha }}
-  #    import-name: "torchmetrics"
-  #    testing-matrix: |
-  #      {
-  #        "os": ["ubuntu-20.04", "macos-11", "windows-2022"],
-  #        "python-version": ["3.8", "3.10"]
-  #      }
-
   check-md-links:
     uses: Lightning-AI/utilities/.github/workflows/check-md-links.yml@v0.9.0
     with:
