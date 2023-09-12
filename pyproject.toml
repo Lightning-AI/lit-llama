@@ -4,13 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lit-llama"
-description = "Implementation of the LLaMA language model"
 version = "0.1.0"
+dynamic = ["readme"]
+description = "Implementation of the LLaMA language model"
 license = {text = "Apache-2.0"}
 authors = [
     { name = "Lightning AI", email = "community@lightning.ai" }
 ]
-readme = "README.rst"
+readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
     "torch>=2.0.0",
