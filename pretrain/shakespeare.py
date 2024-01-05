@@ -1,3 +1,5 @@
+# Copyright Lightning AI. Licensed under the Apache License 2.0, see LICENSE file.
+
 """
 This script is a placeholder for training LLaMA from scratch.
 Currently, it just trains on the Shakespeare dataset.
