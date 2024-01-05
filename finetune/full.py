@@ -1,3 +1,5 @@
+# Copyright Lightning AI. Licensed under the Apache License 2.0, see LICENSE file.
+
 """
 Instruction-tuning on the Alpaca dataset using a regular finetuning procedure (updating all layers).
 

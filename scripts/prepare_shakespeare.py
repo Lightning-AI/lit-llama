@@ -1,3 +1,5 @@
+# Copyright Lightning AI. Licensed under the Apache License 2.0, see LICENSE file.
+
 # MIT License
 
 # Copyright (c) 2022 Andrej Karpathy

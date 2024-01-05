@@ -1,3 +1,5 @@
+# Copyright Lightning AI. Licensed under the Apache License 2.0, see LICENSE file.
+
 """
 Instruction-tuning with LLaMA-Adapter on the Alpaca dataset following the paper
 
