@@ -11,7 +11,7 @@ authors = [
     { name = "Lightning AI", email = "community@lightning.ai" }
 ]
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = [
     "torch>=2.0.0",
     "lightning @ git+https://github.com/Lightning-AI/lightning@master",
