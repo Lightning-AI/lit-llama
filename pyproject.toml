@@ -25,7 +25,7 @@ classifiers = [
 [project.optional-dependencies]
 all = [
     "tqdm",  # convert_checkpoint.py
-    "numpy",  # train.py dataset memmap
+    "numpy <2.0",  # train.py dataset memmap
     "jsonargparse[signatures]",  # generate.py, convert_checkpoint.py CLI
     "datasets",  # evaluate.py
     "zstandard",  # prepare_redpajama.py"
