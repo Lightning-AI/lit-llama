@@ -36,3 +36,11 @@ where = ["."]  # list of folders that contain the packages (["."] by default)
 include = ["lit_llama"]  # package names should match these glob patterns (["*"] by default)
 exclude = []  # exclude packages matching these glob patterns (empty by default)
 namespaces = false  # to disable scanning PEP 420 namespaces (true by default)
+
+
+[tool.pytest.ini_options]
+addopts = [
+    "--strict-markers",
+    "--color=yes",
+    "--disable-pytest-warnings",
+]
