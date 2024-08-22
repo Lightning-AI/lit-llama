@@ -497,25 +497,6 @@ class incremental_save:
         self.zipfile.write_end_of_file()
 
 
-def get_packages(pkgs):
-    versions = []
-    for p in pkgs:
-        try:
-            imported = __import__(p)
-            try:
-                versions.append(imported.__version__)
-            except AttributeError:
-                try:
-                    versions.append(imported.version)
-                except AttributeError:
-                    try:
-                        versions.append(imported.version_info)
-                    except AttributeError:
-                        versions.append('0.0')
-        except ImportError:
-            print(f'[FAIL]: {p} is not installed and/or cannot be imported.')
-            versions.append('N/A')
-    return versions
 
 
 def check_python_packages():
