@@ -11,7 +11,7 @@
 This repository is no longer actively maintained. For a more up-to-date alternative, please visit the LitGPT project:
 <a href="https://github.com/Lightning-AI/litgpt">https://github.com/Lightning-AI/litgpt</a>, which serves as the successor to this repository.
 
-Feel free to explore, fork, or contribute here, but be aware that no further updates or support will be provided.
+Feel free to explore, reuse, or fork, but be aware that no further updates or support will be provided.
 </pre>
 
 <img src="https://pl-public-data.s3.amazonaws.com/assets_lightning/Llama_pineapple.gif" alt="Lit-LLaMA and pineapple pizza" width="500px"/>
