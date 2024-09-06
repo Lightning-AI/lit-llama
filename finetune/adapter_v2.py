@@ -38,7 +38,7 @@ from lit_llama.adapter_v2 import (
 from lit_llama.tokenizer import Tokenizer
 from scripts.prepare_alpaca import generate_prompt
 from lightning.fabric.strategies import DeepSpeedStrategy
-
+from lit_llama.utils import check_python_packages
 
 eval_interval = 600
 save_interval = 1000
@@ -71,6 +71,8 @@ def main(
     pretrained_path: str = "checkpoints/lit-llama/7B/lit-llama.pth",
     out_dir: str = "out/adapter_v2/alpaca",
 ):
+    
+    check_python_packages()
 
     fabric = L.Fabric(
         accelerator="cuda",

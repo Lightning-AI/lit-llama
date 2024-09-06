@@ -7,6 +7,7 @@ import pickle
 import warnings
 from io import BytesIO
 from pathlib import Path
+from packaging.version import parse as version_parse
 from contextlib import contextmanager
 
 import torch
@@ -496,3 +497,13 @@ class incremental_save:
 
     def __exit__(self, type, value, traceback):
         self.zipfile.write_end_of_file()
+
+
+
+
+def check_python_packages():
+
+    torch_ = RequirementCache('torch>=2.0.0')
+    lit_ = RequirementCache('lightning>=2.1.0')
+    if not bool(torch_) or not bool(lit_):
+        raise ImportError("Wrong package version(s) installed.")

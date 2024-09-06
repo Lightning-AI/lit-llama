@@ -14,7 +14,7 @@ wd = Path(__file__).absolute().parent.parent
 sys.path.append(str(wd))
 
 from lit_llama import LLaMA, Tokenizer
-from lit_llama.utils import quantization
+from lit_llama.utils import quantization, check_python_packages
 from scripts.prepare_alpaca import generate_prompt
 from generate import generate
 
@@ -51,6 +51,8 @@ def main(
         checkpoint_path = Path(f"checkpoints/lit-llama/{model_size}/lit-llama.pth")
     assert checkpoint_path.is_file(), checkpoint_path
     assert tokenizer_path.is_file(), tokenizer_path
+
+    check_python_packages()
 
     precision = "bf16-true" if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else "32-true"
     fabric = L.Fabric(devices=1, precision=precision)
