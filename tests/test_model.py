@@ -84,7 +84,7 @@ def test_to_orig_llama(lit_llama, orig_llama, kv_cache) -> None:
         kv_cache_shape = (batch_size, n_head, block_size, head_size)
         ours_kv_cache = torch.zeros(kv_cache_shape), torch.zeros(kv_cache_shape)
         (llama_block_out, ours_kv_cache) = llama_model.transformer.h[0](
-            llama_embed, llama_rope, llama_mask, seq_len, torch.arange(block_size), ours_kv_cache
+            llama_embed, llama_rope, seq_len, llama_mask, torch.arange(block_size), ours_kv_cache
         )
         ours_k_cache = ours_kv_cache[0].permute(0, 2, 1, 3)
         ours_v_cache = ours_kv_cache[1].permute(0, 2, 1, 3)
@@ -94,7 +94,7 @@ def test_to_orig_llama(lit_llama, orig_llama, kv_cache) -> None:
         orig_llama_block_out = orig_llama_model.layers[0](
             orig_llama_embed, 0, orig_llama_model.freqs_cis[:seq_len], orig_llama_mask
         )
-        (llama_block_out, _) = llama_model.transformer.h[0](llama_embed, llama_rope, llama_mask, seq_len)
+        (llama_block_out, _) = llama_model.transformer.h[0](llama_embed, llama_rope, seq_len, llama_mask)
     assert torch.allclose(orig_llama_block_out, llama_block_out)
 
     expected = orig_llama_model(token_sample, 0)
