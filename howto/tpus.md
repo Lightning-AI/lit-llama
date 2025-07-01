@@ -14,7 +14,7 @@ Now that you are in the machine, let's clone the repository and install the depe
 ```shell
 git clone https://github.com/Lightning-AI/lit-llama
 cd lit-llama
-pip install -r requirements.txt
+pip install -e ".[all]"
 ```
 
 By default, computations will run using the new (and experimental) PjRT runtime. Still, it's recommended that you set the following environment variables

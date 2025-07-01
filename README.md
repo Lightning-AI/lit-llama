@@ -3,15 +3,16 @@
 
 # ⚡ Lit-LLaMA ️
 
-<!--
-<p align="center">
-  <a href="https://www.lightning.ai/">Lightning.ai</a> •
-  <a href="https://lightning.ai/docs/pytorch/stable/">PyTorch Lightning</a> •
-  <a href="https://lightning.ai/docs/fabric/stable/">Fabric</a>
-</p>
--->
-
 ![cpu-tests](https://github.com/lightning-AI/lit-llama/actions/workflows/cpu-tests.yml/badge.svg) [![Build Status](https://dev.azure.com/Lightning-AI/lit%20Models/_apis/build/status%2FLightning-AI.lit-LLaMA?branchName=main)](https://dev.azure.com/Lightning-AI/lit%20Models/_build/latest?definitionId=49&branchName=main) [![license](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/Lightning-AI/lit-llama/blob/master/LICENSE) [![Discord](https://img.shields.io/discord/1077906959069626439?style=plastic)](https://discord.gg/VptPCZkGNa)
+
+<pre>
+<b>⚠️ Warning: Not Actively Maintained</b>
+
+This repository is no longer actively maintained. For a more up-to-date alternative, please visit the LitGPT project:
+<a href="https://github.com/Lightning-AI/litgpt">https://github.com/Lightning-AI/litgpt</a>, which serves as the successor to this repository.
+
+Feel free to explore, reuse, or fork, but be aware that no further updates or support will be provided.
+</pre>
 
 <img src="https://pl-public-data.s3.amazonaws.com/assets_lightning/Llama_pineapple.gif" alt="Lit-LLaMA and pineapple pizza" width="500px"/>
 
@@ -67,7 +68,7 @@ cd lit-llama
 install dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -e ".[all]"
 ```
 
 You are all set! 🎉

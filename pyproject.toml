@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lit-llama"
+version = "0.1.0"
+description = "Implementation of the LLaMA language model"
+license = {text = "Apache-2.0"}
+authors = [
+    { name = "Lightning AI", email = "community@lightning.ai" }
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.0.0",
+    "lightning @ git+https://github.com/Lightning-AI/lightning@master",
+    "sentencepiece",
+    "bitsandbytes",
+]
+classifiers = [
+    "Topic :: Text Processing"
+]
+
+[project.optional-dependencies]
+all = [
+    "tqdm",  # convert_checkpoint.py
+    "numpy <2.0",  # train.py dataset memmap
+    "jsonargparse[signatures]",  # generate.py, convert_checkpoint.py CLI
+    "datasets",  # evaluate.py
+    "zstandard",  # prepare_redpajama.py"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]  # list of folders that contain the packages (["."] by default)
+include = ["lit_llama"]  # package names should match these glob patterns (["*"] by default)
+exclude = []  # exclude packages matching these glob patterns (empty by default)
+namespaces = false  # to disable scanning PEP 420 namespaces (true by default)
+
+
+[tool.pytest.ini_options]
+addopts = [
+    "--strict-markers",
+    "--color=yes",
+    "--disable-pytest-warnings",
+]

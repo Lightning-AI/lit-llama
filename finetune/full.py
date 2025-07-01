@@ -1,3 +1,5 @@
+# Copyright Lightning AI. Licensed under the Apache License 2.0, see LICENSE file.
+
 """
 Instruction-tuning on the Alpaca dataset using a regular finetuning procedure (updating all layers).
 
@@ -23,7 +25,7 @@ sys.path.append(str(wd))
 from generate import generate
 from lit_llama.model import Block, LLaMA, LLaMAConfig
 from lit_llama.tokenizer import Tokenizer
-from lit_llama.utils import save_model_checkpoint
+from lit_llama.utils import save_model_checkpoint, _check_python_packages
 from scripts.prepare_alpaca import generate_prompt
 
 
@@ -53,6 +55,8 @@ def main(
     pretrained_path: str = "checkpoints/lit-llama/7B/lit-llama.pth",
     out_dir: str = "out/full/alpaca",
 ):
+
+    _check_python_packages()
 
     auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
     strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block, limit_all_gathers=True)

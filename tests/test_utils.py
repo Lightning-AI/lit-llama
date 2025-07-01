@@ -1,3 +1,5 @@
+# Copyright Lightning AI. Licensed under the Apache License 2.0, see LICENSE file.
+
 import tempfile
 import pathlib
 
@@ -57,7 +59,7 @@ def test_incremental_write(tmp_path, lit_llama):
         sd["0"] = f.store_early(sd["0"])
         sd["2"] = f.store_early(sd["2"])
         f.save(sd)
-    sd_actual = torch.load(fn)
+    sd_actual = torch.load(fn, weights_only=False)
     assert sd_actual.keys() == sd_expected.keys()
     for k, v_expected in sd_expected.items():
         v_actual = sd_actual[k]
