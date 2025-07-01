@@ -15,7 +15,7 @@ wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 
 from lit_llama import LLaMA, Tokenizer
-from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup, check_python_packages
+from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup, _check_python_packages
 from lit_llama.lora import lora
 from scripts.prepare_alpaca import generate_prompt
 
@@ -83,7 +83,7 @@ def main(
     assert checkpoint_path.is_file()
     assert tokenizer_path.is_file()
 
-    check_python_packages()
+    _check_python_packages()
 
     if quantize is not None:
         raise NotImplementedError("Quantization in LoRA is not supported yet")

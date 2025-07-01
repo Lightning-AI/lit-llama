@@ -21,7 +21,7 @@ from generate import generate
 from lit_llama.lora import mark_only_lora_as_trainable, lora, lora_state_dict
 from lit_llama.model import LLaMA, LLaMAConfig
 from lit_llama.tokenizer import Tokenizer
-from lit_llama.utils import check_python_packages
+from lit_llama.utils import _check_python_packages
 from scripts.prepare_alpaca import generate_prompt
 
 
@@ -53,7 +53,7 @@ def main(
     out_dir: str = "out/lora/alpaca",
 ):
     
-    check_python_packages()
+    _check_python_packages()
 
     fabric = L.Fabric(accelerator="cuda", devices=1, precision="bf16-true")
     fabric.launch()

@@ -16,7 +16,7 @@ sys.path.append(str(wd))
 
 from lit_llama import Tokenizer
 from lit_llama.adapter import LLaMA
-from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup, check_python_packages
+from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup, _check_python_packages
 from scripts.prepare_alpaca import generate_prompt
 
 from datasets import load_dataset
@@ -80,7 +80,7 @@ def main(
     assert checkpoint_path.is_file()
     assert tokenizer_path.is_file()
 
-    check_python_packages()
+    _check_python_packages()
 
     fabric = L.Fabric(accelerator=accelerator, devices=1)
 
