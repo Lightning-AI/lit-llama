@@ -30,7 +30,7 @@ sys.path.append(str(wd))
 from generate import generate
 from lit_llama.adapter import LLaMA, LLaMAConfig, mark_only_adapter_as_trainable, adapter_state_from_state_dict
 from lit_llama.tokenizer import Tokenizer
-from lit_llama.utils import check_python_packages
+from lit_llama.utils import _check_python_packages
 from scripts.prepare_alpaca import generate_prompt
 from lightning.fabric.strategies import DeepSpeedStrategy
 
@@ -68,7 +68,7 @@ def main(
     out_dir: str = "out/adapter/alpaca",
 ):
 
-    check_python_packages()
+    _check_python_packages()
 
     fabric = L.Fabric(
         accelerator="cuda", 

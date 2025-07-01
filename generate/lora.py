@@ -16,7 +16,7 @@ sys.path.append(str(wd))
 from generate import generate
 from lit_llama import Tokenizer, LLaMA
 from lit_llama.lora import lora
-from lit_llama.utils import lazy_load, llama_model_lookup, check_python_packages
+from lit_llama.utils import lazy_load, llama_model_lookup, _check_python_packages
 from scripts.prepare_alpaca import generate_prompt
 
 lora_r = 8
@@ -61,7 +61,7 @@ def main(
     if quantize is not None:
         raise NotImplementedError("Quantization in LoRA is not supported yet")
     
-    check_python_packages()
+    _check_python_packages()
 
     precision = "bf16-true" if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else "32-true"
     fabric = L.Fabric(devices=1, precision=precision)

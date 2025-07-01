@@ -501,7 +501,7 @@ class incremental_save:
 
 
 
-def check_python_packages():
+def _check_python_packages():
 
     torch_ = RequirementCache('torch>=2.0.0')
     lit_ = RequirementCache('lightning>=2.1.0')
