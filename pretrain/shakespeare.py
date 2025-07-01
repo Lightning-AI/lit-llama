@@ -1,3 +1,5 @@
+# Copyright Lightning AI. Licensed under the Apache License 2.0, see LICENSE file.
+
 """
 This script is a placeholder for training LLaMA from scratch.
 Currently, it just trains on the Shakespeare dataset.
@@ -47,7 +49,7 @@ block_size = 1024
 
 def main() -> None:
     auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
-    strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block)
+    strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block, limit_all_gathers=True)
 
     fabric = L.Fabric(accelerator="cuda", devices=4, precision="bf16-mixed", strategy=strategy)
     fabric.launch()
@@ -70,7 +72,7 @@ def main() -> None:
 
     model = fabric.setup_module(model)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2))
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2), foreach=False)
     optimizer = fabric.setup_optimizers(optimizer)
 
     train(fabric, model, optimizer, train_data, val_data)

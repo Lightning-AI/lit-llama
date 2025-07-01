@@ -1,3 +1,5 @@
+# Copyright Lightning AI. Licensed under the Apache License 2.0, see LICENSE file.
+
 """
 Instruction-tuning on the Alpaca dataset using a regular finetuning procedure (updating all layers).
 
@@ -23,7 +25,7 @@ sys.path.append(str(wd))
 from generate import generate
 from lit_llama.model import Block, LLaMA, LLaMAConfig
 from lit_llama.tokenizer import Tokenizer
-from lit_llama.utils import save_model_checkpoint
+from lit_llama.utils import save_model_checkpoint, _check_python_packages
 from scripts.prepare_alpaca import generate_prompt
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
@@ -56,8 +58,10 @@ def main(
     out_dir: str = "out/full/alpaca",
 ):
 
+    _check_python_packages()
+
     auto_wrap_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
-    strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block)
+    strategy = FSDPStrategy(auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block, limit_all_gathers=True)
 
     fabric = L.Fabric(accelerator="cuda", devices=devices, precision="bf16-mixed", strategy=strategy)
     fabric.launch()
@@ -81,7 +85,7 @@ def main(
 
     model = fabric.setup_module(model)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, foreach=False)
     optimizer = fabric.setup_optimizers(optimizer)
 
     train(fabric, model, optimizer, train_data, val_data, out_dir)

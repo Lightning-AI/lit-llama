@@ -1,3 +1,5 @@
+# Copyright Lightning AI. Licensed under the Apache License 2.0, see LICENSE file.
+
 # This mimics GPTQ's evaluation metrics: https://github.com/IST-DASLab/gptq/
 # Thanks to E. Frantar et al GPTQ: Accurate Post-training Compression for GPT, arXiv:2210.17323
 import math
@@ -15,7 +17,7 @@ wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 
 from lit_llama import LLaMA, Tokenizer
-from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup
+from lit_llama.utils import EmptyInitOnDevice, lazy_load, llama_model_lookup, _check_python_packages
 from lit_llama.lora import lora
 from scripts.prepare_alpaca import generate_prompt
 
@@ -82,6 +84,8 @@ def main(
     assert lora_path.is_file()
     assert checkpoint_path.is_file()
     assert tokenizer_path.is_file()
+
+    _check_python_packages()
 
     if quantize is not None:
         raise NotImplementedError("Quantization in LoRA is not supported yet")

@@ -1,3 +1,5 @@
+# Copyright Lightning AI. Licensed under the Apache License 2.0, see LICENSE file.
+
 import os
 import sys
 import math
@@ -69,7 +71,7 @@ def main(
         transformer_auto_wrap_policy, transformer_layer_cls={Block}
     )
     strategy = FSDPStrategy(
-        auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block
+        auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block, limit_all_gathers=True
     )
 
     fabric = L.Fabric(
@@ -110,6 +112,7 @@ def main(
         lr=learning_rate,
         weight_decay=weight_decay,
         betas=(beta1, beta2),
+        foreach=False,
     )
 
     model, optimizer = fabric.setup(model, optimizer)

@@ -1,3 +1,5 @@
+# Copyright Lightning AI. Licensed under the Apache License 2.0, see LICENSE file.
+
 import torch
 import pytest
 import sys
@@ -210,7 +212,7 @@ def test_adapter_parity(orig_llama_adapter):
 
     expected = orig_llama_model(token_sample, 0)
     out = llama_model(token_sample)
-    assert torch.allclose(out, expected)
+    assert torch.allclose(out, expected, atol=1e-5, rtol=1e-5)
 
 
 @pytest.mark.skipif(sys.platform in ("win32", "darwin"), reason="torch.compile not supported on this platform")

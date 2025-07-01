@@ -1,3 +1,5 @@
+# Copyright Lightning AI. Licensed under the Apache License 2.0, see LICENSE file.
+
 """
 Instruction-tuning with LLaMA-Adapter v2 on the Alpaca dataset following the paper
 
@@ -34,11 +36,11 @@ from lit_llama.adapter_v2 import (
     adapter_v2_state_from_state_dict
     )
 from lit_llama.tokenizer import Tokenizer
+from lit_llama.utils import _check_python_packages
 from scripts.prepare_alpaca import generate_prompt
 from lightning.fabric.strategies import DeepSpeedStrategy
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
-
 
 eval_interval = 600
 save_interval = 1000
@@ -71,6 +73,8 @@ def main(
     pretrained_path: str = "checkpoints/lit-llama/7B/lit-llama.pth",
     out_dir: str = "out/adapter_v2/alpaca",
 ):
+    
+    _check_python_packages()
 
     fabric = L.Fabric(
         accelerator="cuda",
