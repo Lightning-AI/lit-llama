@@ -36,9 +36,11 @@ from lit_llama.adapter_v2 import (
     adapter_v2_state_from_state_dict
     )
 from lit_llama.tokenizer import Tokenizer
+from lit_llama.utils import _check_python_packages
 from scripts.prepare_alpaca import generate_prompt
 from lightning.fabric.strategies import DeepSpeedStrategy
-from lit_llama.utils import _check_python_packages
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import Dataset, DataLoader
 
 eval_interval = 600
 save_interval = 1000
@@ -123,6 +125,7 @@ def train(
     train_data: np.ndarray,
     val_data: np.ndarray,
     out_dir: str,
+    group_by_length: bool = False,
 ) -> None:
     """The training loop.
 
@@ -130,8 +133,10 @@ def train(
     """
     step_count = 0
 
-    for iter_num in range(max_iters):
-
+    loader = get_dataloader(fabric, train_data, micro_batch_size, group_by_length)
+    for iter_num, (input_ids, targets) in enumerate(loader):
+        if iter_num >= max_iters:
+            break
         if step_count <= warmup_iters:
             # linear warmup
             lr = learning_rate * step_count / warmup_iters
@@ -229,6 +234,46 @@ def get_batch(fabric: L.Fabric, data: list):
     y = torch.stack([pad_right(x, pad_id=-1) for x in labels])
     x, y = fabric.to_device((x.pin_memory(), y.pin_memory()))
     return x, y
+
+
+class InstructionDataset(Dataset):
+    def __init__(self, data: list):
+        self._data = data
+
+    def __len__(self):
+        return len(self._data)
+
+    def __getitem__(self, i: int):
+        input_ids = self._data[i]["input_ids"].type(torch.int64)
+        labels = self._data[i]["labels"].type(torch.int64)
+        return input_ids, labels
+
+
+def get_dataloader(
+    fabric: L.Fabric,
+    data: torch.Tensor,
+    micro_batch_size: int,
+    group_by_length: bool,
+):
+    from length_grouped_sampler import LengthGroupedSampler
+
+    def collate_fn(batch):
+        x, y = zip(*batch)
+        batch_x = pad_sequence(x, batch_first=True)
+        batch_y = pad_sequence(y, batch_first=True, padding_value=-1)
+        return batch_x, batch_y
+
+    dataset = InstructionDataset(data)
+    sampler = LengthGroupedSampler(micro_batch_size, lengths=[len(x) for x, _ in dataset]) if group_by_length else None
+    loader = DataLoader(
+        dataset,
+        batch_size=micro_batch_size,
+        shuffle=(sampler is None),
+        sampler=sampler,
+        collate_fn=collate_fn,
+        pin_memory=True,
+    )
+    return fabric.setup_dataloaders(loader)
 
 
 def load_datasets(data_dir):
