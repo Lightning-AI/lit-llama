@@ -23,7 +23,7 @@ from scripts.prepare_alpaca import generate_prompt
 
 def main(
     prompt: str = "What food do lamas eat?",
-    input: str = "",
+    input_sentence: str = "",
     adapter_path: Path = Path("out/adapter_v2/alpaca/lit-llama-adapter-finetuned.pth"),
     pretrained_path: Path = Path("checkpoints/lit-llama/7B/lit-llama.pth"),
     tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
@@ -32,7 +32,7 @@ def main(
     top_k: int = 200,
     temperature: float = 0.8,
 ) -> None:
-    """Generates a response based on a given instruction and an optional input.
+    """Generates a response based on a given instruction and an optional input_sentence.
     This script will only work with checkpoints from the instruction-tuned LLaMA-Adapter model.
     See `finetune_adapter_v2.py`.
 
@@ -40,7 +40,7 @@ def main(
         prompt: The prompt/instruction (Alpaca style).
         adapter_path: Path to the checkpoint with trained adapter weights, which are the output of
             `finetune_adapter_v2.py`.
-        input: Optional input (Alpaca style).
+        input_sentence: Optional input_sentence (Alpaca style).
         pretrained_path: The path to the checkpoint with pretrained LLaMA weights.
         tokenizer_path: The tokenizer path to load.
         quantize: Whether to quantize the model and using which method:
@@ -80,7 +80,7 @@ def main(
     model = fabric.setup(model)
 
     tokenizer = Tokenizer(tokenizer_path)
-    sample = {"instruction": prompt, "input": input}
+    sample = {"instruction": prompt, "input": input_sentence}
     prompt = generate_prompt(sample)
     encoded = tokenizer.encode(prompt, bos=True, eos=False, device=model.device)
     prompt_length = encoded.size(0)

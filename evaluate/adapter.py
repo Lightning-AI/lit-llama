@@ -122,7 +122,7 @@ def main(
         test_string = load_eval_data(dsname)
 
         if instruction_tuning:
-            sample = {"instruction": test_string, "input": input}
+            sample = {"instruction": test_string, "input": ""}
             test_string = generate_prompt(sample)
 
         encoded_text = tokenizer.encode(

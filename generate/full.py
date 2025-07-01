@@ -71,7 +71,7 @@ def main(
     model = fabric.setup(model)
 
     tokenizer = Tokenizer(tokenizer_path)
-    sample = {"instruction": prompt, "input": input}
+    sample = {"instruction": prompt, "input": ""}
     prompt = generate_prompt(sample)
     encoded = tokenizer.encode(prompt, bos=True, eos=False, device=fabric.device)
     prompt_length = encoded.size(0)
