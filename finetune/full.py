@@ -34,7 +34,7 @@ eval_interval = 1000
 save_interval = 1000
 eval_iters = 100
 log_interval = 100
-devices = 4
+devices = torch.cuda.device_count()
 
 # Hyperparameters
 learning_rate = 3e-5

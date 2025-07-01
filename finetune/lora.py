@@ -57,7 +57,8 @@ def main(
     
     _check_python_packages()
 
-    fabric = L.Fabric(accelerator="cuda", devices=1, precision="bf16-true")
+    devices = torch.cuda.device_count()
+    fabric = L.Fabric(accelerator="cuda", devices=devices, precision="bf16-true")
     fabric.launch()
     fabric.seed_everything(1337 + fabric.global_rank)
 
