@@ -76,6 +76,17 @@ if bnb is not None:
             setattr(self.weight, "CB", CB)
             setattr(self.weight, "SCB", SCB)
 
+        def dequantize(self, dtype):
+            if dtype not in [torch.bfloat16, torch.float16, torch.float32]:
+                raise ValueError(f"Invalid dtype: {dtype}. Allowed dtypes are: bfloat16, float16, float32")
+            weight_CB = self.weight.CB
+            weight_SCB = self.weight.SCB
+            # Modify SBC shape if it doesn't match CB
+            if weight_CB.shape[1] != weight_SCB.shape[0]:
+                weight_SCB = weight_SCB.view(weight_SCB.shape[0], 1)
+            result = (weight_CB * weight_SCB) / 127
+            result = result.to(dtype)
+            return result
 
 if triton is not None:
     # This is adapted from the OpenAI Triton matmul example.

@@ -67,7 +67,7 @@ def main(
 
         with fabric.init_module(empty_init=True), quantization(mode=quantize):
             model = LLaMA.from_name(name)
-            add_adapter_v2_parameters_to_linear_layers(model)
+            add_adapter_v2_parameters_to_linear_layers(model, dtype=dtype, quantize=quantize)
 
         # 1. Load the pretrained weights
         model.load_state_dict(pretrained_checkpoint, strict=False)
@@ -86,10 +86,18 @@ def main(
     prompt_length = encoded.size(0)
 
     t0 = time.perf_counter()
-    y = generate(model, encoded, max_new_tokens, temperature=temperature, top_k=top_k, eos_id=tokenizer.eos_id)
+    y = generate(
+        model,
+        idx=encoded,
+        max_seq_length=max_new_tokens,
+        max_new_tokens=max_new_tokens,
+        temperature=temperature,
+        top_k=top_k,
+        eos_id=tokenizer.eos_id
+    )
     t = time.perf_counter() - t0
 
-    model.reset_cache()
+    model.reset_cache()  # technically only needed if max_seq_length varies
     output = tokenizer.decode(y)
     output = output.split("### Response:")[1].strip()
     print(output)
